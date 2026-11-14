@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { NoteSchema } from "./index";
+import { NoteSchema, slugify } from "./index";
 
 describe("NoteSchema", () => {
   it("parses a valid note", () => {
@@ -8,5 +8,20 @@ describe("NoteSchema", () => {
   });
   it("rejects a note without id", () => {
     expect(() => NoteSchema.parse({ title: "T", body: "B" })).toThrow();
+  });
+});
+
+describe("slugify", () => {
+  it("dash-separates words", () => {
+    expect(slugify("Hello World")).toBe("hello-world");
+  });
+  it("strips non-ascii characters and collapses dashes", () => {
+    expect(slugify("Ärger & Straße!")).toBe("rger-strae");
+  });
+  it("clamps long titles to 80 characters", () => {
+    expect(slugify("a".repeat(120))).toHaveLength(80);
+  });
+  it("trims leading and trailing dashes", () => {
+    expect(slugify("  --Hello--  ")).toBe("hello");
   });
 });

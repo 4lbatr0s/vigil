@@ -3,7 +3,7 @@ import { readdir, readFile, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import matter from "gray-matter";
-import type { Note } from "@vigil/shared";
+import { slugify, type Note } from "@vigil/shared";
 import { AppError } from "./errors";
 
 const MODULE_DIR = path.dirname(fileURLToPath(import.meta.url));
@@ -18,17 +18,7 @@ export function vaultDir(): string {
 
 const ID_PATTERN = /^[a-z0-9][a-z0-9-]*$/;
 
-/** Lowercase, dash-separated, [a-z0-9-] only, max 80 chars. */
-export function slugify(title: string): string {
-  return title
-    .toLowerCase()
-    .replace(/\s+/g, "-")
-    .replace(/[^a-z0-9-]/g, "")
-    .replace(/-+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 80)
-    .replace(/-+$/g, "");
-}
+export { slugify };
 
 /** Throws 400 for anything that is not an already-slugified id. */
 export function validateId(id: string): string {
