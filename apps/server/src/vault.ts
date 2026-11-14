@@ -183,3 +183,17 @@ export async function deleteNote(id: string): Promise<void> {
   }
   await unlink(file);
 }
+
+/** Raw file text of a note, or null when it does not exist. Used for snapshots. */
+export async function readNoteFile(id: string): Promise<string | null> {
+  const file = notePath(id);
+  return existsSync(file) ? readFile(file, "utf8") : null;
+}
+
+/** Put raw file text back (undo). Atomic, like every other write. */
+export async function restoreNoteFile(id: string, raw: string): Promise<Note> {
+  const file = notePath(id);
+  ensureVaultDir();
+  await writeAtomic(file, raw);
+  return readNote(file, id);
+}

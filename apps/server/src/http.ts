@@ -10,6 +10,9 @@ import {
   removeNote,
   searchNotes,
 } from "./index-db";
+import { AgentSchema } from "@vigil/shared";
+import { startRun, undoRun } from "./runs";
+import { getAgent, getRun, listAgents, listEvents, listRuns, putAgent } from "./state-db";
 import { createNote, deleteNote, getNote as vaultGetNote, slugify, updateNote } from "./vault";
 
 const MAX_BODY_BYTES = 2 * 1024 * 1024;
@@ -102,6 +105,76 @@ const routes: { method: string; pattern: RegExp; keys: string[]; handler: Handle
   },
   {
     method: "GET",
+    pattern: /^\/api\/agents$/,
+    keys: [],
+    handler: (_req, res) => {
+      send(res, 200, { data: listAgents() });
+    },
+  },
+  {
+    method: "GET",
+    pattern: /^\/api\/agents\/([^/]+)$/,
+    keys: ["name"],
+    handler: (_req, res, params) => {
+      const agent = getAgent(params["name"] ?? "");
+      if (!agent) throw new AppError("agent-not-found", `Agent not found: ${params["name"]}`, 404);
+      send(res, 200, { data: agent });
+    },
+  },
+  {
+    method: "PUT",
+    pattern: /^\/api\/agents\/([^/]+)$/,
+    keys: ["name"],
+    handler: async (req, res, params) => {
+      const parsed = AgentSchema.safeParse(await readJsonBody(req));
+      if (!parsed.success) {
+        throw new AppError("invalid-body", `Invalid agent: ${parsed.error.issues[0]?.message ?? "bad shape"}`, 400);
+      }
+      if (parsed.data.name !== params["name"]) {
+        throw new AppError("invalid-body", "Agent name in the body must match the URL", 400);
+      }
+      send(res, 200, { data: putAgent(parsed.data) });
+    },
+  },
+  {
+    method: "POST",
+    pattern: /^\/api\/agents\/([^/]+)\/run$/,
+    keys: ["name"],
+    handler: async (req, res, params) => {
+      const raw = await readOptionalJsonBody(req);
+      const parsed = z.object({ task: z.string().min(1).optional() }).safeParse(raw);
+      if (!parsed.success) throw new AppError("invalid-body", "Body must be { task?: string }", 400);
+      send(res, 202, { data: startRun(params["name"] ?? "", parsed.data.task) });
+    },
+  },
+  {
+    method: "GET",
+    pattern: /^\/api\/runs$/,
+    keys: [],
+    handler: (_req, res, _params, url) => {
+      send(res, 200, { data: listRuns(url.searchParams.get("agent") ?? undefined) });
+    },
+  },
+  {
+    method: "GET",
+    pattern: /^\/api\/runs\/([^/]+)$/,
+    keys: ["id"],
+    handler: (_req, res, params) => {
+      const run = getRun(params["id"] ?? "");
+      if (!run) throw new AppError("run-not-found", `Run not found: ${params["id"]}`, 404);
+      send(res, 200, { data: { run, events: listEvents(run.id) } });
+    },
+  },
+  {
+    method: "POST",
+    pattern: /^\/api\/runs\/([^/]+)\/undo$/,
+    keys: ["id"],
+    handler: async (_req, res, params) => {
+      send(res, 200, { data: await undoRun(params["id"] ?? "") });
+    },
+  },
+  {
+    method: "GET",
     pattern: /^\/api\/search$/,
     keys: [],
     handler: (_req, res, _params, url) => {
@@ -129,6 +202,24 @@ function send(res: ServerResponse, status: number, payload: unknown): void {
     "content-length": Buffer.byteLength(body),
   });
   res.end(body);
+}
+
+/** Like `readJsonBody`, but an empty body is fine and means `{}`. */
+async function readOptionalJsonBody(req: IncomingMessage): Promise<unknown> {
+  const chunks: Buffer[] = [];
+  let size = 0;
+  for await (const chunk of req) {
+    size += (chunk as Buffer).length;
+    if (size > MAX_BODY_BYTES) throw new AppError("payload-too-large", "Request body exceeds 2MB", 413);
+    chunks.push(chunk as Buffer);
+  }
+  const text = Buffer.concat(chunks).toString("utf8");
+  if (text.trim().length === 0) return {};
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new AppError("invalid-body", "Request body is not valid JSON", 400);
+  }
 }
 
 async function readJsonBody(req: IncomingMessage): Promise<unknown> {

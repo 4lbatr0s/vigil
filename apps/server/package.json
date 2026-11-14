@@ -9,6 +9,10 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@langchain/core": "1.4.1",
+    "@langchain/langgraph": "1.7.4",
+    "@langchain/ollama": "1.3.0",
+    "@langchain/openai": "1.8.4",
     "@vigil/shared": "workspace:*",
     "better-sqlite3": "^12.0.0",
     "chokidar": "^4.0.0",
