@@ -8,7 +8,7 @@ Run from the repo root unless noted. `CHECK` means: `pnpm typecheck && pnpm test
 Vault store, SQLite index, watcher, notes API, search, editor UI, markdown preview, local-only access (ADR-0007).
 Acceptance: `CHECK` passes; `pnpm --filter @vigil/server dev` then `curl -s localhost:3001/api/health`.
 
-## M1: One agent, run by hand
+## M1: One agent, run by hand (done 2026-11-14, server only; ADR-0009)
 - `@vigil/shared`: `Agent` and `Run` zod schemas (name, system prompt, tool allowlist, trigger, token budget).
 - Provider adapter: OpenAI-compatible base URL + key, native Ollama (ADR-0003). Keys come from env.
 - Tools: `read_notes`, `write_note` (author = agent, snapshot first). No web fetch yet.
@@ -45,3 +45,8 @@ Acceptance: `docker build` and `docker run -v vault:/vault` serve the UI; `curl`
 
 ## Parked until M2 is shown
 Subfolders in the vault (ids are flat today), `tags` UI, command palette depth, soft monthly cost cap.
+
+## How to run an agent today (M1)
+Set the model (env only, never in notes): `VIGIL_LLM_PROVIDER=ollama|openai`, `VIGIL_LLM_MODEL`, and for `openai` also `VIGIL_LLM_BASE_URL` and `VIGIL_LLM_API_KEY`. Then:
+`PUT /api/agents/<name>` (name, systemPrompt, tools: read_notes/write_notes, tokenBudget), `POST /api/agents/<name>/run`, `GET /api/runs/<id>` (log), `POST /api/runs/<id>/undo`.
+Run state lives in `data/state.db`; pre-write copies in `data/snapshots/`. There is no agents screen until M2.
