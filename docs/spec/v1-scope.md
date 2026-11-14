@@ -15,7 +15,7 @@ Vigil is a self-hosted, single-user notes app where AI agents are first-class ci
 10. Agent writes: free by default + automatic snapshot before every agent write (one-click undo) + run log. Optional per-agent strict mode = approve-before-write queue.
 11. Flagship demo: the Morning Digest agent — cron at 07:00, reads yesterday's notes, writes a digest note.
 12. Graph: Sigma.js; notes as nodes; plain link edges + dashed agent↔note edges; amber glow by recency.
-13. Stack: TypeScript monorepo — apps/web (SvelteKit 2 + Svelte 5), apps/server (Node), packages/shared (zod types). CodeMirror 6. better-sqlite3 + Drizzle. node-cron in-process. Single Docker image, one volume for the vault.
+13. Stack: TypeScript monorepo — apps/web (SvelteKit 2 + Svelte 5), apps/server (Node), packages/shared (zod types). CodeMirror 6. better-sqlite3 (plain SQL; Drizzle dropped, see ADR-0008). node-cron in-process. Single Docker image, one volume for the vault.
 
 ## v1 cuts (deliberate)
 Native desktop/mobile apps (v2), plugin system, sharing/collaboration, multi-vault, theme marketplace, billing, Notion-style databases.
