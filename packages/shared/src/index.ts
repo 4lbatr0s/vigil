@@ -27,3 +27,61 @@ export function slugify(title: string): string {
     .slice(0, 80)
     .replace(/-+$/g, "");
 }
+
+// ---- Agents (ADR-0004, ADR-0009) ----
+
+export const ToolGrantSchema = z.enum(["read_notes", "write_notes"]);
+export type ToolGrant = z.infer<typeof ToolGrantSchema>;
+
+export const AgentNameSchema = z.string().regex(/^[a-z0-9][a-z0-9-]{0,59}$/, "lowercase letters, digits and dashes");
+
+export const AgentSchema = z.object({
+  name: AgentNameSchema,
+  systemPrompt: z.string().min(1),
+  /** Tool allowlist. An empty list means a model with no tools. */
+  tools: z.array(ToolGrantSchema).default([]),
+  /** M1 runs agents by hand; cron and heartbeat triggers arrive in M2 and M3. */
+  trigger: z.enum(["manual"]).default("manual"),
+  /** Per-run token cap (input + output, summed over every model call). */
+  tokenBudget: z.number().int().positive().max(1_000_000).default(20_000),
+  /** Overrides VIGIL_LLM_MODEL for this agent. */
+  model: z.string().min(1).optional(),
+  /** User message for a run that is started without one. */
+  defaultTask: z.string().default("Do your job now."),
+});
+export type Agent = z.infer<typeof AgentSchema>;
+
+export const RunStatusSchema = z.enum([
+  "running",
+  "succeeded",
+  "failed",
+  "budget-exceeded",
+  "step-limit",
+  "interrupted",
+]);
+export type RunStatus = z.infer<typeof RunStatusSchema>;
+
+export const RunSchema = z.object({
+  id: z.string(),
+  agent: z.string(),
+  status: RunStatusSchema,
+  startedAt: z.string(),
+  finishedAt: z.string().nullable(),
+  tokensUsed: z.number().int(),
+  tokenBudget: z.number().int(),
+  error: z.string().nullable(),
+  /** Notes this run created or changed (ids), for the undo button. */
+  touched: z.array(z.string()),
+  undone: z.boolean(),
+});
+export type Run = z.infer<typeof RunSchema>;
+
+export const RunEventSchema = z.object({
+  seq: z.number().int(),
+  at: z.string(),
+  kind: z.enum(["prompt", "model", "tool-call", "tool-result", "tool-denied", "note", "stop"]),
+  /** Short human-readable text. Never holds an API key. */
+  text: z.string(),
+  data: z.record(z.string(), z.unknown()).default({}),
+});
+export type RunEvent = z.infer<typeof RunEventSchema>;
