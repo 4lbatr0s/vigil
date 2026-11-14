@@ -1,9 +1,10 @@
+import { randomBytes } from "node:crypto";
 import { existsSync, mkdirSync } from "node:fs";
-import { readdir, readFile, unlink, writeFile } from "node:fs/promises";
+import { readdir, readFile, rename, stat, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import matter from "gray-matter";
-import { slugify, type Note } from "@vigil/shared";
+import { slugify, type Author, type Note } from "@vigil/shared";
 import { AppError } from "./errors";
 
 const MODULE_DIR = path.dirname(fileURLToPath(import.meta.url));
@@ -32,27 +33,42 @@ function notePath(id: string): string {
   return path.join(vaultDir(), `${validateId(id)}.md`);
 }
 
-function nowIso(): string {
-  return new Date().toISOString();
+/** `# Heading` on the first heading line, used when the file has no frontmatter title. */
+function firstHeading(body: string): string | null {
+  const match = /^#[ \t]+(.+?)[ \t]*#*[ \t]*$/m.exec(body);
+  return match?.[1]?.trim() || null;
 }
 
+function parseTags(value: unknown): string[] {
+  const raw = Array.isArray(value) ? value : typeof value === "string" ? value.split(/[,\s]+/) : [];
+  return raw.filter((t): t is string => typeof t === "string" && t.trim().length > 0).map((t) => t.trim());
+}
+
+/** Frontmatter holds id, title, tags and author. Recency is the file's mtime, never stored. */
 function serialize(note: Note): string {
-  // gray-matter writes "---\n<yaml>---\n\n" + content.
-  return matter.stringify("", {
-    id: note.id,
-    title: note.title,
-    updatedAt: note.updatedAt,
-  }) + note.body;
+  const data: Record<string, unknown> = { id: note.id, title: note.title };
+  if (note.tags.length > 0) data["tags"] = note.tags;
+  if (note.author === "agent") data["author"] = "agent";
+  // gray-matter writes "---\n<yaml>---\n" for an empty body.
+  return matter.stringify("", data) + note.body;
 }
 
-function parse(raw: string, fallbackId: string): Note {
+/** Files written by hand or by Obsidian may have no frontmatter: fall back to heading, then id. */
+function parse(raw: string, fallbackId: string, mtime: Date): Note {
   const parsed = matter(raw);
   const data = parsed.data as Record<string, unknown>;
+  const body = parsed.content.replace(/^\n/, "");
+  const title =
+    typeof data["title"] === "string" && data["title"].trim()
+      ? data["title"]
+      : (firstHeading(body) ?? fallbackId);
   return {
     id: typeof data["id"] === "string" ? data["id"] : fallbackId,
-    title: typeof data["title"] === "string" ? data["title"] : "",
-    body: parsed.content.replace(/^\n/, ""),
-    updatedAt: typeof data["updatedAt"] === "string" ? data["updatedAt"] : new Date(0).toISOString(),
+    title,
+    body,
+    tags: parseTags(data["tags"]),
+    author: data["author"] === "agent" ? "agent" : "human",
+    updatedAt: mtime.toISOString(),
   };
 }
 
@@ -62,7 +78,38 @@ function ensureVaultDir(): string {
   return dir;
 }
 
-export async function createNote(input: { title: string; body: string }): Promise<Note> {
+/**
+ * Write to a temp file and rename it into place, so a crash never leaves a half-written note.
+ * The temp name ends in `.tmp`, never `.md`, so the watcher and `listNotes` ignore it.
+ */
+async function writeAtomic(file: string, content: string): Promise<Date> {
+  const tmp = `${file}.${randomBytes(4).toString("hex")}.tmp`;
+  try {
+    await writeFile(tmp, content, "utf8");
+    await rename(tmp, file);
+  } catch (err) {
+    await unlink(tmp).catch(() => undefined); // best-effort cleanup; the original error is rethrown
+    throw err;
+  }
+  return (await stat(file)).mtime;
+}
+
+async function readNote(file: string, id: string): Promise<Note> {
+  const [raw, info] = await Promise.all([readFile(file, "utf8"), stat(file)]);
+  return parse(raw, id, info.mtime);
+}
+
+export type WriteOptions = {
+  /** Who is writing. The API writes as a human; the agent runtime passes "agent". */
+  author?: Author;
+  /** Refuse with 409 when the file changed since the caller read it (its `updatedAt`). */
+  expectedUpdatedAt?: string;
+};
+
+export async function createNote(
+  input: { title: string; body: string; tags?: string[] },
+  options: WriteOptions = {},
+): Promise<Note> {
   const id = validateId(slugify(input.title));
   const file = notePath(id);
   if (existsSync(file)) {
@@ -73,10 +120,12 @@ export async function createNote(input: { title: string; body: string }): Promis
     id,
     title: input.title,
     body: input.body,
-    updatedAt: nowIso(),
+    tags: input.tags ?? [],
+    author: options.author ?? "human",
+    updatedAt: "",
   };
-  await writeFile(file, serialize(note), "utf8");
-  return note;
+  const mtime = await writeAtomic(file, serialize(note));
+  return { ...note, updatedAt: mtime.toISOString() };
 }
 
 export async function getNote(id: string): Promise<Note> {
@@ -84,26 +133,36 @@ export async function getNote(id: string): Promise<Note> {
   if (!existsSync(file)) {
     throw new AppError("note-not-found", `Note not found: ${id}`, 404);
   }
-  return parse(await readFile(file, "utf8"), id);
+  return readNote(file, id);
 }
 
 export async function updateNote(
   id: string,
-  input: { title?: string; body: string },
+  input: { title?: string; body: string; tags?: string[] },
+  options: WriteOptions = {},
 ): Promise<Note> {
   const file = notePath(id);
   if (!existsSync(file)) {
     throw new AppError("note-not-found", `Note not found: ${id}`, 404);
   }
-  const existing = parse(await readFile(file, "utf8"), id);
+  const existing = await readNote(file, id);
+  if (options.expectedUpdatedAt !== undefined && options.expectedUpdatedAt !== existing.updatedAt) {
+    throw new AppError(
+      "note-conflict",
+      `Note ${id} changed since you opened it (now ${existing.updatedAt}). Reload before saving.`,
+      409,
+    );
+  }
   const note: Note = {
     id,
     title: input.title ?? existing.title,
     body: input.body,
-    updatedAt: nowIso(),
+    tags: input.tags ?? existing.tags,
+    author: options.author ?? "human",
+    updatedAt: "",
   };
-  await writeFile(file, serialize(note), "utf8");
-  return note;
+  const mtime = await writeAtomic(file, serialize(note));
+  return { ...note, updatedAt: mtime.toISOString() };
 }
 
 export async function listNotes(): Promise<Note[]> {
@@ -112,9 +171,7 @@ export async function listNotes(): Promise<Note[]> {
   const files = (await readdir(dir)).filter((f) => f.endsWith(".md"));
   const notes: Note[] = [];
   for (const file of files) {
-    const id = file.slice(0, -3);
-    const raw = await readFile(path.join(dir, file), "utf8");
-    notes.push(parse(raw, id));
+    notes.push(await readNote(path.join(dir, file), file.slice(0, -3)));
   }
   return notes.sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : a.updatedAt > b.updatedAt ? -1 : 0));
 }

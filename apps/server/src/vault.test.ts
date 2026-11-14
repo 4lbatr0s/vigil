@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readdir, readFile, rm, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { AppError } from "./errors";
@@ -100,5 +100,49 @@ describe("vault store", () => {
     await createNote({ title: "Gone", body: "x" });
     await deleteNote("gone");
     await expect(getNote("gone")).rejects.toMatchObject({ code: "note-not-found" });
+  });
+});
+
+describe("vault details", () => {
+  it("uses the first heading, then the file name, when there is no frontmatter title", async () => {
+    await writeFile(path.join(dir, "from-heading.md"), "# Real Title\n\ntext\n", "utf8");
+    await writeFile(path.join(dir, "bare.md"), "just text\n", "utf8");
+    expect((await getNote("from-heading")).title).toBe("Real Title");
+    expect((await getNote("bare")).title).toBe("bare");
+  });
+
+  it("round-trips tags and records the author", async () => {
+    const made = await createNote({ title: "Tagged", body: "x", tags: ["a", "b"] }, { author: "agent" });
+    expect(made).toMatchObject({ tags: ["a", "b"], author: "agent" });
+    expect(await getNote("tagged")).toEqual(made);
+    const raw = await readFile(path.join(dir, "tagged.md"), "utf8");
+    expect(raw).toContain("author: agent");
+    const human = await updateNote("tagged", { body: "y" });
+    expect(human).toMatchObject({ author: "human", tags: ["a", "b"] });
+  });
+
+  it("takes updatedAt from the file's mtime, so outside edits count", async () => {
+    await createNote({ title: "Edited", body: "x" });
+    const when = new Date("2026-01-02T03:04:05.000Z");
+    await utimes(path.join(dir, "edited.md"), when, when);
+    expect((await getNote("edited")).updatedAt).toBe(when.toISOString());
+  });
+
+  it("leaves no temp files behind", async () => {
+    await createNote({ title: "Clean", body: "x" });
+    await updateNote("clean", { body: "y" });
+    expect(await readdir(dir)).toEqual(["clean.md"]);
+  });
+
+  it("refuses to overwrite a note that changed since it was read", async () => {
+    const first = await createNote({ title: "Race", body: "x" });
+    const later = new Date(new Date(first.updatedAt).getTime() + 5000);
+    await utimes(path.join(dir, "race.md"), later, later);
+    await expect(
+      updateNote("race", { body: "mine" }, { expectedUpdatedAt: first.updatedAt }),
+    ).rejects.toMatchObject({ code: "note-conflict", status: 409 });
+    expect((await getNote("race")).body).toBe("x");
+    const ok = await updateNote("race", { body: "mine" }, { expectedUpdatedAt: later.toISOString() });
+    expect(ok.body).toBe("mine");
   });
 });

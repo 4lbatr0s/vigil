@@ -21,8 +21,10 @@ export function startWatcher(): { close(): Promise<void> } {
     if (existing) clearTimeout(existing);
     const timer = setTimeout(() => {
       timers.delete(filePath);
-      void run().catch(() => {
-        // Reconciliation failures must not kill the watcher; the next event retries.
+      void run().catch((err: unknown) => {
+        // A failure must not kill the watcher; the next event retries. Say what failed.
+        const reason = err instanceof Error ? err.message : String(err);
+        console.error(`vigil-server could not reconcile ${path.basename(filePath)}: ${reason}`);
       });
     }, DEBOUNCE_MS);
     timers.set(filePath, timer);

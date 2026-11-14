@@ -29,11 +29,18 @@ describe("api client", () => {
   });
 
   it("sends a PUT body as JSON", async () => {
-    const spy = stubFetch({ data: { id: "hello", title: "Hello", body: "b", updatedAt: "t" } });
+    const spy = stubFetch({ data: { id: "hello", title: "Hello", body: "b", tags: [], author: "human", updatedAt: "t" } });
     await putNote("hello", { title: "Hello", body: "b" });
-    const [url, init] = spy.mock.calls[0] as [string, RequestInit];
+    const [url, init] = spy.mock.calls[0] as unknown as [string, RequestInit];
     expect(url).toBe("/api/notes/hello");
     expect(init.method).toBe("PUT");
     expect(JSON.parse(String(init.body))).toEqual({ title: "Hello", body: "b" });
+  });
+
+  it("sends the base updatedAt so the server can detect a conflict", async () => {
+    const spy = stubFetch({ data: { id: "hello", title: "Hello", body: "b", tags: [], author: "human", updatedAt: "t2" } });
+    await putNote("hello", { title: "Hello", body: "b", baseUpdatedAt: "t1" });
+    const [, init] = spy.mock.calls[0] as unknown as [string, RequestInit];
+    expect(JSON.parse(String(init.body))).toMatchObject({ baseUpdatedAt: "t1" });
   });
 });

@@ -1,9 +1,16 @@
 import { z } from "zod";
 
+/** Who wrote the note last. Drives the amber "agent-written" look (ADR-0005). */
+export const AuthorSchema = z.enum(["human", "agent"]);
+export type Author = z.infer<typeof AuthorSchema>;
+
 export const NoteSchema = z.object({
   id: z.string(),
   title: z.string(),
   body: z.string(),
+  tags: z.array(z.string()).default([]),
+  author: AuthorSchema.default("human"),
+  /** File modification time, so edits made outside the API (Obsidian, agents) still count. */
   updatedAt: z.string(),
 });
 

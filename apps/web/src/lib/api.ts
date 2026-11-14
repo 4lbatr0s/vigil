@@ -11,7 +11,11 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
 
 export const listNotes = () => request<Note[]>("/api/notes");
 export const getNote = (id: string) => request<Note>(`/api/notes/${id}`);
-export const putNote = (id: string, input: { title: string; body: string }) =>
+/** `baseUpdatedAt` is the `updatedAt` you last saw; the server answers 409 if the note moved on. */
+export const putNote = (
+  id: string,
+  input: { title: string; body: string; tags?: string[]; baseUpdatedAt?: string },
+) =>
   request<Note>(`/api/notes/${id}`, {
     method: "PUT",
     headers: { "content-type": "application/json" },

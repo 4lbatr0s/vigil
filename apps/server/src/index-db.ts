@@ -4,12 +4,46 @@ import Database from "better-sqlite3";
 import type { Note } from "@vigil/shared";
 import { REPO_ROOT, listNotes as vaultListNotes, slugify } from "./vault";
 
-export type NoteRow = { id: string; title: string; body: string; updatedAt: string };
+export type NoteRow = Note;
 export type SearchHit = { id: string; title: string; snippet: string };
 
 export function dbPath(): string {
   const configured = process.env.DB_PATH;
   return configured ? path.resolve(configured) : path.join(REPO_ROOT, "data", "index.db");
+}
+
+/**
+ * Bump when a table changes. The index is disposable (ADR-0001), so a different version drops every
+ * table and the server rebuilds from the vault on start (`isEmpty` then `rebuildAll`).
+ */
+const SCHEMA_VERSION = 2;
+
+function migrate(db: Database.Database): void {
+  const version = db.pragma("user_version", { simple: true }) as number;
+  if (version !== SCHEMA_VERSION) {
+    db.exec("DROP TABLE IF EXISTS notes; DROP TABLE IF EXISTS notes_body; DROP TABLE IF EXISTS links; DROP TABLE IF EXISTS notes_fts;");
+  }
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS notes (
+      id TEXT PRIMARY KEY,
+      title TEXT,
+      updated_at TEXT,
+      author TEXT NOT NULL DEFAULT 'human',
+      tags TEXT NOT NULL DEFAULT '[]'
+    );
+    CREATE TABLE IF NOT EXISTS notes_body (
+      id TEXT PRIMARY KEY,
+      body TEXT
+    );
+    -- dst may name a note that does not exist yet: a dangling link still draws a graph edge.
+    CREATE TABLE IF NOT EXISTS links (
+      src TEXT,
+      dst TEXT
+    );
+    CREATE INDEX IF NOT EXISTS links_src ON links(src);
+    CREATE INDEX IF NOT EXISTS links_dst ON links(dst);
+  `);
+  if (version !== SCHEMA_VERSION) db.pragma(`user_version = ${SCHEMA_VERSION}`);
 }
 
 let current: { key: string; db: Database.Database; fts: boolean } | null = null;
@@ -22,23 +56,7 @@ function open(): { db: Database.Database; fts: boolean } {
   if (!existsSync(path.dirname(file))) mkdirSync(path.dirname(file), { recursive: true });
   const db = new Database(file);
   db.pragma("journal_mode = WAL");
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS notes (
-      id TEXT PRIMARY KEY,
-      title TEXT,
-      updated_at TEXT
-    );
-    CREATE TABLE IF NOT EXISTS notes_body (
-      id TEXT PRIMARY KEY,
-      body TEXT
-    );
-    CREATE TABLE IF NOT EXISTS links (
-      src TEXT,
-      dst TEXT
-    );
-    CREATE INDEX IF NOT EXISTS links_src ON links(src);
-    CREATE INDEX IF NOT EXISTS links_dst ON links(dst);
-  `);
+  migrate(db);
   let fts = true;
   try {
     // Standalone FTS5 table (not contentless) so rows can be replaced per note.
@@ -57,23 +75,22 @@ export function closeDb(): void {
   }
 }
 
-/** Naive link extraction: [[wikilink]] and [text](target). */
-export function extractLinks(body: string, knownIds: string[]): string[] {
+const ID_LIKE = /^[a-z0-9][a-z0-9-]*$/;
+
+/** Naive link extraction: [[wikilink]] and [text](target). Targets need not exist yet. */
+export function extractLinks(body: string): string[] {
   const found = new Set<string>();
-  const known = new Set(knownIds);
-  const wiki = /\[\[([^\]|]+)(?:\|[^\]]*)?\]\]/g;
+  const wiki = /\[\[([^\]|#]+)(?:#[^\]|]*)?(?:\|[^\]]*)?\]\]/g;
   for (const match of body.matchAll(wiki)) {
-    const raw = (match[1] ?? "").trim();
-    if (!raw) continue;
-    const slug = slugify(raw);
-    if (known.has(slug)) found.add(slug);
+    const slug = slugify((match[1] ?? "").trim());
+    if (slug) found.add(slug);
   }
   const md = /\[[^\]]*\]\(([^)\s]+)\)/g;
   for (const match of body.matchAll(md)) {
     const raw = (match[1] ?? "").trim();
     if (!raw || raw.includes("#")) continue;
     const candidate = raw.replace(/^\.\//, "").replace(/\.md$/, "");
-    if (known.has(candidate)) found.add(candidate);
+    if (ID_LIKE.test(candidate)) found.add(candidate);
   }
   return [...found];
 }
@@ -81,8 +98,8 @@ export function extractLinks(body: string, knownIds: string[]): string[] {
 export function reindexNote(note: Note): void {
   const { db, fts } = open();
   db.prepare(
-    "INSERT INTO notes (id, title, updated_at) VALUES (?, ?, ?) ON CONFLICT(id) DO UPDATE SET title = excluded.title, updated_at = excluded.updated_at",
-  ).run(note.id, note.title, note.updatedAt);
+    "INSERT INTO notes (id, title, updated_at, author, tags) VALUES (?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET title = excluded.title, updated_at = excluded.updated_at, author = excluded.author, tags = excluded.tags",
+  ).run(note.id, note.title, note.updatedAt, note.author, JSON.stringify(note.tags));
   db.prepare(
     "INSERT INTO notes_body (id, body) VALUES (?, ?) ON CONFLICT(id) DO UPDATE SET body = excluded.body",
   ).run(note.id, note.body);
@@ -94,10 +111,9 @@ export function reindexNote(note: Note): void {
       note.body,
     );
   }
-  const knownIds = (db.prepare("SELECT id FROM notes").all() as { id: string }[]).map((r) => r.id);
   db.prepare("DELETE FROM links WHERE src = ?").run(note.id);
   const insert = db.prepare("INSERT INTO links (src, dst) VALUES (?, ?)");
-  for (const dst of extractLinks(note.body, knownIds)) {
+  for (const dst of extractLinks(note.body)) {
     if (dst === note.id) continue;
     insert.run(note.id, dst);
   }
@@ -108,7 +124,8 @@ export function removeNote(id: string): void {
   db.prepare("DELETE FROM notes WHERE id = ?").run(id);
   db.prepare("DELETE FROM notes_body WHERE id = ?").run(id);
   if (fts) db.prepare("DELETE FROM notes_fts WHERE id = ?").run(id);
-  db.prepare("DELETE FROM links WHERE src = ? OR dst = ?").run(id, id);
+  // Links FROM this note go; links TO it stay, as dangling links, because other notes still say them.
+  db.prepare("DELETE FROM links WHERE src = ?").run(id);
 }
 
 export async function rebuildAll(): Promise<number> {
@@ -128,34 +145,43 @@ export function isEmpty(): boolean {
   return row.c === 0;
 }
 
+type DbNote = {
+  id: string;
+  title: string;
+  updated_at: string;
+  author: string;
+  tags: string;
+  body: string | null;
+};
+
+const NOTE_COLUMNS =
+  "n.id AS id, n.title AS title, n.updated_at AS updated_at, n.author AS author, n.tags AS tags, b.body AS body";
+
+function toNote(row: DbNote): NoteRow {
+  return {
+    id: row.id,
+    title: row.title,
+    body: row.body ?? "",
+    tags: JSON.parse(row.tags) as string[],
+    author: row.author === "agent" ? "agent" : "human",
+    updatedAt: row.updated_at,
+  };
+}
+
 export function listNotes(): NoteRow[] {
   const { db } = open();
   const rows = db
-    .prepare(
-      "SELECT n.id AS id, n.title AS title, n.updated_at AS updated_at, b.body AS body FROM notes n LEFT JOIN notes_body b ON b.id = n.id ORDER BY n.updated_at DESC",
-    )
-    .all();
-  return rows.map((r) => {
-    const row = r as { id: string; title: string; updated_at: string; body: string | null };
-    return {
-      id: row.id,
-      title: row.title,
-      body: row.body ?? "",
-      updatedAt: row.updated_at,
-    };
-  });
+    .prepare(`SELECT ${NOTE_COLUMNS} FROM notes n LEFT JOIN notes_body b ON b.id = n.id ORDER BY n.updated_at DESC`)
+    .all() as DbNote[];
+  return rows.map(toNote);
 }
 
 export function getNote(id: string): NoteRow | null {
   const { db } = open();
   const row = db
-    .prepare(
-      "SELECT n.id AS id, n.title AS title, n.updated_at AS updated_at, b.body AS body FROM notes n LEFT JOIN notes_body b ON b.id = n.id WHERE n.id = ?",
-    )
-    .get(id);
-  if (!row) return null;
-  const r = row as { id: string; title: string; updated_at: string; body: string | null };
-  return { id: r.id, title: r.title, body: r.body ?? "", updatedAt: r.updated_at };
+    .prepare(`SELECT ${NOTE_COLUMNS} FROM notes n LEFT JOIN notes_body b ON b.id = n.id WHERE n.id = ?`)
+    .get(id) as DbNote | undefined;
+  return row ? toNote(row) : null;
 }
 
 function sanitize(query: string): string[] {

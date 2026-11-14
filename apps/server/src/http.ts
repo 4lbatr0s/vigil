@@ -1,15 +1,25 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { z } from "zod";
+import { checkAccess, type Access } from "./access";
 import { AppError, isAppError } from "./errors";
 import { healthPayload } from "./health";
-import { getNote as indexGetNote, listNotes as indexListNotes, reindexNote, searchNotes } from "./index-db";
-import { getNote as vaultGetNote, slugify, updateNote, createNote } from "./vault";
+import {
+  getNote as indexGetNote,
+  listNotes as indexListNotes,
+  reindexNote,
+  removeNote,
+  searchNotes,
+} from "./index-db";
+import { createNote, deleteNote, getNote as vaultGetNote, slugify, updateNote } from "./vault";
 
 const MAX_BODY_BYTES = 2 * 1024 * 1024;
 
 const NoteInputSchema = z.object({
   title: z.string(),
   body: z.string(),
+  tags: z.array(z.string()).optional(),
+  /** `updatedAt` the client last saw. A different value on an existing note gives 409. */
+  baseUpdatedAt: z.string().optional(),
 });
 
 type Handler = (
@@ -60,19 +70,34 @@ const routes: { method: string; pattern: RegExp; keys: string[]; handler: Handle
       const raw = await readJsonBody(req);
       const parsed = NoteInputSchema.safeParse(raw);
       if (!parsed.success) {
-        throw new AppError("invalid-body", "Body must be { title: string, body: string }", 400);
+        throw new AppError(
+          "invalid-body",
+          "Body must be { title: string, body: string, tags?: string[], baseUpdatedAt?: string }",
+          400,
+        );
       }
-      const { title, body } = parsed.data;
+      const { title, body, tags, baseUpdatedAt } = parsed.data;
       const slug = slugify(title);
-      const existing = indexGetNote(id) ?? (await existsInVault(id));
+      const existing = (await existsInVault(id)) || indexGetNote(id) !== null;
       if (slug !== id && !existing) {
         throw new AppError("invalid-id", `Note id ${id} does not match title slug ${slug}`, 400);
       }
       const note = existing
-        ? await updateNote(id, { title, body })
-        : await createNote({ title, body });
+        ? await updateNote(id, { title, body, ...(tags ? { tags } : {}) }, { expectedUpdatedAt: baseUpdatedAt })
+        : await createNote({ title, body, ...(tags ? { tags } : {}) });
       reindexNote(note);
       send(res, 200, { data: note });
+    },
+  },
+  {
+    method: "DELETE",
+    pattern: /^\/api\/notes\/([^/]+)$/,
+    keys: ["id"],
+    handler: async (_req, res, params) => {
+      const id = params["id"] ?? "";
+      await deleteNote(id);
+      removeNote(id);
+      send(res, 200, { data: { id } });
     },
   },
   {
@@ -86,12 +111,14 @@ const routes: { method: string; pattern: RegExp; keys: string[]; handler: Handle
   },
 ];
 
+/** The file is the truth: a missing note is `false`, any other failure surfaces. */
 async function existsInVault(id: string): Promise<boolean> {
   try {
     await vaultGetNote(id);
     return true;
-  } catch {
-    return false;
+  } catch (err) {
+    if (isAppError(err) && err.code === "note-not-found") return false;
+    throw err;
   }
 }
 
@@ -102,12 +129,6 @@ function send(res: ServerResponse, status: number, payload: unknown): void {
     "content-length": Buffer.byteLength(body),
   });
   res.end(body);
-}
-
-function applyCors(res: ServerResponse): void {
-  res.setHeader("access-control-allow-origin", "*");
-  res.setHeader("access-control-allow-methods", "GET,PUT,OPTIONS");
-  res.setHeader("access-control-allow-headers", "content-type");
 }
 
 async function readJsonBody(req: IncomingMessage): Promise<unknown> {
@@ -132,17 +153,12 @@ async function readJsonBody(req: IncomingMessage): Promise<unknown> {
   }
 }
 
-export function createHandler(): (req: IncomingMessage, res: ServerResponse) => void {
+export function createHandler(access: Access): (req: IncomingMessage, res: ServerResponse) => void {
   return (req, res) => {
     void (async () => {
-      applyCors(res);
       const url = new URL(req.url ?? "/", "http://localhost");
-      if (req.method === "OPTIONS") {
-        res.writeHead(204);
-        res.end();
-        return;
-      }
       try {
+        checkAccess(req, access, url.pathname);
         for (const route of routes) {
           if (route.method !== req.method) continue;
           const match = route.pattern.exec(url.pathname);

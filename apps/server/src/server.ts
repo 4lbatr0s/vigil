@@ -1,4 +1,5 @@
 import { createServer, type Server } from "node:http";
+import { accessFromEnv, type Access } from "./access";
 import { createHandler } from "./http";
 
 export type RunningServer = {
@@ -6,10 +7,11 @@ export type RunningServer = {
   close(): Promise<void>;
 };
 
-export function start(options: { port?: number } = {}): RunningServer {
+export function start(options: { port?: number; access?: Partial<Access> } = {}): RunningServer {
   const port = options.port ?? 3001;
-  const server = createServer(createHandler());
-  server.listen(port);
+  const access = accessFromEnv(options.access);
+  const server = createServer(createHandler(access));
+  server.listen(port, access.host);
   return {
     server,
     close: () =>

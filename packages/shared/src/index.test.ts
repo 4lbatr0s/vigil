@@ -6,6 +6,16 @@ describe("NoteSchema", () => {
     const note = { id: "n1", title: "T", body: "B", updatedAt: "2026-11-14T00:00:00.000Z" };
     expect(NoteSchema.parse(note)).toMatchObject(note);
   });
+  it("defaults tags to none and author to human", () => {
+    const parsed = NoteSchema.parse({ id: "n1", title: "T", body: "B", updatedAt: "t" });
+    expect(parsed.tags).toEqual([]);
+    expect(parsed.author).toBe("human");
+  });
+  it("rejects an unknown author", () => {
+    expect(() =>
+      NoteSchema.parse({ id: "n1", title: "T", body: "B", updatedAt: "t", author: "robot" }),
+    ).toThrow();
+  });
   it("rejects a note without id", () => {
     expect(() => NoteSchema.parse({ title: "T", body: "B" })).toThrow();
   });

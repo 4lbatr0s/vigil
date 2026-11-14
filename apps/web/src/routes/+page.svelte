@@ -16,6 +16,8 @@
   let loadError = $state("");
 
   let dirty = false;
+  // The updatedAt this editor last saw; sent with every save so a newer change is never overwritten.
+  let baseUpdatedAt: string | undefined;
 
   const html = $derived(draft ? renderMarkdown(draft.body) : "");
 
@@ -39,6 +41,7 @@
       const note = await getNote(id);
       selectedId = note.id;
       draft = { title: note.title, body: note.body };
+      baseUpdatedAt = note.updatedAt;
     } catch (err) {
       status = err instanceof Error ? err.message : "Could not open note";
     }
@@ -47,8 +50,9 @@
   async function persist(id: string, body: string): Promise<void> {
     if (!draft) return;
     try {
-      const note = await putNote(id, { title: draft.title, body });
+      const note = await putNote(id, { title: draft.title, body, baseUpdatedAt });
       notes = notes.map((n) => (n.id === note.id ? note : n));
+      baseUpdatedAt = note.updatedAt;
       dirty = false;
       status = `saved ${new Date(note.updatedAt).toTimeString().slice(0, 8)}`;
     } catch (err) {

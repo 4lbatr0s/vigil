@@ -95,9 +95,37 @@ describe("json api", () => {
     expect(ids(res.json.data)).toContain("hello");
   });
 
-  it("answers CORS preflight", async () => {
+  it("answers 409 when the note changed since the client read it", async () => {
+    const put = await req("PUT", "/api/notes/conflict", { title: "Conflict", body: "one" });
+    const seen = (put.json.data as { updatedAt: string }).updatedAt;
+    const stale = await req("PUT", "/api/notes/conflict", { title: "Conflict", body: "two", baseUpdatedAt: "1999-01-01T00:00:00.000Z" });
+    expect(stale.status).toBe(409);
+    expect(errCode(stale.json)).toBe("note-conflict");
+    const fresh = await req("PUT", "/api/notes/conflict", { title: "Conflict", body: "two", baseUpdatedAt: seen });
+    expect(fresh.status).toBe(200);
+  });
+
+  it("stores tags", async () => {
+    const put = await req("PUT", "/api/notes/with-tags", { title: "With Tags", body: "x", tags: ["a"] });
+    expect(put.json.data).toMatchObject({ tags: ["a"], author: "human" });
+    const get = await req("GET", "/api/notes/with-tags");
+    expect(get.json.data).toMatchObject({ tags: ["a"] });
+  });
+
+  it("deletes a note and answers 404 for a missing one", async () => {
+    await req("PUT", "/api/notes/doomed", { title: "Doomed", body: "x" });
+    const del = await req("DELETE", "/api/notes/doomed");
+    expect(del.status).toBe(200);
+    expect((await req("GET", "/api/notes/doomed")).status).toBe(404);
+    expect(ids((await req("GET", "/api/notes")).json.data)).not.toContain("doomed");
+    const again = await req("DELETE", "/api/notes/doomed");
+    expect(again.status).toBe(404);
+    expect(errCode(again.json)).toBe("note-not-found");
+  });
+
+  it("sends no CORS headers and rejects a preflight", async () => {
     const res = await fetch(`${base}/api/notes`, { method: "OPTIONS" });
-    expect(res.status).toBe(204);
-    expect(res.headers.get("access-control-allow-origin")).toBe("*");
+    expect(res.status).toBe(404);
+    expect(res.headers.get("access-control-allow-origin")).toBeNull();
   });
 });
