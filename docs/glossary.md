@@ -17,3 +17,19 @@
 - **Graph** — the Sigma.js view of the vault: notes as nodes, links and agent relations as edges.
 - **Agent edge** — a dashed graph edge between an agent and the notes it watches or wrote.
 - **Provenance** — who wrote what: human-edited vs agent-written, visible in UI and index.
+- **Trigger** — how an agent starts: `manual`, `cron` (expression + time zone) or `heartbeat` (every N minutes, only on change).
+- **Enabled** — an agent flag; a disabled agent never starts on its own (it can still be run by hand).
+- **Strict** — per-agent setting (also called strict mode): every write waits in the Approvals queue until the owner accepts it.
+- **Approval** — one pending write proposed by a strict agent, with its decision (pending, approved, rejected).
+- **Callable** — the list of agents an agent may start with `call_agent`; empty means none.
+- **Touch** — a recorded fact that an agent read or wrote a note; the source of agent edges in the graph.
+- **Catch-up** — the single run a scheduled agent gets on server start when its latest scheduled time was missed within the catch-up window.
+- **Baseline** — the first recorded state of a schedule or heartbeat (stored without running), so saving an agent never fires a past run.
+- **Waiting approval** — run status while a strict agent's write awaits the owner; the run survives a restart.
+- **Token budget** — the per-run cap on tokens (input plus output across all model calls); the run stops when it is used up.
+- **Soft cap** — the optional monthly token total that only produces a warning, never blocks a run.
+- **Ghost note** — a graph node for a note that is linked but does not exist yet.
+- **Provenance bar** — the line under an agent-written note's title saying which agent wrote it and offering the run and undo.
+- **Lantern flicker** — the single amber pulse on a note title when an agent lands a note.
+- **Allowlist (hosts)** — the exact host names an agent's web fetch may call; an empty list means none.
+

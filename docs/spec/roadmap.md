@@ -50,3 +50,7 @@ Subfolders in the vault (ids are flat today), `tags` UI, command palette depth, 
 Set the model (env only, never in notes): `VIGIL_LLM_PROVIDER=ollama|openai`, `VIGIL_LLM_MODEL`, and for `openai` also `VIGIL_LLM_BASE_URL` and `VIGIL_LLM_API_KEY`. Then:
 `PUT /api/agents/<name>` (name, systemPrompt, tools: read_notes/write_notes, tokenBudget), `POST /api/agents/<name>/run`, `GET /api/runs/<id>` (log), `POST /api/runs/<id>/undo`.
 Run state lives in `data/state.db`; pre-write copies in `data/snapshots/`. There is no agents screen until M2.
+
+## Detailed plan and status
+The task-level plan is `docs/spec/implementation-plan.md` and the live checklist is `docs/spec/progress.md`. This file stays at milestone level; milestone status lines here change only when every task of the milestone is ticked.
+
