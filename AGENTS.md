@@ -6,6 +6,16 @@ This file is read automatically by opencode and most other coding agents. Claude
 
 A self-hosted, single-user notes app where AI agents keep vigil: they read notes, write notes, and run on schedules (cron), on change (heartbeat) or in chat. Markdown files on disk are the source of truth; SQLite is a disposable index. Models are bring-your-own-key (any OpenAI-compatible endpoint, or Ollama). AGPL-3.0. TypeScript monorepo: `apps/server` (Node, no web framework), `apps/web` (SvelteKit 2 + Svelte 5), `packages/shared` (zod schemas).
 
+## Tech stack (fixed; do not swap anything without a new ADR)
+
+- **Runtime and tooling:** Node 24, pnpm 11 workspaces, TypeScript 5.7 (`strict`, `noUncheckedIndexedAccess`), ESM only, vitest.
+- **Server (`apps/server`):** plain `node:http` with a hand-written router (`http.ts`), `better-sqlite3` (plain SQL, no ORM, ADR-0008), `chokidar` (watcher), `gray-matter` (frontmatter), `zod` 4.
+- **Agents:** LangGraph JS `@langchain/langgraph` 1.7.4, `@langchain/core` 1.4.1, `@langchain/openai` 1.8.4, `@langchain/ollama` 1.3.0, all pinned exactly (ADR-0009). Models are bring-your-own-key: any OpenAI-compatible endpoint or Ollama.
+- **Web (`apps/web`):** SvelteKit 2 + Svelte 5, Vite 7, CodeMirror 6, `marked` + DOMPurify, jsdom for tests. Becomes a static SPA served by the API server (ADR-0014).
+- **Shared (`packages/shared`):** zod schemas and `slugify`; the only place cross-boundary types live.
+- **Later packages (pin exact versions when added):** `cron-parser` (WP2), `@langchain/langgraph-checkpoint-sqlite` (WP8), `sigma` + `graphology` (WP11), `@sveltejs/adapter-static`, `esbuild`, Lucide icons for Svelte (WP4, WP12).
+- **Storage:** markdown files in the vault (source of truth), `data/index.db` (disposable index), `data/state.db` (durable state), `data/snapshots/`.
+
 ## Read these, in this order, before writing code
 
 1. `docs/README.md`: index of every document and what it is for.
