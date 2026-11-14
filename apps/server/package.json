@@ -9,9 +9,13 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@vigil/shared": "workspace:*"
+    "@vigil/shared": "workspace:*",
+    "better-sqlite3": "^12.0.0",
+    "chokidar": "^4.0.0",
+    "gray-matter": "^4.0.0"
   },
   "devDependencies": {
+    "@types/better-sqlite3": "^7.6.0",
     "@types/node": "^24.0.0",
     "tsx": "^4.0.0",
     "typescript": "^5.7.0",
