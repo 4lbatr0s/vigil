@@ -3,8 +3,9 @@ import type { StructuredToolInterface } from "@langchain/core/tools";
 import * as z from "zod";
 import type { ToolGrant } from "@vigil/shared";
 import { isAppError } from "./errors";
+import { withNoteLock } from "./lock";
 import { listNotes, reindexNote, searchNotes } from "./index-db";
-import { addEvent, recordSnapshot, setWrittenUpdatedAt } from "./state-db";
+import { addEvent, dropSnapshot, recordSnapshot, setWrittenUpdatedAt } from "./state-db";
 import { createNote, getNote, readNoteFile, slugify, updateNote, validateId } from "./vault";
 
 /** Tool results count toward the token budget and may carry untrusted text, so cap them. */
@@ -76,16 +77,24 @@ export function buildTools(grants: ToolGrant[], ctx: ToolContext): StructuredToo
       tool(
         async ({ title, body }) => {
           const id = validateId(slugify(title));
-          // Snapshot first, once per run and note: the one-click undo restores this copy.
-          const before = await readNoteFile(id);
-          await recordSnapshot(ctx.runId, id, before);
-          const note = before === null
-            ? await createNote({ title, body }, { author: "agent" })
-            : await updateNote(id, { title, body }, { author: "agent" });
-          setWrittenUpdatedAt(ctx.runId, id, note.updatedAt);
-          reindexNote(note);
-          addEvent(ctx.runId, "note", `${before === null ? "created" : "updated"} ${id}`, { id });
-          return `${before === null ? "created" : "updated"} note ${id}`;
+          return withNoteLock(async () => {
+            // Snapshot first, once per run and note: the one-click undo restores this copy.
+            const before = await readNoteFile(id);
+            const fresh = await recordSnapshot(ctx.runId, id, before);
+            try {
+              const note = before === null
+                ? await createNote({ title, body }, { author: "agent" })
+                : await updateNote(id, { title, body }, { author: "agent" });
+              setWrittenUpdatedAt(ctx.runId, id, note.updatedAt);
+              reindexNote(note);
+              addEvent(ctx.runId, "note", `${before === null ? "created" : "updated"} ${id}`, { id });
+              return `${before === null ? "created" : "updated"} note ${id}`;
+            } catch (err) {
+              // The write never happened, so undo must not touch this note: forget the snapshot.
+              if (fresh) await dropSnapshot(ctx.runId, id);
+              throw err;
+            }
+          });
         },
         {
           name: "write_note",

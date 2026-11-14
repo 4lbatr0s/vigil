@@ -1,5 +1,5 @@
 import { existsSync, mkdirSync } from "node:fs";
-import { readFile, writeFile } from "node:fs/promises";
+import { readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import Database from "better-sqlite3";
 import { AgentSchema, type Agent, type Run, type RunEvent, type RunStatus } from "@vigil/shared";
@@ -231,9 +231,12 @@ export function listSnapshots(runId: string): SnapshotRow[] {
   return rows.map((r) => getSnapshot(runId, r.note_id) as SnapshotRow);
 }
 
-/** Copy the note's current file content aside, once per (run, note). `content` null = it did not exist. */
-export async function recordSnapshot(runId: string, noteId: string, content: string | null): Promise<void> {
-  if (getSnapshot(runId, noteId)) return;
+/**
+ * Copy the note's current file content aside, once per (run, note). `content` null = it did not
+ * exist. Returns true when a new snapshot was taken, false when this run already had one.
+ */
+export async function recordSnapshot(runId: string, noteId: string, content: string | null): Promise<boolean> {
+  if (getSnapshot(runId, noteId)) return false;
   let file: string | null = null;
   if (content !== null) {
     const dir = path.join(snapshotsDir(), noteId);
@@ -244,6 +247,15 @@ export async function recordSnapshot(runId: string, noteId: string, content: str
   open()
     .prepare("INSERT INTO snapshots (run_id, note_id, existed, file) VALUES (?, ?, ?, ?)")
     .run(runId, noteId, content === null ? 0 : 1, file);
+  return true;
+}
+
+/** Forget a snapshot whose write failed. */
+export async function dropSnapshot(runId: string, noteId: string): Promise<void> {
+  const snap = getSnapshot(runId, noteId);
+  if (!snap) return;
+  open().prepare("DELETE FROM snapshots WHERE run_id = ? AND note_id = ?").run(runId, noteId);
+  if (snap.file) await rm(snap.file, { force: true });
 }
 
 /** Remember the `updatedAt` the agent's latest write produced, so undo can tell a later human edit. */

@@ -3,6 +3,7 @@ import type { Run } from "@vigil/shared";
 import { runAgent, type AgentRunner } from "./agent-runtime";
 import { AppError } from "./errors";
 import { reindexNote, removeNote } from "./index-db";
+import { withNoteLock } from "./lock";
 import { modelFactoryFromEnv, redact, type ModelFactory } from "./llm";
 import {
   createRun,
@@ -63,21 +64,32 @@ export function startRun(agentName: string, task?: string): Run {
  * Put every note the run touched back as it was before the run (or delete it if the run created
  * it). Refuses, changing nothing, when a note was edited after the agent wrote it.
  */
-export async function undoRun(runId: string): Promise<Run> {
+export function undoRun(runId: string): Promise<Run> {
+  // Under the note lock, so no save, delete, agent write or second undo runs in between the checks
+  // and the changes. Two undos of one run: the second waits, then sees `undone` and answers 409.
+  return withNoteLock(() => undoLocked(runId));
+}
+
+async function undoLocked(runId: string): Promise<Run> {
   const run = getRun(runId);
   if (!run) throw new AppError("run-not-found", `Run not found: ${runId}`, 404);
   if (run.status === "running") throw new AppError("run-active", "Run is still in progress", 409);
   if (run.undone) throw new AppError("already-undone", "Run was already undone", 409);
-  const snapshots = listSnapshots(runId);
+  // A snapshot without a recorded write time means the agent never finished writing that note
+  // (a crash between the snapshot and the write). Leave such notes alone: restoring or deleting
+  // could destroy something a human did since.
+  const snapshots = listSnapshots(runId).filter((s) => s.writtenUpdatedAt !== null);
 
-  const changed: string[] = [];
-  for (const snap of snapshots) {
+  const editedSince = async (snap: (typeof snapshots)[number]): Promise<boolean> => {
     const current = await getNote(snap.noteId).catch((err: unknown) => {
       if (err instanceof AppError && err.code === "note-not-found") return null;
       throw err;
     });
-    if (current && snap.writtenUpdatedAt && current.updatedAt !== snap.writtenUpdatedAt) changed.push(snap.noteId);
-  }
+    return current !== null && current.updatedAt !== snap.writtenUpdatedAt;
+  };
+
+  const changed: string[] = [];
+  for (const snap of snapshots) if (await editedSince(snap)) changed.push(snap.noteId);
   if (changed.length > 0) {
     throw new AppError(
       "undo-conflict",
@@ -87,6 +99,10 @@ export async function undoRun(runId: string): Promise<Run> {
   }
 
   for (const snap of snapshots) {
+    // Re-check right before acting: narrows the window for an editor outside this server.
+    if (await editedSince(snap)) {
+      throw new AppError("undo-conflict", `Changed while undoing: ${snap.noteId}. Run undo again to see what is left.`, 409);
+    }
     if (snap.existed && snap.file) {
       reindexNote(await restoreNoteFile(snap.noteId, await readSnapshotFile(snap.file)));
     } else {

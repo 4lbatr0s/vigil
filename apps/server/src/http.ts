@@ -11,6 +11,7 @@ import {
   searchNotes,
 } from "./index-db";
 import { AgentSchema } from "@vigil/shared";
+import { withNoteLock } from "./lock";
 import { startRun, undoRun } from "./runs";
 import { getAgent, getRun, listAgents, listEvents, listRuns, putAgent } from "./state-db";
 import { createNote, deleteNote, getNote as vaultGetNote, slugify, updateNote } from "./vault";
@@ -81,14 +82,17 @@ const routes: { method: string; pattern: RegExp; keys: string[]; handler: Handle
       }
       const { title, body, tags, baseUpdatedAt } = parsed.data;
       const slug = slugify(title);
-      const existing = (await existsInVault(id)) || indexGetNote(id) !== null;
-      if (slug !== id && !existing) {
-        throw new AppError("invalid-id", `Note id ${id} does not match title slug ${slug}`, 400);
-      }
-      const note = existing
-        ? await updateNote(id, { title, body, ...(tags ? { tags } : {}) }, { expectedUpdatedAt: baseUpdatedAt })
-        : await createNote({ title, body, ...(tags ? { tags } : {}) });
-      reindexNote(note);
+      const note = await withNoteLock(async () => {
+        const existing = (await existsInVault(id)) || indexGetNote(id) !== null;
+        if (slug !== id && !existing) {
+          throw new AppError("invalid-id", `Note id ${id} does not match title slug ${slug}`, 400);
+        }
+        const saved = existing
+          ? await updateNote(id, { title, body, ...(tags ? { tags } : {}) }, { expectedUpdatedAt: baseUpdatedAt })
+          : await createNote({ title, body, ...(tags ? { tags } : {}) });
+        reindexNote(saved);
+        return saved;
+      });
       send(res, 200, { data: note });
     },
   },
@@ -98,8 +102,10 @@ const routes: { method: string; pattern: RegExp; keys: string[]; handler: Handle
     keys: ["id"],
     handler: async (_req, res, params) => {
       const id = params["id"] ?? "";
-      await deleteNote(id);
-      removeNote(id);
+      await withNoteLock(async () => {
+        await deleteNote(id);
+        removeNote(id);
+      });
       send(res, 200, { data: { id } });
     },
   },
