@@ -1,0 +1,45 @@
+# Vigil Design Tokens — "Quiet Instrument" (ADR-0005)
+
+Single source of truth for all UI. Components may not use raw hex values outside this file.
+
+## Palette (dark default)
+| Token | Dark | Light | Role |
+| --- | --- | --- | --- |
+| --bg | #111113 | #FAFAF8 | app background |
+| --surface | #1A1A1E | #FFFFFF | cards, panels, editor chrome |
+| --hairline | #26262B | #E7E7E3 | all dividers and borders |
+| --ink | #EDEDEF | #16181D | primary text |
+| --ink-muted | #8B8B92 | #6E6E74 | secondary text, labels |
+| --amber | #E8A33D | #B47612 | agent life ONLY: active runs, agent-written notes, graph glow, lantern flicker |
+| --ok | #4EA36A | #2E7D4F | run success |
+| --err | #C75450 | #B03A36 | run failure |
+Dark is default. Light is a first-class theme, not an afterthought.
+
+## Typography
+| Voice | Face | Use |
+| --- | --- | --- |
+| Human prose | Newsreader (variable) | note bodies, rendered markdown |
+| Machine | IBM Plex Mono | agent output, run logs, cron expressions, timestamps, file paths |
+| Chrome | Schibsted Grotesk | nav, buttons, labels, settings, editor UI |
+Scale: 13 (labels) / 15 (UI) / 17 (prose base) / 20 (h3) / 26 (h2) / 34 (h1). Prose line-height 1.6, reading column max 68ch. Mono line-height 1.5.
+
+## Layout & structure
+- Hairlines carry structure; shadows are banned (except focus rings).
+- Border radius: 4px on interactive surfaces only. Never on decorative cards.
+- Spacing on a 4/8 grid: 4, 8, 12, 16, 24, 32, 48.
+- Left-aligned text everywhere; centered only in empty states.
+
+## Motion
+- State changes: 80–140ms, ease-out. No bounce, no parallax, no scroll-triggered reveals.
+- The ONE orchestrated moment: the lantern flicker — when a scheduled agent lands a note, its title pulses amber once (~600ms).
+- prefers-reduced-motion: the flicker becomes a static amber dot.
+
+## Component stances
+- Agent rows are ledger rows: mono timestamp, serif title, status dot (ok/err/running-amber). Not SaaS cards.
+- Run log: terminal-grade but quiet — mono, muted ink, amber only for the running marker.
+- Command palette (⌘K) is the primary navigation.
+- Graph: dark canvas, node glow = recency in amber, dashed edges for agent relations.
+- Icons: Lucide, 1.5px stroke, no emoji anywhere.
+
+## Accessibility floor
+Contrast ≥ 4.5:1 (test amber-on-dark for text; amber as text only ≥ 13px medium). Visible focus ring on all interactive elements. Keyboard-reachable everything. Reduced motion honored.
