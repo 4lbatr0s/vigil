@@ -26,6 +26,9 @@ importers:
       gray-matter:
         specifier: ^4.0.0
         version: 4.0.3
+      zod:
+        specifier: ^4.0.0
+        version: 4.6.7
     devDependencies:
       '@types/better-sqlite3':
         specifier: ^7.6.0
