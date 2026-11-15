@@ -141,4 +141,12 @@ describe("agents and runs api", () => {
     expect(run.status).toBe(202);
     await waitForRuns();
   });
+
+  it("GET /api/usage answers without a cap", async () => {
+    delete process.env.VIGIL_MONTHLY_TOKEN_CAP;
+    const res = await req("GET", "/api/usage");
+    expect(res.status).toBe(200);
+    expect(res.json.data).toMatchObject({ cap: null, level: "ok" });
+    expect(typeof res.json.data.tokens).toBe("number");
+  });
 });

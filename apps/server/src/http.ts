@@ -15,6 +15,7 @@ import { withNoteLock } from "./lock";
 import { cronError, nextTickAfter } from "./cron";
 import { startRun, undoRun } from "./runs";
 import { refreshSchedule } from "./scheduler";
+import { usage } from "./usage";
 import { getAgent, getRun, getSchedule, listAgents, listEvents, listRuns, putAgent, putSchedule } from "./state-db";
 import { createNote, deleteNote, getNote as vaultGetNote, slugify, updateNote } from "./vault";
 
@@ -157,6 +158,14 @@ const routes: { method: string; pattern: RegExp; keys: string[]; handler: Handle
       }
       refreshSchedule(saved.name);
       send(res, 200, { data: saved });
+    },
+  },
+  {
+    method: "GET",
+    pattern: /^\/api\/usage$/,
+    keys: [],
+    handler: (_req, res) => {
+      send(res, 200, { data: usage() });
     },
   },
   {

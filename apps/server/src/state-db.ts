@@ -334,3 +334,9 @@ export function putSchedule(agent: string, patch: Partial<Omit<ScheduleState, "a
     )
     .run(next.agent, next.lastScheduledFor, next.lastStartedAt, next.lastSkipReason);
 }
+
+/** Sum of tokens used by runs that started at or after `sinceIso`. */
+export function tokensSince(sinceIso: string): number {
+  const row = open().prepare("SELECT COALESCE(SUM(tokens_used), 0) AS total FROM runs WHERE started_at >= ?").get(sinceIso) as { total: number };
+  return row.total;
+}
