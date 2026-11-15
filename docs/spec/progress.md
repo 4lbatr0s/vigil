@@ -23,7 +23,7 @@ Legend: `[x]` done, `[ ]` not done. Add a short note after a task only for a dev
 
 - [x] WP1-T1: New `AgentSchema`
 - [x] WP1-T2: Migration 2 and 3 in `state-db.ts`
-- [ ] WP1-T3: Provenance: `agent` frontmatter and index column
+- [x] WP1-T3: Provenance: `agent` frontmatter and index column
 - [ ] WP1-T4: API validation
 
 ## WP2: M2 scheduled agents (cron with catch-up)

@@ -36,7 +36,7 @@ function messageText(message: BaseMessage): string {
 }
 
 export const runAgent: AgentRunner = async ({ agent, task, runId, makeModel }) => {
-  const ctx: ToolContext = { runId };
+  const ctx: ToolContext = { runId, agentName: agent.name };
   const tools = buildTools(agent.tools, ctx);
   const byName = new Map(tools.map((t) => [t.name, t]));
   let used = 0;

@@ -11,7 +11,7 @@ import { createNote, getNote, readNoteFile, slugify, updateNote, validateId } fr
 /** Tool results count toward the token budget and may carry untrusted text, so cap them. */
 export const MAX_TOOL_OUTPUT = 8000;
 
-export type ToolContext = { runId: string };
+export type ToolContext = { runId: string; agentName: string };
 
 export function truncate(text: string, max = MAX_TOOL_OUTPUT): string {
   return text.length <= max ? text : `${text.slice(0, max)}\n[truncated: ${text.length - max} more characters]`;
@@ -85,8 +85,8 @@ export function buildTools(grants: ToolGrant[], ctx: ToolContext): StructuredToo
             const fresh = await recordSnapshot(ctx.runId, id, before);
             try {
               const note = before === null
-                ? await createNote({ title, body }, { author: "agent" })
-                : await updateNote(id, { title, body }, { author: "agent" });
+                ? await createNote({ title, body }, { author: "agent", agentName: ctx.agentName })
+                : await updateNote(id, { title, body }, { author: "agent", agentName: ctx.agentName });
               setWrittenUpdatedAt(ctx.runId, id, note.updatedAt);
               reindexNote(note);
               addEvent(ctx.runId, "note", `${before === null ? "created" : "updated"} ${id}`, { id });

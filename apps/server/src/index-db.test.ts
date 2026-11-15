@@ -5,14 +5,16 @@ import path from "node:path";
 import {
   closeDb,
   getNote,
+  isEmpty,
   isFtsAvailable,
   listNotes,
+  noteHashes,
   rebuildAll,
   reindexNote,
   removeNote,
   searchNotes,
 } from "./index-db";
-import { createNote } from "./vault";
+import { createNote, getNote as getVaultNote } from "./vault";
 
 import type { Note } from "@vigil/shared";
 import Database from "better-sqlite3";
@@ -127,5 +129,33 @@ describe("index details", () => {
     await createNote({ title: "Fresh", body: "x" });
     expect(await rebuildAll()).toBe(1);
     expect(listNotes().map((n) => n.id)).toEqual(["fresh"]);
+  });
+
+  it("noteHashes() changes when the body changes and not when only updatedAt changes", () => {
+    reindexNote(note({ id: "a", title: "A", body: "one", updatedAt: "2026-11-14T00:00:00.000Z" }));
+    const first = noteHashes()["a"];
+    expect(first).toMatch(/^[0-9a-f]{64}$/);
+    reindexNote(note({ id: "a", title: "A", body: "one", updatedAt: "2026-11-15T00:00:00.000Z" }));
+    expect(noteHashes()["a"]).toBe(first);
+    reindexNote(note({ id: "a", title: "A", body: "two", updatedAt: "2026-11-15T00:00:00.000Z" }));
+    expect(noteHashes()["a"]).not.toBe(first);
+  });
+
+  it("opening an index at version 2 rebuilds", async () => {
+    await createNote({ title: "Digest", body: "summary" }, { author: "agent", agentName: "digest" });
+    reindexNote(await getVaultNote("digest"));
+    expect(isEmpty()).toBe(false);
+    const old = new Database(dbFile);
+    old.pragma("user_version = 2");
+    old.close();
+    closeDb();
+    // Reopening sees the old version, drops every table and stamps the new version.
+    expect(isEmpty()).toBe(true);
+    const raw = new Database(dbFile, { readonly: true });
+    expect(raw.pragma("user_version", { simple: true })).toBe(3);
+    raw.close();
+    expect(await rebuildAll()).toBe(1);
+    const fetched = getNote("digest");
+    expect(fetched).toMatchObject({ id: "digest", author: "agent", agentName: "digest" });
   });
 });

@@ -49,6 +49,7 @@ function serialize(note: Note): string {
   const data: Record<string, unknown> = { id: note.id, title: note.title };
   if (note.tags.length > 0) data["tags"] = note.tags;
   if (note.author === "agent") data["author"] = "agent";
+  if (note.author === "agent" && note.agentName) data["agent"] = note.agentName;
   // gray-matter writes "---\n<yaml>---\n" for an empty body.
   return matter.stringify("", data) + note.body;
 }
@@ -68,6 +69,7 @@ function parse(raw: string, fallbackId: string, mtime: Date): Note {
     body,
     tags: parseTags(data["tags"]),
     author: data["author"] === "agent" ? "agent" : "human",
+    ...(typeof data["agent"] === "string" && data["agent"].trim() ? { agentName: data["agent"] } : {}),
     updatedAt: mtime.toISOString(),
   };
 }
@@ -104,6 +106,8 @@ export type WriteOptions = {
   author?: Author;
   /** Refuse with 409 when the file changed since the caller read it (its `updatedAt`). */
   expectedUpdatedAt?: string;
+  /** The writing agent's name; only meaningful with `author: "agent"`. */
+  agentName?: string;
 };
 
 export async function createNote(
@@ -122,6 +126,7 @@ export async function createNote(
     body: input.body,
     tags: input.tags ?? [],
     author: options.author ?? "human",
+    agentName: options.agentName,
     updatedAt: "",
   };
   const mtime = await writeAtomic(file, serialize(note));
@@ -159,6 +164,7 @@ export async function updateNote(
     body: input.body,
     tags: input.tags ?? existing.tags,
     author: options.author ?? "human",
+    agentName: options.agentName,
     updatedAt: "",
   };
   const mtime = await writeAtomic(file, serialize(note));

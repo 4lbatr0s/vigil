@@ -3,7 +3,7 @@ import { mkdtemp, readdir, readFile, rm, utimes, writeFile } from "node:fs/promi
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { AppError } from "./errors";
-import { createNote, deleteNote, getNote, listNotes, slugify, updateNote, validateId } from "./vault";
+import { createNote, deleteNote, getNote, listNotes, readNoteFile, slugify, updateNote, validateId } from "./vault";
 
 let dir = "";
 const originalVaultDir = process.env.VAULT_DIR;
@@ -144,5 +144,30 @@ describe("vault details", () => {
     expect((await getNote("race")).body).toBe("x");
     const ok = await updateNote("race", { body: "mine" }, { expectedUpdatedAt: later.toISOString() });
     expect(ok.body).toBe("mine");
+  });
+});
+
+describe("agent provenance", () => {
+  it('a note written by agent "digest" round-trips agentName', async () => {
+    const created = await createNote(
+      { title: "Digest", body: "today's summary" },
+      { author: "agent", agentName: "digest" },
+    );
+    expect(created).toMatchObject({ author: "agent", agentName: "digest" });
+    const fetched = await getNote("digest");
+    expect(fetched.author).toBe("agent");
+    expect(fetched.agentName).toBe("digest");
+    const raw = await readNoteFile("digest");
+    expect(raw).toContain("agent: digest");
+  });
+
+  it("a human edit clears agent frontmatter and agentName", async () => {
+    await createNote({ title: "Digest", body: "one" }, { author: "agent", agentName: "digest" });
+    const edited = await updateNote("digest", { body: "two" });
+    expect(edited.author).toBe("human");
+    expect(edited.agentName).toBeUndefined();
+    const raw = await readNoteFile("digest");
+    expect(raw).not.toMatch(/^author:/m);
+    expect(raw).not.toMatch(/^agent:/m);
   });
 });

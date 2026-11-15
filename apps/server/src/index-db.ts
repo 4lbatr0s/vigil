@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { existsSync, mkdirSync } from "node:fs";
 import path from "node:path";
 import Database from "better-sqlite3";
@@ -16,7 +17,7 @@ export function dbPath(): string {
  * Bump when a table changes. The index is disposable (ADR-0001), so a different version drops every
  * table and the server rebuilds from the vault on start (`isEmpty` then `rebuildAll`).
  */
-const SCHEMA_VERSION = 2;
+const SCHEMA_VERSION = 3;
 
 function migrate(db: Database.Database): void {
   const version = db.pragma("user_version", { simple: true }) as number;
@@ -29,7 +30,9 @@ function migrate(db: Database.Database): void {
       title TEXT,
       updated_at TEXT,
       author TEXT NOT NULL DEFAULT 'human',
-      tags TEXT NOT NULL DEFAULT '[]'
+      tags TEXT NOT NULL DEFAULT '[]',
+      agent_name TEXT,
+      hash TEXT
     );
     CREATE TABLE IF NOT EXISTS notes_body (
       id TEXT PRIMARY KEY,
@@ -97,9 +100,12 @@ export function extractLinks(body: string): string[] {
 
 export function reindexNote(note: Note): void {
   const { db, fts } = open();
+  const hash = createHash("sha256")
+    .update(`${note.title}\n${note.tags.join(",")}\n${note.body}`)
+    .digest("hex");
   db.prepare(
-    "INSERT INTO notes (id, title, updated_at, author, tags) VALUES (?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET title = excluded.title, updated_at = excluded.updated_at, author = excluded.author, tags = excluded.tags",
-  ).run(note.id, note.title, note.updatedAt, note.author, JSON.stringify(note.tags));
+    "INSERT INTO notes (id, title, updated_at, author, tags, agent_name, hash) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET title = excluded.title, updated_at = excluded.updated_at, author = excluded.author, tags = excluded.tags, agent_name = excluded.agent_name, hash = excluded.hash",
+  ).run(note.id, note.title, note.updatedAt, note.author, JSON.stringify(note.tags), note.agentName ?? null, hash);
   db.prepare(
     "INSERT INTO notes_body (id, body) VALUES (?, ?) ON CONFLICT(id) DO UPDATE SET body = excluded.body",
   ).run(note.id, note.body);
@@ -151,11 +157,12 @@ type DbNote = {
   updated_at: string;
   author: string;
   tags: string;
+  agent_name: string | null;
   body: string | null;
 };
 
 const NOTE_COLUMNS =
-  "n.id AS id, n.title AS title, n.updated_at AS updated_at, n.author AS author, n.tags AS tags, b.body AS body";
+  "n.id AS id, n.title AS title, n.updated_at AS updated_at, n.author AS author, n.tags AS tags, n.agent_name AS agent_name, b.body AS body";
 
 function toNote(row: DbNote): NoteRow {
   return {
@@ -164,8 +171,19 @@ function toNote(row: DbNote): NoteRow {
     body: row.body ?? "",
     tags: JSON.parse(row.tags) as string[],
     author: row.author === "agent" ? "agent" : "human",
+    ...(row.agent_name ? { agentName: row.agent_name } : {}),
     updatedAt: row.updated_at,
   };
+}
+
+/** {id: hash} for every indexed note; the hash covers title, tags and body (used by WP6). */
+export function noteHashes(): Record<string, string> {
+  const { db } = open();
+  const rows = db.prepare("SELECT id, hash FROM notes WHERE hash IS NOT NULL").all() as {
+    id: string;
+    hash: string;
+  }[];
+  return Object.fromEntries(rows.map((r) => [r.id, r.hash]));
 }
 
 export function listNotes(): NoteRow[] {
