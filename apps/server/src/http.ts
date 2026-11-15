@@ -10,7 +10,7 @@ import {
   removeNote,
   searchNotes,
 } from "./index-db";
-import { AgentSchema } from "@vigil/shared";
+import { AgentNameSchema, AgentSchema, TEMPLATES } from "@vigil/shared";
 import { withNoteLock } from "./lock";
 import { cronError, nextTickAfter } from "./cron";
 import { startRun, undoRun } from "./runs";
@@ -161,6 +161,30 @@ const routes: { method: string; pattern: RegExp; keys: string[]; handler: Handle
   },
   {
     method: "GET",
+    pattern: /^\/api\/agent-templates$/,
+    keys: [],
+    handler: (_req, res) => {
+      send(res, 200, { data: TEMPLATES });
+    },
+  },
+  {
+    method: "POST",
+    pattern: /^\/api\/agents\/from-template\/([^/]+)$/,
+    keys: ["id"],
+    handler: async (req, res, params) => {
+      const template = TEMPLATES.find((t) => t.id === params["id"]);
+      if (!template) throw new AppError("template-not-found", `Template not found: ${params["id"]}`, 404);
+      const parsedBody = z.object({ name: AgentNameSchema.optional() }).safeParse(await readJsonBody(req, { emptyIs: {} }));
+      if (!parsedBody.success) throw new AppError("invalid-body", "name must be lowercase letters, digits and dashes", 400);
+      const name = parsedBody.data.name ?? template.id;
+      if (getAgent(name)) throw new AppError("agent-exists", `An agent named ${name} already exists`, 409);
+      // Templates ship switched off: nothing runs or is scheduled until the owner turns the agent on.
+      const saved = putAgent(AgentSchema.parse({ ...template.agent, name, enabled: false }));
+      send(res, 201, { data: saved });
+    },
+  },
+  {
+    method: "GET",
     pattern: /^\/api\/agents\/([^/]+)\/schedule$/,
     keys: ["name"],
     handler: (_req, res, params) => {
@@ -269,7 +293,7 @@ async function readOptionalJsonBody(req: IncomingMessage): Promise<unknown> {
   }
 }
 
-async function readJsonBody(req: IncomingMessage): Promise<unknown> {
+async function readJsonBody(req: IncomingMessage, options: { emptyIs?: unknown } = {}): Promise<unknown> {
   const chunks: Buffer[] = [];
   let size = 0;
   for await (const chunk of req) {
@@ -282,6 +306,7 @@ async function readJsonBody(req: IncomingMessage): Promise<unknown> {
   }
   const text = Buffer.concat(chunks).toString("utf8");
   if (text.trim().length === 0) {
+    if ("emptyIs" in options) return options.emptyIs;
     throw new AppError("invalid-body", "Request body is empty", 400);
   }
   try {

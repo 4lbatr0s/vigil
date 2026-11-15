@@ -114,4 +114,31 @@ describe("agents and runs api", () => {
     expect((await req("GET", "/api/agents/m/schedule")).json.data.nextRunAt).toBeNull();
     expect((await req("GET", "/api/agents/nope/schedule")).status).toBe(404);
   });
+
+  it("lists five templates and creates an agent from one, switched off and unscheduled", async () => {
+    const list = await req("GET", "/api/agent-templates");
+    expect(list.json.data).toHaveLength(5);
+    const made = await req("POST", "/api/agents/from-template/morning-digest", {});
+    expect(made.status).toBe(201);
+    const template = list.json.data.find((t: { id: string }) => t.id === "morning-digest");
+    expect(made.json.data).toEqual({ ...template.agent, name: "morning-digest", enabled: false });
+    expect((await req("POST", "/api/agents/from-template/morning-digest", {})).json.error?.code).toBe("agent-exists");
+    // Not scheduled: no schedule state, no next run, no runs.
+    const schedule = await req("GET", "/api/agents/morning-digest/schedule");
+    expect(schedule.json.data).toMatchObject({ enabled: false, nextRunAt: null, lastScheduledFor: null });
+    expect((await req("GET", "/api/runs?agent=morning-digest")).json.data).toHaveLength(0);
+    const named = await req("POST", "/api/agents/from-template/morning-digest", { name: "my-digest" });
+    expect(named.json.data).toMatchObject({ name: "my-digest", enabled: false });
+    const bare = await fetch(`${base}/api/agents/from-template/inbox-triager`, { method: "POST" });
+    expect(bare.status).toBe(201);
+    expect((await req("POST", "/api/agents/from-template/nope", {})).json.error?.code).toBe("template-not-found");
+    expect((await req("POST", "/api/agents/from-template/morning-digest", { name: "Bad Name" })).status).toBe(400);
+  });
+
+  it("Run now works on a disabled agent", async () => {
+    await req("POST", "/api/agents/from-template/weekly-review", {});
+    const run = await req("POST", "/api/agents/weekly-review/run");
+    expect(run.status).toBe(202);
+    await waitForRuns();
+  });
 });
