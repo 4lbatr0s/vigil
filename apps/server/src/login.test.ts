@@ -3,7 +3,7 @@ import { mkdtemp, rm, stat } from "node:fs/promises";
 import { request } from "node:http";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { resetLimiterForTests, clientIp, cookieSecure } from "./auth";
+import { resetLimiterForTests, setPressureSpacingForTests, clientIp, cookieSecure } from "./auth";
 import { closeDb } from "./index-db";
 import { start, type RunningServer } from "./server";
 import { COOKIE_NAME, makeSession, resetSessionKeyCache, sessionKeyPath, verifySession } from "./session";
@@ -25,6 +25,7 @@ beforeEach(async () => {
   delete process.env.VIGIL_COOKIE_SECURE;
   resetSessionKeyCache();
   resetLimiterForTests();
+  setPressureSpacingForTests(1000);
   server = start({ port: 0, access: { token: TOKEN, allowedHosts: ["notes.example.com"] } });
   await new Promise<void>((r) => server.server.once("listening", () => r()));
 });
@@ -105,17 +106,30 @@ describe("login", () => {
     expect((await login(TOKEN)).status).toBe(429);
   });
 
-  it("a spray from many addresses runs into the global cap (forged addresses do not help)", async () => {
-    // Each request claims another address; the socket here is loopback and the Host is allowed, so the claims count.
-    let blocked = 0;
-    for (let i = 0; i < 60; i++) {
-      const r = await call("POST", "/api/login", { body: { token: "wrong" }, headers: { host: "notes.example.com", "x-forwarded-for": `${20 + (i % 200)}.1.1.${1 + i}` } });
-      if (r.status === 429) blocked += 1;
-    }
-    expect(blocked).toBeGreaterThan(0);
-    // ...but the global cap only refuses wrong tokens: the owner with the right token still gets in.
-    expect((await call("POST", "/api/login", { body: { token: "wrong again" }, headers: { host: "notes.example.com", "x-forwarded-for": "99.9.9.8" } })).status).toBe(429);
-    expect((await call("POST", "/api/login", { body: { token: TOKEN }, headers: { host: "notes.example.com", "x-forwarded-for": "99.9.9.9" } })).status).toBe(200);
+  it("a spray from many addresses slows every attempt to one per interval, and never tells right from wrong", async () => {
+    setPressureSpacingForTests(120);
+    const spray = (i: number) => call("POST", "/api/login", { body: { token: "wrong" }, headers: { host: "notes.example.com", "x-forwarded-for": `${20 + (i % 200)}.1.1.${1 + i}` } });
+    for (let i = 0; i < 40; i++) expect((await spray(i)).status).toBe(401); // below the cap: no delay yet
+    // Now under pressure. Three attempts, wrong, right, wrong, are spaced at least two intervals apart,
+    // and the statuses are the plain ones: no 429 that would reveal the right guess.
+    const t0 = Date.now();
+    const a = await spray(100);
+    const b = await call("POST", "/api/login", { body: { token: TOKEN }, headers: { host: "notes.example.com", "x-forwarded-for": "99.9.9.9" } });
+    const c = await spray(101);
+    expect([a.status, b.status, c.status]).toEqual([401, 200, 401]);
+    expect(Date.now() - t0).toBeGreaterThanOrEqual(200);
+  });
+
+  it("under pressure a burst fills the queue and the overflow is refused whatever the token", async () => {
+    setPressureSpacingForTests(300);
+    for (let i = 0; i < 40; i++) await call("POST", "/api/login", { body: { token: "wrong" }, headers: { host: "notes.example.com", "x-forwarded-for": `${30 + (i % 200)}.2.2.${1 + i}` } });
+    const burst = await Promise.all(Array.from({ length: 16 }, (_, i) => call("POST", "/api/login", { body: { token: i % 2 === 0 ? TOKEN : "wrong" }, headers: { host: "notes.example.com", "x-forwarded-for": `${60 + i}.3.3.3` } })));
+    const refused = burst.filter((r) => r.status === 429).length;
+    expect(refused).toBeGreaterThanOrEqual(5);
+    // Refusal does not depend on the token: right and wrong guesses are both among the refused.
+    const refusedRight = burst.filter((r, i) => r.status === 429 && i % 2 === 0).length;
+    const refusedWrong = burst.filter((r, i) => r.status === 429 && i % 2 === 1).length;
+    expect(refusedRight + refusedWrong).toBe(refused);
   });
 
   it("four failures then a success is fine and clears the count", async () => {

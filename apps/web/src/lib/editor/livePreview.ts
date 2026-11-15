@@ -173,9 +173,14 @@ export function buildDecorations(state: EditorState, range?: Range2): Decoration
   return Decoration.set(out, true);
 }
 
+/** The syntax tree up to `pos`, parsed to completion if the incremental parser has not got there yet (it is time-boxed, so under load it can lag). */
+function treeAt(state: EditorState, pos: number): ReturnType<typeof syntaxTree> {
+  return ensureSyntaxTree(state, Math.min(state.doc.length, pos + 1), 200) ?? syntaxTree(state);
+}
+
 /** The change that flips the task marker at `pos`, or null when `pos` is not on one. */
 export function toggleTask(state: EditorState, pos: number): { from: number; to: number; insert: string } | null {
-  const node = syntaxTree(state).resolveInner(pos, 1);
+  const node = treeAt(state, pos).resolveInner(pos, 1);
   const marker = node.name === "TaskMarker" ? node : node.parent?.name === "TaskMarker" ? node.parent : null;
   if (!marker) return null;
   const done = /[xX]/.test(state.doc.sliceString(marker.from, marker.to));
@@ -188,7 +193,7 @@ export function wikilinkAt(state: EditorState, pos: number): string | null {
   for (const m of line.text.matchAll(WIKILINK)) {
     const a = line.from + (m.index ?? 0);
     if (pos >= a && pos <= a + m[0].length) {
-      const inCode = syntaxTree(state).resolveInner(pos, 0);
+      const inCode = treeAt(state, pos).resolveInner(pos, 0);
       for (let n: typeof inCode | null = inCode; n; n = n.parent) if (n.name === "FencedCode" || n.name === "CodeBlock" || n.name === "InlineCode") return null;
       return (m[1] ?? "").trim() || null;
     }
@@ -198,7 +203,7 @@ export function wikilinkAt(state: EditorState, pos: number): string | null {
 
 /** The url of the `[text](url)` link under `pos`, or null. */
 export function linkUrlAt(state: EditorState, pos: number): string | null {
-  for (let n: ReturnType<ReturnType<typeof syntaxTree>["resolveInner"]> | null = syntaxTree(state).resolveInner(pos, 0); n; n = n.parent) {
+  for (let n: ReturnType<ReturnType<typeof syntaxTree>["resolveInner"]> | null = treeAt(state, pos).resolveInner(pos, 0); n; n = n.parent) {
     if (n.name === "Link") {
       const url = n.getChild("URL");
       return url ? state.doc.sliceString(url.from, url.to) : null;

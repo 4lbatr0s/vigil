@@ -48,9 +48,32 @@ export class LoginLimiter {
     this.globalFailures.push(now);
   }
 
+  /** Gap between attempts once the global failure count is high (milliseconds). */
+  spacingMs = 1000;
+  private nextFree = 0;
+  private queued = 0;
+  static readonly MAX_QUEUE = 10;
+
+  /**
+   * Under global pressure every login attempt, right or wrong, goes through one queue that lets one
+   * through per `spacingMs`. That caps guessing at about one per second across all addresses without
+   * ever looking at whether a guess is right. Returns false when the queue is full (refuse outright).
+   */
+  async slot(now: number = Date.now()): Promise<boolean> {
+    if (this.queued >= LoginLimiter.MAX_QUEUE) return false;
+    this.queued += 1;
+    const start = Math.max(now, this.nextFree);
+    this.nextFree = start + this.spacingMs;
+    await new Promise<void>((resolve) => setTimeout(resolve, start - now));
+    this.queued -= 1;
+    return true;
+  }
+
   reset(): void {
     this.seen.clear();
     this.globalFailures = [];
+    this.nextFree = 0;
+    this.queued = 0;
   }
 }
 
@@ -95,6 +118,11 @@ function sameSecret(given: string, expected: string): boolean {
 }
 
 const limiter = new LoginLimiter();
+/** Tests shorten the gap so the queue can be exercised quickly. */
+export function setPressureSpacingForTests(ms: number): void {
+  limiter.spacingMs = ms;
+}
+
 /** Tests start each case with a clean slate. */
 export function resetLimiterForTests(): void {
   limiter.reset();
@@ -148,12 +176,14 @@ export async function handleAuth(req: IncomingMessage, res: ServerResponse, path
     // Count the attempt BEFORE reading the body, so a burst of parallel requests cannot all slip past
     // the check while earlier ones are still being read. A correct token clears it again.
     limiter.fail(ip);
+    // Many failures across all addresses: slow EVERY attempt down to one per spacing interval, decided
+    // before the token is looked at, so the response never tells a right guess from a wrong one.
+    if (limiter.globalBlocked() && !(await limiter.slot())) {
+      throw new AppError("too-many-attempts", "Too many tries. Wait a minute and try again.", 429);
+    }
     const body = await readBody(req);
     const given = typeof body === "object" && body !== null && typeof (body as { token?: unknown }).token === "string" ? (body as { token: string }).token : "";
     if (given === "" || !sameSecret(given, access.token)) {
-      // The global cap slows a spray from many addresses, but it only ever refuses WRONG tokens:
-      // the owner with the right token is never locked out by someone else's guesses.
-      if (limiter.globalBlocked()) throw new AppError("too-many-attempts", "Too many tries. Wait a minute and try again.", 429);
       limiter.globalFail();
       throw new AppError("unauthorized", "That token isn't right.", 401);
     }
