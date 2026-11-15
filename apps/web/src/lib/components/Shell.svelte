@@ -6,6 +6,7 @@
   import Settings from "@lucide/svelte/icons/settings";
   import ShieldCheck from "@lucide/svelte/icons/shield-check";
   import MessageSquare from "@lucide/svelte/icons/message-square";
+  import Network from "@lucide/svelte/icons/network";
   import { pendingCount, trackPending } from "$lib/approvals-state";
   import CommandPalette from "$lib/components/CommandPalette.svelte";
   import Banner from "$lib/components/Banner.svelte";
@@ -36,6 +37,7 @@
     { href: "/", label: "Notes", icon: NotebookText, match: (p: string) => p === "/" },
     { href: "/agents", label: "Agents", icon: Bot, match: (p: string) => p.startsWith("/agents") || p.startsWith("/runs") },
     { href: "/chat", label: "Chat", icon: MessageSquare, match: (p: string) => p.startsWith("/chat") },
+    { href: "/graph", label: "Graph", icon: Network, match: (p: string) => p.startsWith("/graph") },
     { href: "/approvals", label: "Approvals", icon: ShieldCheck, match: (p: string) => p.startsWith("/approvals") },
     { href: "/settings", label: "Settings", icon: Settings, match: (p: string) => p.startsWith("/settings") },
   ];
@@ -168,6 +170,7 @@
   }
 
   .content {
+    position: relative;
     min-height: 0;
     min-width: 0;
     overflow: auto;

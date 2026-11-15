@@ -632,3 +632,19 @@ export function chatThreadForRun(runId: string): string | null {
   const row = open().prepare("SELECT thread_id FROM chat_messages WHERE run_id = ? LIMIT 1").get(runId) as { thread_id: string } | undefined;
   return row?.thread_id ?? null;
 }
+
+// ---- Agent touches (WP11): which notes an agent read or wrote, for the graph ----
+
+export type Touch = { agent: string; noteId: string; kind: "read" | "wrote"; runId: string; at: string };
+
+export function recordTouch(agent: string, noteId: string, kind: Touch["kind"], runId: string): void {
+  open().prepare("INSERT INTO agent_touches (agent, note_id, kind, run_id, at) VALUES (?, ?, ?, ?, ?)").run(agent, noteId, kind, runId, new Date().toISOString());
+}
+
+/** Distinct (agent, note, kind) triples touched at or after `sinceIso`, with the latest time of each. */
+export function recentTouches(sinceIso: string): Touch[] {
+  const rows = open()
+    .prepare("SELECT agent, note_id, kind, MAX(run_id) AS run_id, MAX(at) AS at FROM agent_touches WHERE at >= ? GROUP BY agent, note_id, kind")
+    .all(sinceIso) as { agent: string; note_id: string; kind: string; run_id: string; at: string }[];
+  return rows.map((r) => ({ agent: r.agent, noteId: r.note_id, kind: r.kind as Touch["kind"], runId: r.run_id, at: r.at }));
+}

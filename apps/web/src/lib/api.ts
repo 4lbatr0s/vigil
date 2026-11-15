@@ -87,6 +87,10 @@ export const getRun = (id: string, after?: number) =>
   request<{ run: Run; events: RunEvent[] }>(`/api/runs/${seg(id)}${after ? `?after=${after}` : ""}`);
 export const undoRun = (id: string) => request<Run>(`/api/runs/${seg(id)}/undo`, json("POST"));
 
+// ---- Graph ----
+
+export const getGraph = () => request<import("./graph-model").GraphApi>("/api/graph");
+
 // ---- Chat ----
 
 export type ChatThread = { id: string; agent: string; title: string; createdAt: string; updatedAt: string };

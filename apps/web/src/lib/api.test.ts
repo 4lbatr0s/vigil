@@ -4,6 +4,7 @@ import {
   createChat,
   deleteChat,
   getChat,
+  getGraph,
   listChats,
   saveChat,
   streamTurn,
@@ -97,6 +98,7 @@ describe("api client", () => {
       await getBacklinks("a b");
       await listApprovals();
       await listChats();
+      await getGraph();
       await getChat("a/b");
       expect(calls(spy).map(([url]) => url)).toEqual([
         "/api/agents",
@@ -114,6 +116,7 @@ describe("api client", () => {
         "/api/notes/a%20b/backlinks",
         "/api/approvals?status=pending",
         "/api/chats",
+        "/api/graph",
         "/api/chats/a%2Fb",
       ]);
       expect(calls(spy).every(([, init]) => init === undefined)).toBe(true);

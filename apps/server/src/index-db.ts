@@ -84,6 +84,12 @@ export function closeDb(): void {
 // Link extraction lives in links.ts (shared with rename); re-exported for existing callers.
 export { extractLinks } from "./links";
 
+/** Every link in the index (source and target ids). Targets may not exist. */
+export function allLinks(): { src: string; dst: string }[] {
+  const { db } = open();
+  return db.prepare("SELECT src, dst FROM links").all() as { src: string; dst: string }[];
+}
+
 export type Backlink = { id: string; title: string; snippet: string };
 
 const SNIPPET_MAX = 160;

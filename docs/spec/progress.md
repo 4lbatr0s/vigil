@@ -101,9 +101,9 @@ Legend: `[x]` done, `[ ]` not done. Add a short note after a task only for a dev
 
 ## WP11: M5 graph
 
-- [ ] WP11-T1: Record touches
-- [ ] WP11-T2: `GET /api/graph`
-- [ ] WP11-T3: The view
+- [x] WP11-T1: Record touches
+- [x] WP11-T2: `GET /api/graph`
+- [x] WP11-T3: The view
 
 ## WP12: M6 ship it (login, single process, Docker, PWA, README, CI)
 

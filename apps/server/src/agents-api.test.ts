@@ -194,4 +194,13 @@ describe("agents and runs api", () => {
     const res = await req("GET", "/api/agents/hb/schedule");
     expect(res.json.data).toMatchObject({ trigger: { kind: "heartbeat" }, lastCheckedAt: null });
   });
+
+  it("GET /api/graph returns nodes, edges and the truncated flag", async () => {
+    await req("PUT", "/api/agents/g1", { name: "g1", systemPrompt: "x" });
+    const res = await req("GET", "/api/graph");
+    expect(res.status).toBe(200);
+    expect(res.json.data.truncated).toBe(false);
+    expect(res.json.data.nodes.some((n: { id: string; kind: string }) => n.id === "agent:g1" && n.kind === "agent")).toBe(true);
+    expect(Array.isArray(res.json.data.edges)).toBe(true);
+  });
 });

@@ -16,6 +16,7 @@ import { AgentNameSchema, AgentSchema, PermissionSettingsSchema, TEMPLATES } fro
 import { withNoteLock } from "./lock";
 import { chatTurn, chatWithMessages, newChat, removeChat, saveChatAsNote, type ChatLine } from "./chat";
 import { cronError, nextTickAfter } from "./cron";
+import { buildGraphData } from "./graph";
 import { attachStream } from "./events";
 import { resumeRun, startRun, undoRun } from "./runs";
 import { getPermissions, putPermissions } from "./permissions";
@@ -235,6 +236,14 @@ const routes: { method: string; pattern: RegExp; keys: string[]; handler: Handle
     keys: [],
     handler: (req, res) => {
       attachStream(req, res);
+    },
+  },
+  {
+    method: "GET",
+    pattern: /^\/api\/graph$/,
+    keys: [],
+    handler: (_req, res) => {
+      send(res, 200, { data: buildGraphData() });
     },
   },
   {

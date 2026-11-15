@@ -6,7 +6,7 @@ import { isAppError } from "./errors";
 import { htmlToText, safeFetch, SafeFetchError } from "./safe-fetch";
 import { withNoteLock } from "./lock";
 import { listNotes, reindexNote, searchNotes } from "./index-db";
-import { addEvent, dropSnapshot, recordSnapshot, setWrittenUpdatedAt } from "./state-db";
+import { addEvent, dropSnapshot, recordSnapshot, recordTouch, setWrittenUpdatedAt } from "./state-db";
 import { createNote, getNote, readNoteFile, slugify, updateNote, validateId } from "./vault";
 
 /** Tool results count toward the token budget and may carry untrusted text, so cap them. */
@@ -68,6 +68,7 @@ export function buildTools(grants: ToolGrant[], ctx: ToolContext): StructuredToo
         async ({ id }) => {
           try {
             const note = await getNote(validateId(id));
+            recordTouch(ctx.agentName, note.id, "read", ctx.runId);
             return truncate(`# ${note.title}\n(author: ${note.author}, updated ${note.updatedAt})\n\n${note.body}`);
           } catch (err) {
             return `error: ${isAppError(err) ? err.message : "could not read note"}`;
@@ -149,6 +150,7 @@ export function buildTools(grants: ToolGrant[], ctx: ToolContext): StructuredToo
                 ? await createNote({ title, body }, { author: "agent", agentName: ctx.agentName })
                 : await updateNote(id, { title, body }, { author: "agent", agentName: ctx.agentName });
               setWrittenUpdatedAt(ctx.runId, id, note.updatedAt);
+              recordTouch(ctx.agentName, id, "wrote", ctx.runId);
               reindexNote(note);
               addEvent(ctx.runId, "note", `${before === null ? "created" : "updated"} ${id}`, { id });
               return `${before === null ? "created" : "updated"} note ${id}`;
