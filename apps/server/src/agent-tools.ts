@@ -21,6 +21,8 @@ export function truncate(text: string, max = MAX_TOOL_OUTPUT): string {
 export const GRANTS: Record<ToolGrant, string[]> = {
   read_notes: ["list_notes", "read_note", "search_notes"],
   write_notes: ["write_note"],
+  web_fetch: [], // WP10 builds the web_fetch tool
+  call_agents: [], // WP7 builds the call_agent tool
 };
 
 export function buildTools(grants: ToolGrant[], ctx: ToolContext): StructuredToolInterface[] {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { NoteSchema, slugify } from "./index";
+import { AgentSchema, NoteSchema, slugify } from "./index";
 
 describe("NoteSchema", () => {
   it("parses a valid note", () => {
@@ -33,5 +33,45 @@ describe("slugify", () => {
   });
   it("trims leading and trailing dashes", () => {
     expect(slugify("  --Hello--  ")).toBe("hello");
+  });
+});
+
+describe("AgentSchema", () => {
+  it("parses an old stored definition with trigger as the string manual to kind manual", () => {
+    const parsed = AgentSchema.parse({ name: "digest", systemPrompt: "Write a digest.", trigger: "manual" });
+    expect(parsed.trigger).toEqual({ kind: "manual" });
+  });
+  it("rejects a cron trigger without expression", () => {
+    expect(() =>
+      AgentSchema.parse({ name: "digest", systemPrompt: "Write a digest.", trigger: { kind: "cron" } }),
+    ).toThrow();
+  });
+  it("rejects a heartbeat trigger with everyMinutes below 5", () => {
+    expect(() =>
+      AgentSchema.parse({
+        name: "digest",
+        systemPrompt: "Write a digest.",
+        trigger: { kind: "heartbeat", everyMinutes: 1 },
+      }),
+    ).toThrow();
+  });
+  it("rejects an unknown tool grant", () => {
+    expect(() =>
+      AgentSchema.parse({ name: "digest", systemPrompt: "Write a digest.", tools: ["shell"] }),
+    ).toThrow();
+  });
+  it("applies every default", () => {
+    const parsed = AgentSchema.parse({ name: "digest", systemPrompt: "Write a digest." });
+    expect(parsed).toMatchObject({
+      description: "",
+      tools: [],
+      trigger: { kind: "manual" },
+      enabled: true,
+      strict: false,
+      tokenBudget: 20000,
+      defaultTask: "Do your job now.",
+      allowedHosts: [],
+      callable: [],
+    });
   });
 });

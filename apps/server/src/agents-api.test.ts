@@ -57,7 +57,7 @@ describe("agents and runs api", () => {
     const put = await req("PUT", "/api/agents/digest", { name: "digest", systemPrompt: "Write a digest.", tools: ["write_notes"], tokenBudget: 500 });
     expect(put.status).toBe(200);
     expect((await req("GET", "/api/agents")).json.data).toHaveLength(1);
-    expect((await req("GET", "/api/agents/digest")).json.data).toMatchObject({ trigger: "manual", tokenBudget: 500 });
+    expect((await req("GET", "/api/agents/digest")).json.data).toMatchObject({ trigger: { kind: "manual" }, tokenBudget: 500 });
 
     const started = await req("POST", "/api/agents/digest/run");
     expect(started.status).toBe(202);

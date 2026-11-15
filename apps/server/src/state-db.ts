@@ -140,6 +140,8 @@ function toRun(row: RunRow): Run {
     tokensUsed: row.tokens_used,
     tokenBudget: row.token_budget,
     error: row.error,
+    trigger: "manual", // WP1-T2 maps the real columns
+    parentRunId: null, // WP1-T2 maps the real columns
     touched,
     undone: row.undone === 1,
   };
