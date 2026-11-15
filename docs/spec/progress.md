@@ -66,9 +66,9 @@ Legend: `[x]` done, `[ ]` not done. Add a short note after a task only for a dev
 
 ## WP6: M3 heartbeat
 
-- [ ] WP6-T1: Change detection
-- [ ] WP6-T2: Scheduler integration
-- [ ] WP6-T3: Visibility
+- [x] WP6-T1: Change detection
+- [x] WP6-T2: Scheduler integration
+- [x] WP6-T3: Visibility
 
 ## WP7: M3 `call_agent` (bounded agent-to-agent)
 

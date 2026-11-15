@@ -4,7 +4,7 @@
   import { AgentNameSchema, type Agent, type PermissionSettings, type Run } from "@vigil/shared";
   import { ApiError, getAgent, getPermissions, getSchedule, listRuns, putAgent, runAgent, type Schedule } from "$lib/api";
   import { agentToForm, describeGrants, formToAgent, riskyCombination, type AgentForm } from "$lib/agent-form";
-  import { formatStamp } from "$lib/format";
+  import { describeCheck, formatStamp } from "$lib/format";
   import { refreshOnLive } from "$lib/live";
   import { describeTrigger, describeTriggerSentence, statusDot } from "$lib/schedule";
   import StatusDot from "$lib/components/StatusDot.svelte";
@@ -134,9 +134,13 @@
         <dd class="mono">{describeTrigger(agent.trigger)}</dd>
         <dt>Next run</dt>
         <dd class="mono">{schedule?.nextRunAt ? formatStamp(schedule.nextRunAt) : agent.enabled ? "none" : "off"}</dd>
+        {#if agent.trigger.kind === "heartbeat"}
+          <dt>Heartbeat</dt>
+          <dd class="mono">{agent.enabled ? describeCheck(schedule?.lastCheckedAt ?? null, schedule?.lastSkipReason ?? null) : "off"}</dd>
+        {/if}
         <dt>Last started</dt>
         <dd class="mono">{formatStamp(schedule?.lastStartedAt)}</dd>
-        {#if schedule?.lastSkipReason}
+        {#if schedule?.lastSkipReason && agent.trigger.kind !== "heartbeat"}
           <dt>Last skipped</dt>
           <dd class="mono">{schedule.lastSkipReason}</dd>
         {/if}

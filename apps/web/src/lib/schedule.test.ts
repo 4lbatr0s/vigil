@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { describeTrigger, describeTriggerSentence, lastRunByAgent, statusDot } from "./schedule";
-import { formatStamp } from "./format";
+import { agoText, describeCheck, formatStamp } from "./format";
 import type { Run } from "@vigil/shared";
 
 const cron = (expression: string) => ({ kind: "cron" as const, expression });
@@ -55,5 +55,21 @@ describe("formatStamp", () => {
     const now = new Date("2026-11-15T12:00:00");
     expect(formatStamp("2026-11-15T07:05:00", now)).toBe("15 Nov 07:05");
     expect(formatStamp("2025-01-02T07:05:00", now)).toBe("2 Jan 2025 07:05");
+  });
+});
+
+describe("agoText and describeCheck", () => {
+  const now = new Date("2026-11-15T12:00:00Z");
+  it("reads relative times", () => {
+    expect(agoText(null, now)).toBe("never");
+    expect(agoText("2026-11-15T11:59:40Z", now)).toBe("just now");
+    expect(agoText("2026-11-15T11:56:00Z", now)).toBe("4 min ago");
+    expect(agoText("2026-11-15T09:00:00Z", now)).toBe("3 h ago");
+    expect(agoText("2026-11-12T12:00:00Z", now)).toBe("3 days ago");
+  });
+  it("describes a heartbeat check", () => {
+    expect(describeCheck("2026-11-15T11:56:00Z", "unchanged", now)).toBe("Checked 4 min ago, unchanged");
+    expect(describeCheck("2026-11-15T11:56:00Z", null, now)).toBe("Checked 4 min ago");
+    expect(describeCheck(null, null, now)).toBe("Not checked yet");
   });
 });

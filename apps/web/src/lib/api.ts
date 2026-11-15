@@ -59,6 +59,8 @@ export type Schedule = {
   enabled: boolean;
   nextRunAt: string | null;
   lastScheduledFor: string | null;
+  /** Heartbeat agents: when the notes were last compared. */
+  lastCheckedAt: string | null;
   lastStartedAt: string | null;
   lastSkipReason: string | null;
 };

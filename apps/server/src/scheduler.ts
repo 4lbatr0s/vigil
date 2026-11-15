@@ -1,6 +1,7 @@
 import type { Agent, Run } from "@vigil/shared";
 import { cronError, latestTickAtOrBefore } from "./cron";
-import { getAgent, getSchedule, putSchedule } from "./state-db";
+import { diffHashes, heartbeatTask, isEmptyDiff, visibleHashes } from "./heartbeat";
+import { getAgent, getHeartbeat, getSchedule, putHeartbeat, putSchedule, touchHeartbeat } from "./state-db";
 
 export type SchedulerDeps = {
   now: () => Date;
@@ -28,9 +29,48 @@ export function refreshSchedule(name: string): void {
 export function createScheduler(deps: SchedulerDeps): Scheduler {
   let timer: NodeJS.Timeout | null = null;
 
+  /** One heartbeat check. `fire` false stores the baseline only (refresh). */
+  function beat(agent: Agent, everyMinutes: number, fire: boolean): void {
+    const now = deps.now();
+    const state = getHeartbeat(agent.name);
+    if (state?.lastCheckedAt && fire && now.getTime() - Date.parse(state.lastCheckedAt) < everyMinutes * 60_000) return;
+    const next = visibleHashes(agent.name);
+    if (!state || !state.lastHashes) {
+      // First sight: remember what is there now. Saving an agent must not make it react to old notes.
+      putHeartbeat(agent.name, { lastCheckedAt: now.toISOString(), lastHashes: next });
+      return;
+    }
+    if (!fire) return;
+    const diff = diffHashes(state.lastHashes, next);
+    if (isEmptyDiff(diff)) {
+      touchHeartbeat(agent.name, now.toISOString());
+      putSchedule(agent.name, { lastSkipReason: "unchanged" });
+      return;
+    }
+    if (deps.hasRunning(agent.name)) {
+      // The change stays pending: last_hashes is not advanced, only the check time.
+      touchHeartbeat(agent.name, now.toISOString());
+      putSchedule(agent.name, { lastSkipReason: "previous run still going" });
+      return;
+    }
+    // Persist before starting (at most once per change), as for cron.
+    putHeartbeat(agent.name, { lastCheckedAt: now.toISOString(), lastHashes: next });
+    try {
+      deps.startRun(agent.name, heartbeatTask(diff), "heartbeat");
+      putSchedule(agent.name, { lastStartedAt: now.toISOString(), lastSkipReason: null });
+    } catch (err) {
+      putSchedule(agent.name, { lastSkipReason: `start failed: ${err instanceof Error ? err.message : "unknown error"}` });
+    }
+  }
+
   /** `fire` false stores the baseline only (refresh). */
   function visit(agent: Agent, fire: boolean): void {
-    if (!agent.enabled || agent.trigger.kind !== "cron") return;
+    if (!agent.enabled) return;
+    if (agent.trigger.kind === "heartbeat") {
+      beat(agent, agent.trigger.everyMinutes, fire);
+      return;
+    }
+    if (agent.trigger.kind !== "cron") return;
     const { expression, timezone } = agent.trigger;
     const state = getSchedule(agent.name);
     if (cronError(expression, timezone)) {

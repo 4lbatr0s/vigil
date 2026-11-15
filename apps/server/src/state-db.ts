@@ -398,3 +398,33 @@ export async function expireSnapshots(beforeIso: string): Promise<number> {
   }
   return rows.length;
 }
+
+// ---- Heartbeat state (WP6) ----
+
+export type HeartbeatState = { agent: string; lastCheckedAt: string | null; lastHashes: Record<string, string> | null };
+
+export function getHeartbeat(agent: string): HeartbeatState | null {
+  const row = open().prepare("SELECT agent, last_checked_at, last_hashes FROM heartbeat_state WHERE agent = ?").get(agent) as
+    | { agent: string; last_checked_at: string | null; last_hashes: string | null }
+    | undefined;
+  if (!row) return null;
+  return { agent: row.agent, lastCheckedAt: row.last_checked_at, lastHashes: row.last_hashes ? (JSON.parse(row.last_hashes) as Record<string, string>) : null };
+}
+
+export function putHeartbeat(agent: string, state: { lastCheckedAt: string; lastHashes: Record<string, string> }): void {
+  open()
+    .prepare(
+      `INSERT INTO heartbeat_state (agent, last_checked_at, last_hashes) VALUES (?, ?, ?)
+       ON CONFLICT(agent) DO UPDATE SET last_checked_at = excluded.last_checked_at, last_hashes = excluded.last_hashes`,
+    )
+    .run(agent, state.lastCheckedAt, JSON.stringify(state.lastHashes));
+}
+
+/** Only the check time moves: the pending change (last_hashes) stays as it was. */
+export function touchHeartbeat(agent: string, lastCheckedAt: string): void {
+  open().prepare("UPDATE heartbeat_state SET last_checked_at = ? WHERE agent = ?").run(lastCheckedAt, agent);
+}
+
+export function clearHeartbeat(agent: string): void {
+  open().prepare("DELETE FROM heartbeat_state WHERE agent = ?").run(agent);
+}

@@ -22,7 +22,7 @@ import { planRename, renameNote } from "./rename";
 import { refreshSchedule } from "./scheduler";
 import { llmStatus } from "./llm-status";
 import { usage } from "./usage";
-import { getAgent, getRun, getSchedule, listAgents, listEvents, listRuns, putAgent, putSchedule } from "./state-db";
+import { clearHeartbeat, getAgent, getHeartbeat, getRun, getSchedule, listAgents, listEvents, listRuns, putAgent, putSchedule } from "./state-db";
 import { createNote, deleteNote, getNote as vaultGetNote, slugify, updateNote, validateId } from "./vault";
 
 const MAX_BODY_BYTES = 2 * 1024 * 1024;
@@ -190,6 +190,7 @@ const routes: { method: string; pattern: RegExp; keys: string[]; handler: Handle
       // A new or changed schedule, or a re-enabled agent, starts from a fresh baseline (no immediate past run).
       if (JSON.stringify(before?.trigger) !== JSON.stringify(saved.trigger) || before?.enabled !== saved.enabled) {
         putSchedule(saved.name, { lastScheduledFor: null, lastSkipReason: null });
+        clearHeartbeat(saved.name);
       }
       refreshSchedule(saved.name);
       send(res, 200, { data: saved });
@@ -285,6 +286,7 @@ const routes: { method: string; pattern: RegExp; keys: string[]; handler: Handle
           enabled: agent.enabled,
           nextRunAt,
           lastScheduledFor: state?.lastScheduledFor ?? null,
+          lastCheckedAt: getHeartbeat(agent.name)?.lastCheckedAt ?? null,
           lastStartedAt: state?.lastStartedAt ?? null,
           lastSkipReason: state?.lastSkipReason ?? null,
         },

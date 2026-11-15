@@ -190,10 +190,12 @@ function toNote(row: DbNote): NoteRow {
   };
 }
 
-/** {id: hash} for every indexed note; the hash covers title, tags and body (used by WP6). */
-export function noteHashes(): Record<string, string> {
+/** {id: hash} for every indexed note; the hash covers title, tags and body. `excludeAgent` leaves out notes that agent last wrote (heartbeat loop guard). */
+export function noteHashes(excludeAgent?: string): Record<string, string> {
   const { db } = open();
-  const rows = db.prepare("SELECT id, hash FROM notes WHERE hash IS NOT NULL").all() as {
+  const rows = db
+    .prepare("SELECT id, hash FROM notes WHERE hash IS NOT NULL AND (? IS NULL OR agent_name IS NULL OR agent_name != ?)")
+    .all(excludeAgent ?? null, excludeAgent ?? null) as {
     id: string;
     hash: string;
   }[];

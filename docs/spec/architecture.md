@@ -64,7 +64,7 @@ Rule: only the server touches the filesystem or SQLite; the web app talks to `/a
 | `agent-runtime.ts` | graph, budget, step limit, run log | built |
 | `llm.ts` | `modelFactoryFromEnv`, `redact` | built |
 | `runs.ts` | background execution, undo | built |
-| `scheduler.ts`, `cron.ts` | cron firing with catch-up; cron validation | built (WP2); heartbeat planned (WP6) |
+| `scheduler.ts`, `cron.ts`, `heartbeat.ts` | cron and heartbeat firing; cron validation; change detection | built (WP2, WP6) |
 | `safe-fetch.ts` | fetch tool core | planned (WP10) |
 | `usage.ts` | monthly token totals | built (WP3-T3) |
 | `permissions.ts` | instance permission settings and `effectiveGrants(agent, settings)` | built (WP3-T5) |

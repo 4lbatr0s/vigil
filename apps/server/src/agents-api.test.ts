@@ -188,4 +188,10 @@ describe("agents and runs api", () => {
     expect((await req("GET", `/api/runs/${id}?after=-1`)).json.error?.code).toBe("invalid-query");
     expect((await req("GET", `/api/runs/${id}?after=x`)).status).toBe(400);
   });
+
+  it("the schedule of a heartbeat agent reports lastCheckedAt", async () => {
+    await req("PUT", "/api/agents/hb", { name: "hb", systemPrompt: "x", tools: ["read_notes"], trigger: { kind: "heartbeat", everyMinutes: 30 } });
+    const res = await req("GET", "/api/agents/hb/schedule");
+    expect(res.json.data).toMatchObject({ trigger: { kind: "heartbeat" }, lastCheckedAt: null });
+  });
 });
