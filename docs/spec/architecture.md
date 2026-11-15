@@ -66,8 +66,8 @@ Rule: only the server touches the filesystem or SQLite; the web app talks to `/a
 | `runs.ts` | background execution, undo | built |
 | `scheduler.ts`, `cron.ts` | cron firing with catch-up; cron validation | built (WP2); heartbeat planned (WP6) |
 | `safe-fetch.ts` | fetch tool core | planned (WP10) |
-| `usage.ts` | monthly token totals | planned (WP3) |
-| `permissions.ts` | instance permission settings and `effectiveGrants(agent, settings)` | planned (WP3) |
+| `usage.ts` | monthly token totals | built (WP3-T3) |
+| `permissions.ts` | instance permission settings and `effectiveGrants(agent, settings)` | built (WP3-T5) |
 | `housekeeping.ts` | daily pruning of old run events and snapshots | planned (WP3) |
 | `events.ts` | in-process event bus feeding `GET /api/events` | planned (WP4) |
 | `static.ts` | static file serving | planned (WP12) |

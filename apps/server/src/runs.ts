@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { Run } from "@vigil/shared";
 import { runAgent, type AgentRunner } from "./agent-runtime";
 import { AppError } from "./errors";
+import { effectiveAgent } from "./permissions";
 import { reindexNote, removeNote } from "./index-db";
 import { withNoteLock } from "./lock";
 import { modelFactoryFromEnv, redact, type ModelFactory } from "./llm";
@@ -35,8 +36,10 @@ export async function waitForRuns(): Promise<void> {
 
 /** Starts a run in the background and returns at once with the new `running` row. */
 export function startRun(agentName: string, task?: string, trigger: Run["trigger"] = "manual"): Run {
-  const agent = getAgent(agentName);
-  if (!agent) throw new AppError("agent-not-found", `Agent not found: ${agentName}`, 404);
+  const stored = getAgent(agentName);
+  if (!stored) throw new AppError("agent-not-found", `Agent not found: ${agentName}`, 404);
+  // What the run may do is decided now, from the owner's instance settings: later changes do not touch it.
+  const agent = effectiveAgent(stored);
   if (hasRunning(agentName)) {
     throw new AppError("agent-busy", `Agent ${agentName} already has a run in progress`, 409);
   }

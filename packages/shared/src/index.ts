@@ -112,4 +112,30 @@ export const RunEventSchema = z.object({
 });
 export type RunEvent = z.infer<typeof RunEventSchema>;
 
+// ---- Instance permission settings (WP3-T5, ADR-0015) ----
+
+export const PermissionSettingsSchema = z.object({
+  /** Instance-wide switches. A tool that is off here is unavailable to every agent, whatever its own grants say. */
+  tools: z
+    .object({
+      read_notes: z.boolean().default(true),
+      write_notes: z.boolean().default(true),
+      web_fetch: z.boolean().default(true),
+      call_agents: z.boolean().default(true),
+    })
+    .default({ read_notes: true, write_notes: true, web_fetch: true, call_agents: true }),
+  /** New agents (and agents created from templates) start with approvals on or off. */
+  newAgentsStrict: z.boolean().default(true),
+  /** No run may use more tokens than this, whatever an agent's own budget says. */
+  maxTokenBudget: z.number().int().positive().max(1_000_000).default(200_000),
+  /** Days to keep run logs and undo snapshots. 0 keeps everything; otherwise 7 or more (WP3-T6). */
+  retentionDays: z
+    .number()
+    .int()
+    .max(3650)
+    .refine((n) => n === 0 || n >= 7, "0 (keep forever) or at least 7 days")
+    .default(90),
+});
+export type PermissionSettings = z.infer<typeof PermissionSettingsSchema>;
+
 export * from "./templates";

@@ -340,3 +340,16 @@ export function tokensSince(sinceIso: string): number {
   const row = open().prepare("SELECT COALESCE(SUM(tokens_used), 0) AS total FROM runs WHERE started_at >= ?").get(sinceIso) as { total: number };
   return row.total;
 }
+
+// ---- Settings (key/value JSON) ----
+
+export function getSetting(key: string): unknown {
+  const row = open().prepare("SELECT value FROM settings WHERE key = ?").get(key) as { value: string } | undefined;
+  return row ? (JSON.parse(row.value) as unknown) : undefined;
+}
+
+export function putSetting(key: string, value: unknown): void {
+  open()
+    .prepare("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value")
+    .run(key, JSON.stringify(value));
+}

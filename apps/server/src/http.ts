@@ -10,10 +10,11 @@ import {
   removeNote,
   searchNotes,
 } from "./index-db";
-import { AgentNameSchema, AgentSchema, TEMPLATES } from "@vigil/shared";
+import { AgentNameSchema, AgentSchema, PermissionSettingsSchema, TEMPLATES } from "@vigil/shared";
 import { withNoteLock } from "./lock";
 import { cronError, nextTickAfter } from "./cron";
 import { startRun, undoRun } from "./runs";
+import { getPermissions, putPermissions } from "./permissions";
 import { refreshSchedule } from "./scheduler";
 import { llmStatus } from "./llm-status";
 import { usage } from "./usage";
@@ -136,7 +137,9 @@ const routes: { method: string; pattern: RegExp; keys: string[]; handler: Handle
     pattern: /^\/api\/agents\/([^/]+)$/,
     keys: ["name"],
     handler: async (req, res, params) => {
-      const parsed = AgentSchema.safeParse(await readJsonBody(req));
+      const rawBody = await readJsonBody(req);
+      const hasStrict = typeof rawBody === "object" && rawBody !== null && "strict" in rawBody;
+      const parsed = AgentSchema.safeParse(rawBody);
       if (!parsed.success) {
         throw new AppError("invalid-body", `Invalid agent: ${parsed.error.issues[0]?.message ?? "bad shape"}`, 400);
       }
@@ -152,6 +155,8 @@ const routes: { method: string; pattern: RegExp; keys: string[]; handler: Handle
         throw new AppError("invalid-body", "A heartbeat agent needs the read_notes tool: it has nothing to watch without it", 400);
       }
       const before = getAgent(parsed.data.name);
+      // Saved without a `strict` value: a new agent gets the owner's default, an existing one keeps its setting.
+      if (!hasStrict) parsed.data.strict = before ? before.strict : getPermissions().newAgentsStrict;
       const saved = putAgent(parsed.data);
       // A new or changed schedule, or a re-enabled agent, starts from a fresh baseline (no immediate past run).
       if (JSON.stringify(before?.trigger) !== JSON.stringify(saved.trigger) || before?.enabled !== saved.enabled) {
@@ -159,6 +164,26 @@ const routes: { method: string; pattern: RegExp; keys: string[]; handler: Handle
       }
       refreshSchedule(saved.name);
       send(res, 200, { data: saved });
+    },
+  },
+  {
+    method: "GET",
+    pattern: /^\/api\/settings\/permissions$/,
+    keys: [],
+    handler: (_req, res) => {
+      send(res, 200, { data: getPermissions() });
+    },
+  },
+  {
+    method: "PUT",
+    pattern: /^\/api\/settings\/permissions$/,
+    keys: [],
+    handler: async (req, res) => {
+      const parsed = PermissionSettingsSchema.safeParse(await readJsonBody(req));
+      if (!parsed.success) {
+        throw new AppError("invalid-body", `Invalid settings: ${parsed.error.issues[0]?.message ?? "bad shape"}`, 400);
+      }
+      send(res, 200, { data: putPermissions(parsed.data) });
     },
   },
   {
@@ -198,7 +223,7 @@ const routes: { method: string; pattern: RegExp; keys: string[]; handler: Handle
       const name = parsedBody.data.name ?? template.id;
       if (getAgent(name)) throw new AppError("agent-exists", `An agent named ${name} already exists`, 409);
       // Templates ship switched off: nothing runs or is scheduled until the owner turns the agent on.
-      const saved = putAgent(AgentSchema.parse({ ...template.agent, name, enabled: false }));
+      const saved = putAgent(AgentSchema.parse({ ...template.agent, name, enabled: false, strict: getPermissions().newAgentsStrict }));
       send(res, 201, { data: saved });
     },
   },

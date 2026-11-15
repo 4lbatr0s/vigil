@@ -121,7 +121,8 @@ describe("agents and runs api", () => {
     const made = await req("POST", "/api/agents/from-template/morning-digest", {});
     expect(made.status).toBe(201);
     const template = list.json.data.find((t: { id: string }) => t.id === "morning-digest");
-    expect(made.json.data).toEqual({ ...template.agent, name: "morning-digest", enabled: false });
+    // strict comes from the owner's newAgentsStrict setting (default on), not from the template.
+    expect(made.json.data).toEqual({ ...template.agent, name: "morning-digest", enabled: false, strict: true });
     expect((await req("POST", "/api/agents/from-template/morning-digest", {})).json.error?.code).toBe("agent-exists");
     // Not scheduled: no schedule state, no next run, no runs.
     const schedule = await req("GET", "/api/agents/morning-digest/schedule");

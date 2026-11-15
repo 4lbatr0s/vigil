@@ -39,7 +39,7 @@ Legend: `[x]` done, `[ ]` not done. Add a short note after a task only for a dev
 - [x] WP3-T2: API
 - [x] WP3-T3: Usage and soft monthly cap
 - [x] WP3-T4: LLM status endpoint (onboarding support)
-- [ ] WP3-T5: Instance permission settings (the configuration page's backend)
+- [x] WP3-T5: Instance permission settings (the configuration page's backend)
 - [ ] WP3-T6: Retention housekeeping
 
 ## WP4: M2 web: agents screen, run viewer, command palette, usage banner
