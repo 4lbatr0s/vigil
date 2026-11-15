@@ -96,6 +96,22 @@ export const MIGRATIONS: readonly string[] = [
   -- but its file is gone, so the run can no longer be undone.
   ALTER TABLE snapshots ADD COLUMN expired INTEGER NOT NULL DEFAULT 0;
   `,
+  `
+  -- migration 5: approvals (strict mode). One row per proposed write; the graph waits for the owner.
+  CREATE TABLE approvals (
+    id TEXT PRIMARY KEY,
+    run_id TEXT NOT NULL,
+    tool_call_id TEXT NOT NULL,
+    tool TEXT NOT NULL,
+    args TEXT NOT NULL,            -- JSON: note text only, never a key
+    base_updated_at TEXT,          -- the note's updatedAt when proposed (null = the note did not exist)
+    status TEXT NOT NULL,          -- 'pending' | 'approved' | 'rejected'
+    created_at TEXT NOT NULL,
+    decided_at TEXT
+  );
+  CREATE INDEX approvals_run ON approvals(run_id);
+  CREATE INDEX approvals_status ON approvals(status);
+  `,
 ];
 
 let current: { key: string; db: Database.Database } | null = null;
@@ -230,7 +246,8 @@ export function listRuns(agent?: string, limit = 50): Run[] {
 }
 
 export function hasRunning(agent: string): boolean {
-  const row = open().prepare("SELECT 1 AS x FROM runs WHERE agent = ? AND status = 'running' LIMIT 1").get(agent);
+  // A run waiting for approval still owns its agent: a second run could write the same notes.
+  const row = open().prepare("SELECT 1 AS x FROM runs WHERE agent = ? AND status IN ('running', 'waiting-approval') LIMIT 1").get(agent);
   return row !== undefined;
 }
 
@@ -438,4 +455,104 @@ export function clearHeartbeat(agent: string): void {
 export function listChildRuns(parentRunId: string): Run[] {
   const rows = open().prepare("SELECT * FROM runs WHERE parent_run_id = ? ORDER BY started_at").all(parentRunId) as RunRow[];
   return rows.map(toRun);
+}
+
+/** Change a live run's status without finishing it (running <-> waiting-approval). */
+export function setRunStatus(id: string, status: "running" | "waiting-approval"): void {
+  open().prepare("UPDATE runs SET status = ? WHERE id = ?").run(status, id);
+  const run = getRun(id);
+  if (run) publish({ type: "run", run });
+}
+
+// ---- Approvals (WP8) ----
+
+export type ApprovalStatus = "pending" | "approved" | "rejected";
+export type Approval = {
+  id: string;
+  runId: string;
+  toolCallId: string;
+  tool: string;
+  args: Record<string, unknown>;
+  baseUpdatedAt: string | null;
+  status: ApprovalStatus;
+  createdAt: string;
+  decidedAt: string | null;
+};
+
+type ApprovalRow = { id: string; run_id: string; tool_call_id: string; tool: string; args: string; base_updated_at: string | null; status: string; created_at: string; decided_at: string | null };
+const toApproval = (r: ApprovalRow): Approval => ({
+  id: r.id,
+  runId: r.run_id,
+  toolCallId: r.tool_call_id,
+  tool: r.tool,
+  args: JSON.parse(r.args) as Record<string, unknown>,
+  baseUpdatedAt: r.base_updated_at,
+  status: r.status as ApprovalStatus,
+  createdAt: r.created_at,
+  decidedAt: r.decided_at,
+});
+
+export function pendingApprovalCount(): number {
+  return (open().prepare("SELECT COUNT(*) AS n FROM approvals WHERE status = 'pending'").get() as { n: number }).n;
+}
+
+/** One pending approval per (run, tool call): a repeated call for the same pair returns the existing row. */
+export function createApproval(input: { id: string; runId: string; toolCallId: string; tool: string; args: Record<string, unknown>; baseUpdatedAt: string | null }): Approval {
+  const db = open();
+  const existing = db.prepare("SELECT * FROM approvals WHERE run_id = ? AND tool_call_id = ?").get(input.runId, input.toolCallId) as ApprovalRow | undefined;
+  if (existing) return toApproval(existing);
+  db.prepare("INSERT INTO approvals (id, run_id, tool_call_id, tool, args, base_updated_at, status, created_at) VALUES (?, ?, ?, ?, ?, ?, 'pending', ?)").run(
+    input.id,
+    input.runId,
+    input.toolCallId,
+    input.tool,
+    JSON.stringify(input.args),
+    input.baseUpdatedAt,
+    new Date().toISOString(),
+  );
+  publish({ type: "approval", count: pendingApprovalCount() });
+  return getApproval(input.id) as Approval;
+}
+
+export function getApproval(id: string): Approval | null {
+  const row = open().prepare("SELECT * FROM approvals WHERE id = ?").get(id) as ApprovalRow | undefined;
+  return row ? toApproval(row) : null;
+}
+
+export function listApprovals(status?: ApprovalStatus): Approval[] {
+  const rows = (status
+    ? open().prepare("SELECT * FROM approvals WHERE status = ? ORDER BY created_at, rowid").all(status)
+    : open().prepare("SELECT * FROM approvals ORDER BY created_at, rowid").all()) as ApprovalRow[];
+  return rows.map(toApproval);
+}
+
+export function approvalsForRun(runId: string): Approval[] {
+  return (open().prepare("SELECT * FROM approvals WHERE run_id = ? ORDER BY created_at, rowid").all(runId) as ApprovalRow[]).map(toApproval);
+}
+
+export function pendingForRun(runId: string): Approval[] {
+  return approvalsForRun(runId).filter((a) => a.status === "pending");
+}
+
+/** Decide a pending approval. Returns false when it was already decided (so two clicks cannot both win). */
+export function decideApproval(id: string, decision: "approve" | "reject"): boolean {
+  const res = open()
+    .prepare("UPDATE approvals SET status = ?, decided_at = ? WHERE id = ? AND status = 'pending'")
+    .run(decision === "approve" ? "approved" : "rejected", new Date().toISOString(), id);
+  if (res.changes === 0) return false;
+  publish({ type: "approval", count: pendingApprovalCount() });
+  return true;
+}
+
+/** Runs waiting for the owner. */
+export function listWaitingRunIds(): string[] {
+  return (open().prepare("SELECT id FROM runs WHERE status = 'waiting-approval' ORDER BY started_at").all() as { id: string }[]).map((r) => r.id);
+}
+
+/** Snapshots of several runs in the order they were taken (oldest first), across runs. */
+export function listSnapshotsInOrder(runIds: string[]): SnapshotRow[] {
+  if (runIds.length === 0) return [];
+  const marks = runIds.map(() => "?").join(",");
+  const rows = open().prepare(`SELECT run_id, note_id FROM snapshots WHERE run_id IN (${marks}) ORDER BY rowid`).all(...runIds) as { run_id: string; note_id: string }[];
+  return rows.map((r) => getSnapshot(r.run_id, r.note_id) as SnapshotRow);
 }

@@ -14,6 +14,7 @@ import {
   hasRunning,
   listChildRuns,
   listSnapshots,
+  listSnapshotsInOrder,
   markUndone,
   readSnapshotFile,
 } from "./state-db";
@@ -118,24 +119,27 @@ async function undoLocked(runId: string): Promise<Run> {
     );
   }
 
-  for (const member of family) {
-    for (const snap of listSnapshots(member.id).filter((s) => s.writtenUpdatedAt !== null)) {
-      // Re-check right before acting: narrows the window for an editor outside this server.
-      if (await editedSince(snap.noteId)) {
-        throw new AppError("undo-conflict", `Changed while undoing: ${snap.noteId}. Run undo again to see what is left.`, 409);
-      }
-      if (snap.existed && snap.file) {
-        const restored = await restoreNoteFile(snap.noteId, await readSnapshotFile(snap.file));
-        expected.get(snap.noteId)?.add(restored.updatedAt);
-        reindexNote(restored);
-      } else {
-        await deleteNote(snap.noteId).catch((err: unknown) => {
-          if (!(err instanceof AppError && err.code === "note-not-found")) throw err;
-        });
-        removeNote(snap.noteId);
-      }
+  // Per note, put back the EARLIEST snapshot in the family: the state before any member wrote it.
+  // Restoring by run order instead would be wrong when a child ran before its parent's own write.
+  const done = new Set<string>();
+  for (const snap of listSnapshotsInOrder(family.map((r) => r.id)).filter((s) => s.writtenUpdatedAt !== null)) {
+    if (done.has(snap.noteId)) continue;
+    done.add(snap.noteId);
+    // Re-check right before acting: narrows the window for an editor outside this server.
+    if (await editedSince(snap.noteId)) {
+      throw new AppError("undo-conflict", `Changed while undoing: ${snap.noteId}. Run undo again to see what is left.`, 409);
     }
-    markUndone(member.id);
+    if (snap.existed && snap.file) {
+      const restored = await restoreNoteFile(snap.noteId, await readSnapshotFile(snap.file));
+      expected.get(snap.noteId)?.add(restored.updatedAt);
+      reindexNote(restored);
+    } else {
+      await deleteNote(snap.noteId).catch((err: unknown) => {
+        if (!(err instanceof AppError && err.code === "note-not-found")) throw err;
+      });
+      removeNote(snap.noteId);
+    }
   }
+  for (const member of family) markUndone(member.id);
   return getRun(runId) as Run;
 }

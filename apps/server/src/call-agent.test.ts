@@ -243,6 +243,20 @@ describe("undo across a family", () => {
     await expect(getNote("parent-note")).rejects.toMatchObject({ code: "note-not-found" });
   });
 
+  it("when the child wrote a note first and the parent wrote it after, undo still returns the original", async () => {
+    await createNote({ title: "Shared", body: "original" }).then(reindexNote);
+    putAgent(agent("parent", { tools: ["call_agents", "write_notes"], callable: ["writer"] }));
+    putAgent(agent("writer", { tools: ["write_notes"] }));
+    const { make } = byAgent({
+      parent: [call("call_agent", { name: "writer", message: "w" }, 10, "cc"), writeCall("Shared", "parent wrote last"), say("done")],
+      writer: [writeCall("Shared", "child wrote first"), say("ok")],
+    });
+    const run = await go("parent", make);
+    expect((await getNote("shared")).body).toBe("parent wrote last");
+    await undoRun(run.id);
+    expect((await getNote("shared")).body).toBe("original");
+  });
+
   it("when parent and child wrote the same note, undo puts back what existed before both", async () => {
     await createNote({ title: "Shared", body: "original" }).then(reindexNote);
     putAgent(agent("parent", { tools: ["call_agents", "write_notes"], callable: ["writer"] }));
