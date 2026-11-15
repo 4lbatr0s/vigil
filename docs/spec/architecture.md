@@ -24,7 +24,7 @@ One Node process serves a JSON API (and, in production, the built web app). The 
  | agent-tools.ts    read_notes, write_notes, web_fetch, call_agents   (allowlisted)       |
  | llm.ts      model adapters from env, key redaction                                      |
  | scheduler.ts cron tick loop, catch-up, at-most-once (heartbeat planned)                 |
- | safe-fetch.ts [planned] allowlisted, SSRF-safe HTTP GET                                 |
+ | safe-fetch.ts allowlisted, SSRF-safe HTTP GET                                           |
  | static.ts   [planned] serves the built web app                                          |
  | permissions.ts [planned] instance switches + effectiveGrants    events.ts [planned] bus   |
  +------------------------------------------------------------------------------------------+
@@ -65,7 +65,7 @@ Rule: only the server touches the filesystem or SQLite; the web app talks to `/a
 | `llm.ts` | `modelFactoryFromEnv`, `redact` | built |
 | `runs.ts` | background execution, undo | built |
 | `scheduler.ts`, `cron.ts`, `heartbeat.ts` | cron and heartbeat firing; cron validation; change detection | built (WP2, WP6) |
-| `safe-fetch.ts` | fetch tool core | planned (WP10) |
+| `safe-fetch.ts` | fetch tool core | built (WP10) |
 | `usage.ts` | monthly token totals | built (WP3-T3) |
 | `permissions.ts` | instance permission settings and `effectiveGrants(agent, settings)` | built (WP3-T5) |
 | `housekeeping.ts` | daily pruning of old run events and snapshots | built (WP3-T6) |

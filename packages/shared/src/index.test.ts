@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { AgentSchema, NoteSchema, slugify } from "./index";
+import { AgentSchema, NoteSchema, slugify, normalizeHost } from "./index";
 
 describe("NoteSchema", () => {
   it("parses a valid note", () => {
@@ -73,5 +73,24 @@ describe("AgentSchema", () => {
       allowedHosts: [],
       callable: [],
     });
+  });
+});
+
+describe("allowedHosts", () => {
+  it("normalizes plain host names and refuses everything else", () => {
+    expect(normalizeHost("  Example.COM ")).toBe("example.com");
+    expect(normalizeHost("docs.example.co.uk")).toBe("docs.example.co.uk");
+    expect(normalizeHost("93.184.216.34")).toBe("93.184.216.34");
+    for (const bad of ["", "localhost", "https://example.com", "example.com/path", "example.com:8080", "user@example.com", "*.example.com", "exa mple.com", "-a.com", "a..com", "example.com.", "ünicode.com", "[::1]"]) {
+      expect(normalizeHost(bad), bad).toBeNull();
+    }
+  });
+  it("the agent schema accepts normalized hosts only, with no duplicates", () => {
+    const parse = (allowedHosts: string[]) => AgentSchema.safeParse({ name: "a", systemPrompt: "x", allowedHosts });
+    expect(parse(["example.com", "docs.example.com"]).success).toBe(true);
+    expect(parse([]).success).toBe(true);
+    expect(parse(["Example.com"]).success).toBe(false);
+    expect(parse(["https://example.com"]).success).toBe(false);
+    expect(parse(["example.com", "example.com"]).success).toBe(false);
   });
 });

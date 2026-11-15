@@ -1,4 +1,4 @@
-import type { Agent, PermissionSettings, ToolGrant } from "@vigil/shared";
+import { HOST_HELP, normalizeHost, type Agent, type PermissionSettings, type ToolGrant } from "@vigil/shared";
 
 /** What the agent page edits. Strings stay strings until saved, so a half-typed number is not lost. */
 export type AgentForm = {
@@ -8,6 +8,8 @@ export type AgentForm = {
   strict: boolean;
   tokenBudget: string;
   model: string;
+  /** Hosts `fetch_url` may call. */
+  allowedHosts: string[];
 };
 
 export function agentToForm(agent: Agent): AgentForm {
@@ -18,6 +20,7 @@ export function agentToForm(agent: Agent): AgentForm {
     strict: agent.strict,
     tokenBudget: String(agent.tokenBudget),
     model: agent.model ?? "",
+    allowedHosts: [...agent.allowedHosts],
   };
 }
 
@@ -35,6 +38,7 @@ export function formToAgent(base: Agent, form: AgentForm): Agent {
     systemPrompt: form.systemPrompt,
     enabled: form.enabled,
     strict: form.strict,
+    allowedHosts: [...form.allowedHosts],
     tokenBudget: form.tokenBudget.trim() === "" ? Number.NaN : Number(form.tokenBudget),
     ...(model === "" ? {} : { model }),
   };
@@ -56,4 +60,19 @@ export function describeGrants(agent: Agent, settings: PermissionSettings): Gran
 /** True when the agent can both read notes and fetch the web with approvals off: the combination ADR-0006 warns about. */
 export function riskyCombination(agent: Pick<Agent, "tools" | "strict">): boolean {
   return agent.tools.includes("read_notes") && agent.tools.includes("web_fetch") && !agent.strict;
+}
+
+export type HostAdd = { ok: true; hosts: string[] } | { ok: false; message: string };
+
+/** Adds a host to the list: normalizes it, refuses non-host text and duplicates, keeps the list sorted by entry order. */
+export function addHost(list: string[], input: string): HostAdd {
+  const host = normalizeHost(input);
+  if (host === null) return { ok: false, message: HOST_HELP };
+  if (list.includes(host)) return { ok: false, message: `${host} is already on the list.` };
+  return { ok: true, hosts: [...list, host] };
+}
+
+/** Warning for an agent that has the web tool but no host it may reach. */
+export function noHostsWarning(agent: Pick<Agent, "tools">, hosts: string[]): string | null {
+  return agent.tools.includes("web_fetch") && hosts.length === 0 ? "This agent can't reach any site until you add a host." : null;
 }

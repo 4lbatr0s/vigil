@@ -92,7 +92,7 @@ describe("permission settings", () => {
     setRunDeps({ makeModel });
     const run = startRun("a");
     await waitForRuns();
-    expect(offered.sort()).toEqual(["list_notes", "read_note", "search_notes"]);
+    expect(offered.sort()).toEqual(["fetch_url", "list_notes", "read_note", "search_notes"]); // write_note is switched off; fetch_url is offered but refuses without allowed hosts
     expect(offered).not.toContain("write_note");
     expect(maxTokens).toBe(1000);
     expect(getRun(run.id)?.tokenBudget).toBe(1000);

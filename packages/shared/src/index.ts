@@ -46,6 +46,17 @@ export const TriggerSchema = z.discriminatedUnion("kind", [
 ]);
 export type Trigger = z.infer<typeof TriggerSchema>;
 
+/** Message shown when a host is not a plain host name. */
+export const HOST_HELP = "Enter a host like example.com, without https:// or a path.";
+
+const HOST_PATTERN = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+$/;
+
+/** A host name for the web allowlist: lower-case ASCII labels with at least one dot. No scheme, path, port, user info or wildcard. Returns the host or null. */
+export function normalizeHost(input: string): string | null {
+  const host = input.trim().toLowerCase();
+  return host.length <= 253 && HOST_PATTERN.test(host) ? host : null;
+}
+
 export const AgentSchema = z.object({
   name: AgentNameSchema,
   description: z.string().max(280).default(""),
@@ -67,7 +78,10 @@ export const AgentSchema = z.object({
   /** User message for a run that is started without one. */
   defaultTask: z.string().default("Do your job now."),
   /** Hosts `web_fetch` may call (WP10). Exact host names, no wildcards. */
-  allowedHosts: z.array(z.string().min(1)).default([]),
+  allowedHosts: z
+    .array(z.string().refine((h) => normalizeHost(h) === h, HOST_HELP))
+    .refine((list) => new Set(list).size === list.length, "Each host may be listed once")
+    .default([]),
   /** Agents this one may start with `call_agent` (WP7). Empty means none. */
   callable: z.array(AgentNameSchema).default([]),
   /** Instruction for a chat agent: appended to the system prompt in chat threads (WP9). */

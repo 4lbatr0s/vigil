@@ -95,9 +95,9 @@ Legend: `[x]` done, `[ ]` not done. Add a short note after a task only for a dev
 
 ## WP10: M4 `web_fetch` (ADR-0006 implemented to the letter)
 
-- [ ] WP10-T1: `safe-fetch.ts`
-- [ ] WP10-T2: The tool
-- [ ] WP10-T3: UI
+- [x] WP10-T1: `safe-fetch.ts`
+- [x] WP10-T2: The tool
+- [x] WP10-T3: UI
 
 ## WP11: M5 graph
 

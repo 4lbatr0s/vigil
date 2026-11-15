@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { AgentSchema, PermissionSettingsSchema } from "@vigil/shared";
-import { agentToForm, describeGrants, formToAgent, riskyCombination } from "./agent-form";
+import { addHost, agentToForm, describeGrants, formToAgent, noHostsWarning, riskyCombination } from "./agent-form";
 
 const base = AgentSchema.parse({
   name: "digest",
@@ -59,5 +59,24 @@ describe("describeGrants and riskyCombination", () => {
     expect(riskyCombination({ tools: ["read_notes", "web_fetch"], strict: false })).toBe(true);
     expect(riskyCombination({ tools: ["read_notes", "web_fetch"], strict: true })).toBe(false);
     expect(riskyCombination({ tools: ["read_notes"], strict: false })).toBe(false);
+  });
+});
+
+describe("allowed hosts", () => {
+  it("adds normalized hosts and refuses bad input and duplicates", () => {
+    expect(addHost(["a.com"], " B.Com ")).toEqual({ ok: true, hosts: ["a.com", "b.com"] });
+    expect(addHost([], "https://x.com")).toEqual({ ok: false, message: "Enter a host like example.com, without https:// or a path." });
+    expect(addHost(["a.com"], "A.com")).toEqual({ ok: false, message: "a.com is already on the list." });
+  });
+  it("warns when the web tool has no hosts, and only then", () => {
+    expect(noHostsWarning({ tools: ["web_fetch"] }, [])).toBe("This agent can't reach any site until you add a host.");
+    expect(noHostsWarning({ tools: ["web_fetch"] }, ["a.com"])).toBeNull();
+    expect(noHostsWarning({ tools: ["read_notes"] }, [])).toBeNull();
+  });
+  it("the form carries the list through a round trip and edits", () => {
+    const withHosts = AgentSchema.parse({ name: "s", systemPrompt: "x", tools: ["web_fetch"], allowedHosts: ["example.com"] });
+    const form = agentToForm(withHosts);
+    expect(formToAgent(withHosts, form)).toEqual(withHosts);
+    expect(formToAgent(withHosts, { ...form, allowedHosts: ["example.com", "docs.example.com"] }).allowedHosts).toEqual(["example.com", "docs.example.com"]);
   });
 });

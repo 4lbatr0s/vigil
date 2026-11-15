@@ -4,7 +4,7 @@
   import { page } from "$app/state";
   import { AgentNameSchema, type Agent, type PermissionSettings, type Run } from "@vigil/shared";
   import { ApiError, createChat, getAgent, getPermissions, getSchedule, listRuns, putAgent, runAgent, type Schedule } from "$lib/api";
-  import { agentToForm, describeGrants, formToAgent, riskyCombination, type AgentForm } from "$lib/agent-form";
+  import { addHost, agentToForm, describeGrants, formToAgent, noHostsWarning, riskyCombination, type AgentForm } from "$lib/agent-form";
   import { describeCheck, formatStamp } from "$lib/format";
   import { refreshOnLive } from "$lib/live";
   import { describeTrigger, describeTriggerSentence, statusDot } from "$lib/schedule";
@@ -23,6 +23,8 @@
   let notice = $state("");
   let busy = $state(false);
   let confirmOff = $state(false);
+  let hostInput = $state("");
+  let hostError = $state("");
 
   const running = $derived(runs.some((r) => r.status === "running"));
   const grants = $derived(agent && settings ? describeGrants(agent, settings) : []);
@@ -94,6 +96,23 @@
 
   async function turnOn(): Promise<void> {
     if (await save({ enabled: true })) notice = "Turned on.";
+  }
+
+  function onAddHost(event: SubmitEvent): void {
+    event.preventDefault();
+    if (!form) return;
+    const result = addHost(form.allowedHosts, hostInput);
+    if (result.ok === false) {
+      hostError = result.message;
+      return;
+    }
+    form.allowedHosts = result.hosts;
+    hostInput = "";
+    hostError = "";
+  }
+
+  function removeHost(host: string): void {
+    if (form) form.allowedHosts = form.allowedHosts.filter((h) => h !== host);
   }
 
   async function startChatWith(): Promise<void> {
@@ -201,6 +220,23 @@
         </div>
       {/if}
 
+      {#if agent.tools.includes("web_fetch")}
+        <div class="field hosts">
+          <span id="hosts-label">Allowed sites (web access)</span>
+          <ul class="chips" aria-labelledby="hosts-label">
+            {#each form.allowedHosts as host (host)}
+              <li class="chip">{host} <button type="button" class="x" aria-label={`Remove ${host}`} onclick={() => removeHost(host)}>×</button></li>
+            {/each}
+          </ul>
+          <form class="host-add" onsubmit={onAddHost}>
+            <input type="text" class="mono" bind:value={hostInput} placeholder="example.com" aria-label="Add an allowed site" aria-describedby="host-err" autocomplete="off" spellcheck="false" />
+            <button type="submit" class="ghost">Add</button>
+          </form>
+          {#if hostError}<span id="host-err" class="error" role="alert">{hostError}</span>{/if}
+          {#if noHostsWarning(agent, form.allowedHosts)}<span class="warn-line" role="status">{noHostsWarning(agent, form.allowedHosts)}</span>{/if}
+          <span class="hint">Only exact host names work (no subdomains, no wildcards), and never local or private addresses. Every address the agent fetches is written in its run log.</span>
+        </div>
+      {/if}
       <label class="field">
         <span>Description</span>
         <input type="text" bind:value={form.description} maxlength="280" />
@@ -427,6 +463,22 @@
     border-radius: var(--radius);
     color: var(--err-ink);
     font-size: var(--text-label);
+  }
+  .host-add {
+    display: flex;
+    gap: var(--space-2);
+  }
+  .host-add input {
+    max-width: 280px;
+  }
+  .x {
+    margin-left: var(--space-1);
+    color: var(--ink-muted);
+  }
+  .warn-line {
+    color: var(--ink);
+    border-left: 2px solid var(--amber);
+    padding-left: var(--space-2);
   }
   .ledger {
     list-style: none;
