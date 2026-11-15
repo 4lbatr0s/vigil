@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onMount, tick } from "svelte";
+  import { page } from "$app/state";
   import type { Note } from "@vigil/shared";
   import { getNote, listNotes, putNote } from "$lib/api";
   import { renderMarkdown } from "$lib/render";
@@ -54,6 +55,17 @@
       }
     })();
     return () => stop?.();
+  });
+
+  // The command palette and run viewer link here: /?note=<id> opens a note, /?new=1 focuses the new-note box.
+  $effect(() => {
+    const wanted = page.url.searchParams.get("note");
+    if (wanted && !loading && wanted !== selectedId) void select(wanted);
+  });
+  $effect(() => {
+    if (page.url.searchParams.get("new") === "1" && !loading) {
+      void tick().then(() => document.getElementById("new-note-title")?.focus());
+    }
   });
 
   async function select(id: string): Promise<void> {

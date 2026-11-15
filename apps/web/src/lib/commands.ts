@@ -1,0 +1,30 @@
+import { rank } from "./fuzzy";
+
+export type Action = { type: "goto"; href: string } | { type: "run"; agent: string };
+export type Command = { id: string; label: string; group: "Notes" | "Agents" | "Commands"; hint?: string; action: Action };
+
+export type PaletteState = {
+  query: string;
+  noteHits: { id: string; title: string }[];
+  agents: string[];
+};
+
+const FIXED: Command[] = [
+  { id: "cmd:new-note", label: "New note", group: "Commands", action: { type: "goto", href: "/?new=1" } },
+  { id: "cmd:agents", label: "Open Agents", group: "Commands", action: { type: "goto", href: "/agents" } },
+  { id: "cmd:settings", label: "Open Settings", group: "Commands", action: { type: "goto", href: "/settings" } },
+];
+
+/**
+ * Everything the palette can show for the current query, best first inside each group:
+ * notes (from the server's search), agents by name, "Run <agent>" commands, and the fixed commands.
+ * "Run agent..." is the typed prefix "run": each agent then appears as its own Run command.
+ */
+export function buildCommands(state: PaletteState): Command[] {
+  const q = state.query.trim();
+  const notes: Command[] = state.noteHits.map((h) => ({ id: `note:${h.id}`, label: h.title || h.id, group: "Notes", action: { type: "goto", href: `/?note=${encodeURIComponent(h.id)}` } }));
+  const agents: Command[] = rank(state.agents, q, (a) => a).map((a) => ({ id: `agent:${a}`, label: a, group: "Agents", hint: "open", action: { type: "goto", href: `/agents/${encodeURIComponent(a)}` } }));
+  const runs: Command[] = state.agents.map((a) => ({ id: `run:${a}`, label: `Run ${a}`, group: "Commands", hint: "run now", action: { type: "run", agent: a } }));
+  const commands = rank([...FIXED, ...runs], q, (c) => c.label);
+  return q === "" ? [...FIXED] : [...notes, ...agents, ...commands];
+}

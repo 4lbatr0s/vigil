@@ -77,6 +77,7 @@
 
   <form class="create" onsubmit={create}>
     <input
+      id="new-note-title"
       class="input"
       type="text"
       placeholder="Note title"

@@ -4,8 +4,17 @@
   import NotebookText from "@lucide/svelte/icons/notebook-text";
   import Bot from "@lucide/svelte/icons/bot";
   import Settings from "@lucide/svelte/icons/settings";
+  import CommandPalette from "$lib/components/CommandPalette.svelte";
 
   let { children }: { children: Snippet } = $props();
+  let paletteOpen = $state(false);
+
+  function onKeydown(event: KeyboardEvent): void {
+    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+      event.preventDefault();
+      paletteOpen = !paletteOpen;
+    }
+  }
 
   const items = [
     { href: "/", label: "Notes", icon: NotebookText, match: (p: string) => p === "/" },
@@ -13,6 +22,10 @@
     { href: "/settings", label: "Settings", icon: Settings, match: (p: string) => p.startsWith("/settings") },
   ];
 </script>
+
+<svelte:window onkeydown={onKeydown} />
+
+<CommandPalette bind:open={paletteOpen} />
 
 <div class="shell">
   <nav class="rail" aria-label="Main">
@@ -33,7 +46,7 @@
   <div class="column">
     <header class="strip">
       <span class="brand">Vigil</span>
-      <span class="hint" aria-hidden="true"><kbd>⌘K</kbd> to search and run commands</span>
+      <button type="button" class="hint" onclick={() => (paletteOpen = true)}><kbd>⌘K</kbd> to search and run commands</button>
     </header>
     <div class="content">
       {@render children()}
@@ -99,6 +112,11 @@
     font-family: var(--font-serif);
     font-size: var(--text-ui);
     color: var(--ink);
+  }
+
+  .hint {
+    color: var(--ink-muted);
+    font-size: var(--text-label);
   }
 
   kbd {
