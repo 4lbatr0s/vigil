@@ -1,4 +1,4 @@
-import type { Agent, AgentTemplate, Note, PermissionSettings, Run, RunEvent } from "@vigil/shared";
+import type { Agent, AgentTemplate, Note, NoteSummary, PermissionSettings, Run, RunEvent } from "@vigil/shared";
 
 type Envelope<T> = { data: T } | { error: { code: string; message: string } };
 
@@ -34,7 +34,8 @@ const json = (method: string, body?: unknown): RequestInit => ({
 
 // ---- Notes ----
 
-export const listNotes = () => request<Note[]>("/api/notes");
+/** The list view: no bodies. A note opens in full with getNote. */
+export const listNotes = () => request<NoteSummary[]>("/api/notes?fields=summary");
 export const getNote = (id: string) => request<Note>(`/api/notes/${seg(id)}`);
 /** `baseUpdatedAt` is the `updatedAt` you last saw; the server answers 409 if the note moved on. */
 export const putNote = (id: string, input: { title: string; body: string; tags?: string[]; baseUpdatedAt?: string }) =>

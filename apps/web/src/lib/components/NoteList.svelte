@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { slugify, type Note } from "@vigil/shared";
+  import { slugify, type Note, type NoteSummary } from "@vigil/shared";
   import { putNote } from "$lib/api";
 
   let {
@@ -9,7 +9,7 @@
     onselect,
     oncreated,
   }: {
-    notes?: Note[];
+    notes?: NoteSummary[];
     selectedId?: string | null;
     /** Ids whose title pulses amber once (an agent just landed them). */
     flicker?: Set<string>;

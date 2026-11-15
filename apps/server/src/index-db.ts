@@ -194,6 +194,18 @@ export function listNotes(): NoteRow[] {
   return rows.map(toNote);
 }
 
+/** The list view: no bodies, so the payload stays small however long the notes are. */
+export function listNoteSummaries(): Omit<NoteRow, "body">[] {
+  const { db } = open();
+  const rows = db
+    .prepare("SELECT id, title, updated_at, author, tags, agent_name FROM notes ORDER BY updated_at DESC")
+    .all() as Omit<DbNote, "body">[];
+  return rows.map((row) => {
+    const { body: _body, ...summary } = toNote({ ...row, body: null });
+    return summary;
+  });
+}
+
 export function getNote(id: string): NoteRow | null {
   const { db } = open();
   const row = db

@@ -1,10 +1,10 @@
-import type { Note } from "@vigil/shared";
+import type { NoteSummary } from "@vigil/shared";
 
 /**
  * Ids of agent-written notes that are new or newer in `next` than in `prev`. The first load
  * (`prev` null) never counts, so nothing flickers when the page opens.
  */
-export function newAgentNotes(prev: Note[] | null, next: Note[]): string[] {
+export function newAgentNotes(prev: NoteSummary[] | null, next: NoteSummary[]): string[] {
   if (prev === null) return [];
   const before = new Map(prev.map((n) => [n.id, n.updatedAt]));
   return next

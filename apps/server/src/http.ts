@@ -6,6 +6,7 @@ import { healthPayload } from "./health";
 import {
   getNote as indexGetNote,
   listNotes as indexListNotes,
+  listNoteSummaries,
   reindexNote,
   removeNote,
   searchNotes,
@@ -51,8 +52,10 @@ const routes: { method: string; pattern: RegExp; keys: string[]; handler: Handle
     method: "GET",
     pattern: /^\/api\/notes$/,
     keys: [],
-    handler: (_req, res) => {
-      send(res, 200, { data: indexListNotes() });
+    handler: (_req, res, _params, url) => {
+      const fields = url.searchParams.get("fields");
+      if (fields !== null && fields !== "summary") throw new AppError("invalid-query", "fields must be summary", 400);
+      send(res, 200, { data: fields === "summary" ? listNoteSummaries() : indexListNotes() });
     },
   },
   {

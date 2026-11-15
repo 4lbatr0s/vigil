@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import type { Note } from "@vigil/shared";
+import type { Note, NoteSummary } from "@vigil/shared";
 import { newAgentNotes } from "./notes-poll";
 
-const n = (id: string, updatedAt: string, author: Note["author"] = "agent"): Note => ({ id, title: id, body: "", tags: [], author, updatedAt });
+const n = (id: string, updatedAt: string, author: Note["author"] = "agent"): NoteSummary => ({ id, title: id, tags: [], author, updatedAt });
 
 describe("newAgentNotes", () => {
   it("does nothing on the first load", () => {

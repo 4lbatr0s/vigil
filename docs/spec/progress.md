@@ -51,7 +51,7 @@ Legend: `[x]` done, `[ ]` not done. Add a short note after a task only for a dev
 - [x] WP4-T5: Lantern flicker and provenance in the note list
 - [x] WP4-T6: Command palette (⌘K)
 - [x] WP4-T7: Settings and banners
-- [ ] WP4-T8: Notes list without bodies (performance)
+- [x] WP4-T8: Notes list without bodies (performance)
 - [ ] WP4-T9: One live event stream instead of polling
 - [ ] WP4-T10: Performance budgets and code splitting
 - [ ] WP4-NF: Non-functional checks (svelte-check clean, keyboard pass, contrast test, no-raw-colors test, light theme tokens)

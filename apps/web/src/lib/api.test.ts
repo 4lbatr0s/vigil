@@ -37,10 +37,11 @@ afterEach(() => {
 
 describe("api client", () => {
   it("unwraps the data envelope", async () => {
-    stubFetch({ data: [{ id: "hello", title: "Hello", body: "", updatedAt: "2026-11-14" }] });
+    const spy = stubFetch({ data: [{ id: "hello", title: "Hello", tags: [], author: "human", updatedAt: "2026-11-14" }] });
     const notes = await listNotes();
     expect(notes).toHaveLength(1);
     expect(notes[0]?.id).toBe("hello");
+    expect((spy.mock.calls as unknown as Array<[string]>)[0]?.[0]).toBe("/api/notes?fields=summary");
   });
 
   it("throws code: message for an error envelope", async () => {

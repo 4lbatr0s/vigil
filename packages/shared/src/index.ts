@@ -17,6 +17,8 @@ export const NoteSchema = z.object({
 });
 
 export type Note = z.infer<typeof NoteSchema>;
+/** A note without its body, for lists (GET /api/notes?fields=summary). */
+export type NoteSummary = Omit<Note, "body">;
 
 /** Lowercase, dash-separated, [a-z0-9-] only, max 80 chars. */
 export function slugify(title: string): string {

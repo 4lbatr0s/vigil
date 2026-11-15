@@ -88,6 +88,19 @@ describe("json api", () => {
     expect(ids(res.json.data)).toContain("hello");
   });
 
+  it("lists summaries without bodies, and full notes by default", async () => {
+    const full = await req("GET", "/api/notes");
+    const summary = await req("GET", "/api/notes?fields=summary");
+    expect(summary.status).toBe(200);
+    expect(ids(summary.json.data)).toEqual(ids(full.json.data));
+    const first = (summary.json.data as Array<Record<string, unknown>>)[0] ?? {};
+    expect(first).toMatchObject({ id: expect.any(String), title: expect.any(String), author: expect.any(String), updatedAt: expect.any(String) });
+    expect(Array.isArray(first["tags"])).toBe(true);
+    expect("body" in first).toBe(false);
+    expect("body" in ((full.json.data as Array<Record<string, unknown>>)[0] ?? {})).toBe(true);
+    expect(errCode((await req("GET", "/api/notes?fields=everything")).json)).toBe("invalid-query");
+  });
+
   it("searches notes", async () => {
     const res = await req("GET", "/api/search?q=vigil");
     expect(res.status).toBe(200);

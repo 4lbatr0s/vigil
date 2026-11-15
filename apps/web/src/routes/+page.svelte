@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount, tick } from "svelte";
   import { page } from "$app/state";
-  import type { Note } from "@vigil/shared";
+  import type { Note, NoteSummary } from "@vigil/shared";
   import { getNote, listNotes, putNote } from "$lib/api";
   import { renderMarkdown } from "$lib/render";
   import { newAgentNotes } from "$lib/notes-poll";
@@ -10,7 +10,7 @@
   import NoteList from "$lib/components/NoteList.svelte";
   import Preview from "$lib/components/Preview.svelte";
 
-  let notes = $state<Note[]>([]);
+  let notes = $state<NoteSummary[]>([]);
   let selectedId = $state<string | null>(null);
   let draft = $state<{ title: string; body: string } | null>(null);
   let status = $state("");
