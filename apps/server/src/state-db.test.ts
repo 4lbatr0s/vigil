@@ -65,7 +65,7 @@ describe("state-db migrations", () => {
     // Read the file version back through a separate connection, not the cached one.
     const check = new Database(statePath(), { readonly: true });
     try {
-      expect(check.pragma("user_version", { simple: true })).toBe(3);
+      expect(check.pragma("user_version", { simple: true })).toBe(MIGRATIONS.length);
     } finally {
       check.close();
     }

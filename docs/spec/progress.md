@@ -40,7 +40,7 @@ Legend: `[x]` done, `[ ]` not done. Add a short note after a task only for a dev
 - [x] WP3-T3: Usage and soft monthly cap
 - [x] WP3-T4: LLM status endpoint (onboarding support)
 - [x] WP3-T5: Instance permission settings (the configuration page's backend)
-- [ ] WP3-T6: Retention housekeeping
+- [x] WP3-T6: Retention housekeeping
 
 ## WP4: M2 web: agents screen, run viewer, command palette, usage banner
 
@@ -79,7 +79,7 @@ Legend: `[x]` done, `[ ]` not done. Add a short note after a task only for a dev
 ## WP8: M3 strict mode and the approvals queue
 
 - [ ] WP8-T1: ADR-0011 and checkpointer
-- [ ] WP8-T2: Migration 4 and store
+- [ ] WP8-T2: Migration 5 and store
 - [ ] WP8-T3: Runner changes
 - [ ] WP8-T4: API
 - [ ] WP8-T5: Web

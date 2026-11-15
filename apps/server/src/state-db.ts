@@ -90,6 +90,11 @@ export const MIGRATIONS: readonly string[] = [
     last_hashes TEXT               -- JSON {"note-id": "hash", ...}
   );
   `,
+  `
+  -- migration 4: retention. A pruned snapshot keeps its row (the run still shows what it touched)
+  -- but its file is gone, so the run can no longer be undone.
+  ALTER TABLE snapshots ADD COLUMN expired INTEGER NOT NULL DEFAULT 0;
+  `,
 ];
 
 let current: { key: string; db: Database.Database } | null = null;
@@ -253,14 +258,14 @@ export function listEvents(runId: string): RunEvent[] {
 
 // ---- snapshots ----
 
-export type SnapshotRow = { runId: string; noteId: string; existed: boolean; file: string | null; writtenUpdatedAt: string | null };
+export type SnapshotRow = { runId: string; noteId: string; existed: boolean; file: string | null; writtenUpdatedAt: string | null; expired: boolean };
 
 export function getSnapshot(runId: string, noteId: string): SnapshotRow | null {
   const row = open()
-    .prepare("SELECT run_id, note_id, existed, file, written_updated_at FROM snapshots WHERE run_id = ? AND note_id = ?")
-    .get(runId, noteId) as { run_id: string; note_id: string; existed: number; file: string | null; written_updated_at: string | null } | undefined;
+    .prepare("SELECT run_id, note_id, existed, file, written_updated_at, expired FROM snapshots WHERE run_id = ? AND note_id = ?")
+    .get(runId, noteId) as { run_id: string; note_id: string; existed: number; file: string | null; written_updated_at: string | null; expired: number } | undefined;
   return row
-    ? { runId: row.run_id, noteId: row.note_id, existed: row.existed === 1, file: row.file, writtenUpdatedAt: row.written_updated_at }
+    ? { runId: row.run_id, noteId: row.note_id, existed: row.existed === 1, file: row.file, writtenUpdatedAt: row.written_updated_at, expired: row.expired === 1 }
     : null;
 }
 
@@ -352,4 +357,35 @@ export function putSetting(key: string, value: unknown): void {
   open()
     .prepare("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value")
     .run(key, JSON.stringify(value));
+}
+
+// ---- Retention (WP3-T6) ----
+
+/** Runs whose logs and snapshots must never be pruned. */
+const LIVE = "('running', 'waiting-approval')";
+
+/** Delete run events older than `beforeIso`, except for runs that are still live. Returns the count. */
+export function pruneEvents(beforeIso: string): number {
+  const res = open()
+    .prepare(`DELETE FROM run_events WHERE at < ? AND run_id NOT IN (SELECT id FROM runs WHERE status IN ${LIVE})`)
+    .run(beforeIso);
+  return res.changes;
+}
+
+/**
+ * Remove the snapshot files of runs that started before `beforeIso` and mark those snapshots expired.
+ * The rows stay so the run still lists what it touched. Returns the number of snapshots expired.
+ */
+export async function expireSnapshots(beforeIso: string): Promise<number> {
+  const rows = open()
+    .prepare(
+      `SELECT s.run_id, s.note_id, s.file FROM snapshots s JOIN runs r ON r.id = s.run_id
+       WHERE s.expired = 0 AND r.started_at < ? AND r.status NOT IN ${LIVE}`,
+    )
+    .all(beforeIso) as { run_id: string; note_id: string; file: string | null }[];
+  for (const row of rows) {
+    if (row.file) await rm(row.file, { force: true });
+    open().prepare("UPDATE snapshots SET expired = 1 WHERE run_id = ? AND note_id = ?").run(row.run_id, row.note_id);
+  }
+  return rows.length;
 }

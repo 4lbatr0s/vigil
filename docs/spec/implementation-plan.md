@@ -746,9 +746,9 @@ ADR-0011 (`docs/adr/0011-strict-mode-approvals.md`) is already drafted; set its 
 - Status flow: `running` -> `waiting-approval` -> `running` -> final. The run row stays alive across a restart; `markInterruptedRuns` must **not** touch `waiting-approval` rows.
 - A pending approval that is never decided stays pending; there is no timeout in v1 (record this in the ADR). The UI shows a badge with the pending count.
 
-#### WP8-T2: Migration 4 and store
+#### WP8-T2: Migration 5 and store
 
-Migration 4 in `state-db.ts`:
+Migration 5 in `state-db.ts` (migration 4 was used by WP3-T6 retention):
 
 ```sql
 CREATE TABLE approvals (

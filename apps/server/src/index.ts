@@ -1,5 +1,6 @@
 import { rebuildAll, isEmpty } from "./index-db";
 import { startRun } from "./runs";
+import { startHousekeeping } from "./housekeeping";
 import { createScheduler } from "./scheduler";
 import { hasRunning, listAgents, markInterruptedRuns } from "./state-db";
 import { shutdown } from "./shutdown";
@@ -32,6 +33,7 @@ async function main(): Promise<void> {
     catchUpWindowMs: (Number.isFinite(catchUpHours) && catchUpHours > 0 ? catchUpHours : 24) * 3_600_000,
   });
   scheduler.start();
+  const housekeeping = startHousekeeping();
 
   // First signal: stop cleanly (close, watcher, runs up to 10 s, databases, exit 0).
   // Second signal while that is in flight: leave now with code 1.
@@ -43,7 +45,7 @@ async function main(): Promise<void> {
     }
     stopping = true;
     console.log(`vigil-server received ${signal}, shutting down`);
-    void shutdown({ server: running, watcher, scheduler, timeoutMs: 10_000 }).then(() => process.exit(0));
+    void shutdown({ server: running, watcher, scheduler, housekeeping, timeoutMs: 10_000 }).then(() => process.exit(0));
   };
   process.on("SIGTERM", onSignal);
   process.on("SIGINT", onSignal);

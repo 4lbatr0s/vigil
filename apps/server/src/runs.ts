@@ -81,7 +81,9 @@ async function undoLocked(runId: string): Promise<Run> {
   // A snapshot without a recorded write time means the agent never finished writing that note
   // (a crash between the snapshot and the write). Leave such notes alone: restoring or deleting
   // could destroy something a human did since.
-  const snapshots = listSnapshots(runId).filter((s) => s.writtenUpdatedAt !== null);
+  const all = listSnapshots(runId);
+  if (all.some((s) => s.expired)) throw new AppError("undo-expired", "This run is too old to undo.", 410);
+  const snapshots = all.filter((s) => s.writtenUpdatedAt !== null);
 
   const editedSince = async (snap: (typeof snapshots)[number]): Promise<boolean> => {
     const current = await getNote(snap.noteId).catch((err: unknown) => {

@@ -11,9 +11,11 @@ export async function shutdown(deps: {
   server: { close(): Promise<void> };
   watcher: { close(): Promise<void> };
   scheduler?: { stop(): void };
+  housekeeping?: { stop(): void };
   timeoutMs?: number;
 }): Promise<void> {
   deps.scheduler?.stop(); // no new scheduled runs while stopping
+  deps.housekeeping?.stop();
   await deps.server.close();
   await deps.watcher.close();
   // Wait for the runs, but give up after the timeout and leave the stragglers running.
