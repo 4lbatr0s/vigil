@@ -24,23 +24,23 @@ Acceptance: `pnpm --filter @vigil/server test` includes a fake-provider run that
 - One-click template: Morning Digest.
 Acceptance: test with an injected clock proves the 07:00 run, the catch-up run after downtime, and the skip while running; README leads with a recording of the digest.
 
-## M3: Heartbeat and chat
+## M3: Heartbeat and chat (done 2026-11-15)
 - **Change signal for heartbeats:** hash of the sorted `(note id, content hash)` list the agent may read. The index stores a content hash per note. A heartbeat run fires only when the hash differs from its last run; unchanged means no model call and a `skipped: unchanged` log line.
 - Chat archetype: streaming conversation with tools, saved as a note.
 - `call_agent`: depth 1, shared budget, all calls in the run log.
 - Strict mode: approve-before-write queue.
 Acceptance: tests for unchanged-skip, changed-run, depth limit, and strict-mode queue.
 
-## M4: Web fetch (ADR-0006)
+## M4: Web fetch (ADR-0006) (done 2026-11-15)
 - Per-agent domain allowlist, address blocking, redirect re-checks, size and time caps.
 Acceptance: tests for blocked private/metadata/IPv6-mapped addresses, a redirect to a blocked host, and an empty allowlist.
 
-## M5: Graph
+## M5: Graph (done 2026-11-15)
 - `/api/graph`: notes, links (including links to notes that do not exist yet), agent edges.
 - Sigma.js view per ui.md: amber glow by recency, dashed agent edges.
 Acceptance: API test for nodes and edges; the view renders the demo vault.
 
-## M6: Ship it
+## M6: Ship it (done 2026-11-15)
 - Login screen with HttpOnly cookie for non-local installs (ADR-0007), one Docker image, one volume, PWA manifest, README with the demo.
 Acceptance: `docker build` and `docker run -v vault:/vault` serve the UI; `curl` without a token returns 401.
 

@@ -1112,22 +1112,22 @@ Cheaper models and hurried people tend to do these. Each one has already caused 
 
 ## 10. Release checklist (v1.0.0)
 
-- [ ] Gate command green on a fresh clone (`pnpm install --frozen-lockfile && pnpm typecheck && pnpm test`).
-- [ ] `git status` clean after the full test run; no changes under `data/` or `vault/`.
-- [ ] Docker image builds; run, health, 401 without token, 200 with token, restart keeps data (WP12-T4).
-- [ ] Morning Digest demo works end to end with a real model on a fresh volume, including undo.
-- [ ] Strict mode demo: approval queue, restart while waiting, approve.
-- [ ] Heartbeat demo: no run while idle; one run after an edit.
-- [ ] Web fetch demo: allowed host works; loopback URL refused and logged.
-- [ ] Graph opens on the demo vault; fallback list works without WebGL.
-- [ ] Keyboard-only pass over every page; contrast test passes; reduced-motion pass.
-- [ ] `grep -rn "sk-\|api_key" apps packages --include=*.ts --include=*.svelte` shows no real secrets; `git log -p | grep -i "api_key=" ` shows none.
-- [ ] README commands copy-paste correctly on a clean directory; every README claim exists in the code.
-- [ ] Performance budgets hold: `scripts/check-bundle-size.mjs` passes, the 1,000-note index test passes, `node apps/server/dist/server.mjs` smoke test passes (WP4-T10, WP12-T4).
-- [ ] Name check done: "Vigil" searched on npm, GitHub and trademark databases; result written in `docs/spec/open-questions.md`.
-- [ ] Permissions page works: switch off web fetch and confirm a run no longer offers the tool; template agents are created switched off.
-- [ ] `docs/spec/roadmap.md` marks M0 to M6 done with dates; ADRs 0010 to 0013 written; `docs/spec/open-questions.md` reviewed with the owner.
-- [ ] `CHANGELOG.md` has the 1.0.0 entry; versions bumped; tag created only when the owner says so.
+- [x] Gate command green on a fresh clone (`pnpm install --frozen-lockfile && pnpm typecheck && pnpm test`). *Checked 2026-11-15 on a fresh clone: typecheck and all tests pass.*
+- [x] `git status` clean after the full test run; no changes under `data/` or `vault/`. *Clean; no data/ or vault/ created in the clone.*
+- [x] Docker image builds; run, health, 401 without token, 200 with token, restart keeps data (WP12-T4). *Checked 2026-11-15, output in the WP12 commit message.*
+- [ ] Morning Digest demo works end to end with a real model on a fresh volume, including undo. *Done on a real local model with undo (WP4), not yet on a fresh Docker volume.*
+- [x] Strict mode demo: approval queue, restart while waiting, approve. *Done on a real local model, including a restart while waiting (WP8).*
+- [ ] Heartbeat demo: no run while idle; one run after an edit. *One run after an edit observed (WP6); the 'no run while idle after its own write' part is covered by tests, not observed live.*
+- [ ] Web fetch demo: allowed host works; loopback URL refused and logged. *Live fetch of an allowed host and refusals checked against the real network; the Research Scout agent was not run on a model.*
+- [ ] Graph opens on the demo vault; fallback list works without WebGL. *Graph checked in a browser; the list view and the no-WebGL fallback were not exercised.*
+- [ ] Keyboard-only pass over every page; contrast test passes; reduced-motion pass. *Contrast and reduced-motion rules are tested; a manual keyboard pass over every page is still to do.*
+- [x] `grep -rn "sk-\|api_key" apps packages --include=*.ts --include=*.svelte` shows no real secrets; `git log -p | grep -i "api_key=" ` shows none. *Only test fixtures match; none in history.*
+- [ ] README commands copy-paste correctly on a clean directory; every README claim exists in the code. *Docker commands verified; a clean-machine run is still to do.*
+- [x] Performance budgets hold: `scripts/check-bundle-size.mjs` passes, the 1,000-note index test passes, `node apps/server/dist/server.mjs` smoke test passes (WP4-T10, WP12-T4). *Bundle budget (73 KB of 180), 1,000-note test and the dist smoke test pass.*
+- [ ] Name check done: "Vigil" searched on npm, GitHub and trademark databases; result written in `docs/spec/open-questions.md`. *Owner's task.*
+- [ ] Permissions page works: switch off web fetch and confirm a run no longer offers the tool; template agents are created switched off. *Covered by tests; not re-run by hand in this pass.*
+- [x] `docs/spec/roadmap.md` marks M0 to M6 done with dates; ADRs 0010 to 0013 written; `docs/spec/open-questions.md` reviewed with the owner.
+- [x] `CHANGELOG.md` has the 1.0.0 entry; versions bumped; tag created only when the owner says so. *Versions are 1.0.0; no tag has been created.*
 
 ---
 
