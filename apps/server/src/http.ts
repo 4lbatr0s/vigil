@@ -1,6 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { z } from "zod";
 import { checkAccess, type Access } from "./access";
+import { handleAuth } from "./auth";
 import { AppError, isAppError } from "./errors";
 import { healthPayload } from "./health";
 import {
@@ -559,6 +560,7 @@ export function createHandler(access: Access): (req: IncomingMessage, res: Serve
       const url = new URL(req.url ?? "/", "http://localhost");
       try {
         checkAccess(req, access, url.pathname);
+        if (await handleAuth(req, res, url.pathname, access)) return;
         for (const route of routes) {
           if (route.method !== req.method) continue;
           const match = route.pattern.exec(url.pathname);

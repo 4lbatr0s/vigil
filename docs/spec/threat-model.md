@@ -37,7 +37,7 @@ Scope: a single-user, self-hosted instance (loopback by default, optionally expo
 | --- | --- | --- | --- | --- |
 | T1 | A website the owner visits calls `localhost:3001` and reads or writes notes | loopback bind, no CORS, Host check (anti DNS rebinding), Origin check | built | `access.test.ts` |
 | T2 | A LAN device reaches the API | default bind 127.0.0.1; non-local bind refused without `VIGIL_TOKEN` | built | `access.test.ts` |
-| T3 | Token guessing | constant-time compare; login rate limit (5 failures/min/IP, then 429) | token built; login planned (WP12) | `login.test.ts` |
+| T3 | Token guessing | constant-time compare; login rate limit (5 failures/min/IP, then 429) | built (WP12-T1) | `login.test.ts` |
 | T4 | Prompt injection in a note makes an agent do something harmful | agent has only granted tools; no shell; writes snapshotted, logged, undoable; strict mode for risky agents; untrusted-data framing in the system prompt | built (incl. strict mode) | `agents.test.ts` |
 | T5 | Injected agent leaks note text through a URL | `web_fetch` needs a per-agent host allowlist; empty list refuses everything; instance-wide web switch; approvals on by default for new agents; the UI warns when read + fetch run without approvals; full URL logged | built (WP10, WP8, WP3-T5) | `safe-fetch.test.ts`, `permissions.test.ts` |
 | T6 | SSRF to localhost, LAN, cloud metadata | address block list incl. `169.254.169.254` and IPv4-mapped IPv6; resolve-validate-pin; per-hop redirect checks; ports 80/443 only | built (WP10) | `safe-fetch.test.ts` |
@@ -47,7 +47,7 @@ Scope: a single-user, self-hosted instance (loopback by default, optionally expo
 | T10 | XSS from note content rendered in the UI | `marked` then DOMPurify; strict CSP; SPA without SSR | sanitizer built; CSP planned | `render.test.ts`, headers test |
 | T11 | Runaway cost or loops | per-run token budget that fails closed (usage estimated when missing; remaining budget passed as `maxTokens`); step limit; one run per agent; `call_agent` depth 1 and shared budget; soft monthly cap | built (cap, chain planned) | `agents.test.ts`, `usage.test.ts` |
 | T12 | Agent chain amplification (A triggers B triggers A) | heartbeat ignores notes the same agent wrote; minimum interval 5 min; `call_agent` children cannot call agents | built (WP6, WP7) | `heartbeat.test.ts`, `call-agent.test.ts` |
-| T13 | Login CSRF / cookie theft | `HttpOnly`, `SameSite=Strict`, `Secure` over HTTPS; Origin check on every request | planned (WP12) | `login.test.ts` |
+| T13 | Login CSRF / cookie theft | `HttpOnly`, `SameSite=Strict`, `Secure` over HTTPS; Origin check on every request | built (WP12-T1) | `login.test.ts` |
 | T14 | Duplicate side effects (double run, double write) | persist-before-run for cron and heartbeat; approval node holds no side effects; run lock | built/planned | `scheduler.test.ts`, `agents.test.ts` |
 | T15 | Container escape or root in the container | non-root `node` user; no extra capabilities documented; vault is a mounted volume | planned (WP12) | manual |
 | T17 | A stale approval overwrites a newer human edit | approval stores the note's `updatedAt`; approving after a change answers `409 approval-stale`; apply-anyway needs `force`, snapshot first | built (WP8) | `approvals.test.ts` |

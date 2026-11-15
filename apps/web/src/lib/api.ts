@@ -17,10 +17,29 @@ export class ApiError extends Error {
   }
 }
 
+/** The server answered 401: the visitor must sign in. */
+export class UnauthorizedError extends ApiError {
+  constructor(message: string) {
+    super("unauthorized", message);
+  }
+}
+
+let unauthorizedHandler: (() => void) | null = null;
+/** The layout registers one handler that sends the visitor to /login. */
+export function onUnauthorized(handler: (() => void) | null): void {
+  unauthorizedHandler = handler;
+}
+
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, init);
   const payload = (await res.json()) as Envelope<T>;
-  if ("error" in payload) throw new ApiError(payload.error.code, payload.error.message);
+  if ("error" in payload) {
+    if (res.status === 401) {
+      unauthorizedHandler?.();
+      throw new UnauthorizedError(payload.error.message);
+    }
+    throw new ApiError(payload.error.code, payload.error.message);
+  }
   return payload.data;
 }
 
@@ -87,6 +106,13 @@ export const getRun = (id: string, after?: number) =>
   request<{ run: Run; events: RunEvent[] }>(`/api/runs/${seg(id)}${after ? `?after=${after}` : ""}`);
 export const undoRun = (id: string) => request<Run>(`/api/runs/${seg(id)}/undo`, json("POST"));
 
+// ---- Session ----
+
+export type Session = { required: boolean; authenticated: boolean };
+export const getSession = () => request<Session>("/api/session");
+export const login = (token: string) => request<Session>("/api/login", json("POST", { token }));
+export const logout = () => request<{ ok: boolean }>("/api/logout", json("POST"));
+
 // ---- Graph ----
 
 export const getGraph = () => request<import("./graph-model").GraphApi>("/api/graph");
@@ -116,6 +142,10 @@ export const saveChat = (id: string) => request<{ id: string; title: string }>(`
  */
 export async function streamTurn(id: string, text: string, signal: AbortSignal, onLine: (line: ChatLine) => void): Promise<void> {
   const res = await fetch(`/api/chats/${seg(id)}/messages`, { ...json("POST", { text }), signal });
+  if (res.status === 401) {
+    unauthorizedHandler?.();
+    throw new UnauthorizedError("Sign in to continue.");
+  }
   if (!res.ok || !res.body) {
     const payload = (await res.json().catch(() => null)) as { error?: { code: string; message: string } } | null;
     throw new ApiError(payload?.error?.code ?? "request-failed", payload?.error?.message ?? `The server answered ${res.status}`);

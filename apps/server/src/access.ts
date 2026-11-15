@@ -1,6 +1,7 @@
 import { timingSafeEqual } from "node:crypto";
 import type { IncomingMessage } from "node:http";
 import { AppError } from "./errors";
+import { hasValidSession } from "./session";
 
 /** Who may reach the API (ADR-0007). */
 export type Access = {
@@ -10,6 +11,9 @@ export type Access = {
   /** Extra Host header names accepted besides localhost, for example a reverse-proxy domain. */
   allowedHosts: string[];
 };
+
+/** API routes that work without credentials: health, and the login flow itself (which checks the token on its own). */
+const OPEN_PATHS = new Set(["/api/health", "/api/login", "/api/logout", "/api/session"]);
 
 const LOOPBACK_HOSTS = new Set(["127.0.0.1", "::1", "localhost"]);
 const LOCAL_NAMES = new Set(["localhost", "127.0.0.1", "[::1]"]);
@@ -38,7 +42,7 @@ export function accessFromEnv(overrides: Partial<Access> = {}): Access {
   return access;
 }
 
-function hostName(hostHeader: string): string {
+export function hostNameOf(hostHeader: string): string {
   // "localhost:3001" -> "localhost"; "[::1]:3001" -> "[::1]".
   const match = /^(\[[^\]]+\]|[^:]+)(?::\d+)?$/.exec(hostHeader.trim().toLowerCase());
   return match?.[1] ?? "";
@@ -56,7 +60,7 @@ function sameToken(given: string, expected: string): boolean {
  */
 export function checkAccess(req: IncomingMessage, access: Access, pathname: string): void {
   const hostHeader = req.headers.host ?? "";
-  const name = hostName(hostHeader);
+  const name = hostNameOf(hostHeader);
   if (!LOCAL_NAMES.has(name) && !access.allowedHosts.includes(name)) {
     throw new AppError("bad-host", `Host not allowed: ${JSON.stringify(hostHeader)}`, 403);
   }
@@ -72,10 +76,12 @@ export function checkAccess(req: IncomingMessage, access: Access, pathname: stri
       throw new AppError("bad-origin", "Cross-origin requests are not allowed", 403);
     }
   }
-  if (access.token && pathname !== "/api/health") {
+  // Only the API holds data. The web app's files (everything outside /api/) and a few open API routes
+  // need no credentials; the Host and Origin checks above still apply to them.
+  if (access.token && pathname.startsWith("/api/") && !OPEN_PATHS.has(pathname)) {
     const auth = req.headers.authorization ?? "";
     const given = auth.startsWith("Bearer ") ? auth.slice(7) : "";
-    if (!sameToken(given, access.token)) {
+    if (!sameToken(given, access.token) && !hasValidSession(req)) {
       throw new AppError("unauthorized", "Missing or wrong token", 401);
     }
   }

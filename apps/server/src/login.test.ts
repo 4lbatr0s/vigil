@@ -1,0 +1,203 @@
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { mkdtemp, rm, stat } from "node:fs/promises";
+import { request } from "node:http";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { resetLimiterForTests, clientIp, cookieSecure } from "./auth";
+import { closeDb } from "./index-db";
+import { start, type RunningServer } from "./server";
+import { COOKIE_NAME, makeSession, resetSessionKeyCache, sessionKeyPath, verifySession } from "./session";
+import { closeState } from "./state-db";
+import type { Access } from "./access";
+import type { IncomingMessage } from "node:http";
+
+let root = "";
+let server: RunningServer;
+const saved = { ...process.env };
+const TOKEN = "correct-horse-battery";
+
+beforeEach(async () => {
+  root = await mkdtemp(path.join(tmpdir(), "vigil-login-"));
+  process.env.VAULT_DIR = path.join(root, "vault");
+  process.env.DB_PATH = path.join(root, "index.db");
+  process.env.STATE_DB_PATH = path.join(root, "state.db");
+  delete process.env.SESSION_KEY_PATH;
+  delete process.env.VIGIL_COOKIE_SECURE;
+  resetSessionKeyCache();
+  resetLimiterForTests();
+  server = start({ port: 0, access: { token: TOKEN, allowedHosts: ["notes.example.com"] } });
+  await new Promise<void>((r) => server.server.once("listening", () => r()));
+});
+afterEach(async () => {
+  await server.close();
+  closeDb();
+  closeState();
+  resetSessionKeyCache();
+  process.env = { ...saved };
+  await rm(root, { recursive: true, force: true });
+});
+
+type Res = { status: number; headers: Record<string, string | string[] | undefined>; json: any };
+function call(method: string, pathname: string, opts: { headers?: Record<string, string>; body?: unknown } = {}): Promise<Res> {
+  const port = (server.server.address() as { port: number }).port;
+  return new Promise((resolve, reject) => {
+    const payload = opts.body === undefined ? undefined : JSON.stringify(opts.body);
+    const req = request(
+      { host: "127.0.0.1", port, path: pathname, method, headers: { ...(payload ? { "content-type": "application/json", "content-length": String(Buffer.byteLength(payload)) } : {}), ...opts.headers } },
+      (res) => {
+        let text = "";
+        res.on("data", (c: Buffer) => (text += c.toString()));
+        res.on("end", () => resolve({ status: res.statusCode ?? 0, headers: res.headers, json: text ? JSON.parse(text) : null }));
+      },
+    );
+    req.on("error", reject);
+    if (payload) req.write(payload);
+    req.end();
+  });
+}
+const login = (token: string, headers: Record<string, string> = {}) => call("POST", "/api/login", { body: { token }, headers });
+const cookieOf = (r: Res): string => String(([] as string[]).concat((r.headers["set-cookie"] as string[] | string | undefined) ?? [])[0] ?? "");
+
+describe("login", () => {
+  it("success sets the session cookie with the expected attributes", async () => {
+    const r = await login(TOKEN);
+    expect(r.status).toBe(200);
+    expect(r.json.data).toEqual({ required: true, authenticated: true });
+    const c = cookieOf(r);
+    expect(c).toMatch(new RegExp(`^${COOKIE_NAME}=[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+;`));
+    expect(c).toContain("HttpOnly");
+    expect(c).toContain("SameSite=Strict");
+    expect(c).toContain("Path=/");
+    expect(c).toContain("Max-Age=2592000");
+    expect(c).not.toContain("Secure"); // plain http on loopback
+  });
+
+  it("a wrong or missing token answers 401 and sets no cookie", async () => {
+    for (const body of [{ token: "nope" }, { token: "" }, {}, { token: 5 }]) {
+      const r = await call("POST", "/api/login", { body });
+      expect(r.status).toBe(401);
+      expect(r.json.error.code).toBe("unauthorized");
+      expect(r.headers["set-cookie"]).toBeUndefined();
+    }
+  });
+
+  it("the cookie opens the API, and so does the bearer token; nothing else does", async () => {
+    expect((await call("GET", "/api/notes")).status).toBe(401);
+    const cookie = cookieOf(await login(TOKEN)).split(";")[0] as string;
+    expect((await call("GET", "/api/notes", { headers: { cookie } })).status).toBe(200);
+    expect((await call("GET", "/api/notes", { headers: { authorization: `Bearer ${TOKEN}` } })).status).toBe(200);
+    expect((await call("GET", "/api/notes", { headers: { cookie: `${COOKIE_NAME}=garbage` } })).status).toBe(401);
+  });
+
+  it("five failures lock that address out for the window, even for the right token; a later success resets", async () => {
+    for (let i = 0; i < 5; i++) expect((await login("wrong")).status).toBe(401);
+    const blocked = await login(TOKEN);
+    expect(blocked.status).toBe(429);
+    expect(blocked.json.error.code).toBe("too-many-attempts");
+    expect(blocked.headers["set-cookie"]).toBeUndefined();
+  });
+
+  it("four failures then a success is fine and clears the count", async () => {
+    for (let i = 0; i < 4; i++) await login("wrong");
+    expect((await login(TOKEN)).status).toBe(200);
+    for (let i = 0; i < 4; i++) await login("wrong");
+    expect((await login(TOKEN)).status).toBe(200);
+  });
+
+  it("health, session and logout stay open; session says whether you are signed in", async () => {
+    expect((await call("GET", "/api/health")).status).toBe(200);
+    expect((await call("GET", "/api/session")).json.data).toEqual({ required: true, authenticated: false });
+    const cookie = cookieOf(await login(TOKEN)).split(";")[0] as string;
+    expect((await call("GET", "/api/session", { headers: { cookie } })).json.data).toEqual({ required: true, authenticated: true });
+    const out = await call("POST", "/api/logout");
+    expect(out.status).toBe(200);
+    expect(cookieOf(out)).toMatch(/Max-Age=0/);
+    expect(cookieOf(out)).toContain(`${COOKIE_NAME}=;`);
+  });
+
+  it("a cross-origin POST with a valid cookie is refused with bad-origin", async () => {
+    const cookie = cookieOf(await login(TOKEN)).split(";")[0] as string;
+    const r = await call("POST", "/api/agents/x/run", { headers: { cookie, origin: "https://evil.example" } });
+    expect(r.status).toBe(403);
+    expect(r.json.error.code).toBe("bad-origin");
+    const login2 = await call("POST", "/api/login", { body: { token: TOKEN }, headers: { origin: "https://evil.example" } });
+    expect(login2.json.error.code).toBe("bad-origin");
+  });
+
+  it("a wrong Host is refused before anything else", async () => {
+    const r = await call("POST", "/api/login", { body: { token: TOKEN }, headers: { host: "evil.example" } });
+    expect(r.json.error.code).toBe("bad-host");
+  });
+
+  it("without a token configured there is no login: the route says so", async () => {
+    await server.close();
+    server = start({ port: 0, access: { token: undefined, allowedHosts: [] } });
+    await new Promise<void>((r) => server.server.once("listening", () => r()));
+    const r = await call("POST", "/api/login", { body: { token: "anything" } });
+    expect(r.json.data).toEqual({ required: false, authenticated: true });
+    expect(r.headers["set-cookie"]).toBeUndefined();
+    expect((await call("GET", "/api/session")).json.data).toEqual({ required: false, authenticated: true });
+  });
+});
+
+describe("session values", () => {
+  it("accepts a fresh one, rejects expired, tampered, malformed and foreign-key ones", async () => {
+    const now = Date.now();
+    const good = makeSession(now, 60);
+    expect(verifySession(good, now)).toBe(true);
+    expect(verifySession(good, now + 61_000)).toBe(false); // expired
+    const [payload, sig] = good.split(".") as [string, string];
+    const forged = Buffer.from(JSON.stringify({ exp: Math.floor(now / 1000) + 99_999_999 })).toString("base64url");
+    expect(verifySession(`${forged}.${sig}`, now)).toBe(false); // payload changed, signature kept
+    expect(verifySession(`${payload}.${sig.slice(0, -2)}AA`, now)).toBe(false); // tampered signature
+    for (const bad of [undefined, "", "abc", ".", "a.", ".b", "a.b.c", `${payload}.`]) expect(verifySession(bad, now), String(bad)).toBe(false);
+    // A value signed with another key is refused.
+    await rm(sessionKeyPath());
+    resetSessionKeyCache();
+    expect(verifySession(good, now)).toBe(false);
+  });
+
+  it("the key file is created with mode 0600 and 32 bytes, and is reused", async () => {
+    makeSession();
+    const info = await stat(sessionKeyPath());
+    expect(info.mode & 0o777).toBe(0o600);
+    expect(info.size).toBe(32);
+    const before = makeSession(1_700_000_000_000, 60);
+    resetSessionKeyCache();
+    expect(makeSession(1_700_000_000_000, 60)).toBe(before); // same key read back from the file
+  });
+
+  it("SESSION_KEY_PATH moves the key", async () => {
+    process.env.SESSION_KEY_PATH = path.join(root, "elsewhere", "k.key");
+    resetSessionKeyCache();
+    makeSession();
+    expect((await stat(process.env.SESSION_KEY_PATH)).mode & 0o777).toBe(0o600);
+  });
+});
+
+function fakeReq(headers: Record<string, string>, remote = "10.0.0.9", encrypted = false): IncomingMessage {
+  return { headers, socket: { remoteAddress: remote, encrypted } } as unknown as IncomingMessage;
+}
+const access: Access = { host: "0.0.0.0", token: "t", allowedHosts: ["notes.example.com"] };
+
+describe("client address and Secure flag behind a proxy", () => {
+  it("ignores x-forwarded-for unless the Host is allowed, then takes the right-most non-private entry", () => {
+    const xff = "6.6.6.6, 203.0.114.5, 10.1.1.1, 192.168.0.4";
+    expect(clientIp(fakeReq({ host: "localhost:3001", "x-forwarded-for": xff }, "127.0.0.1"), access)).toBe("127.0.0.1");
+    expect(clientIp(fakeReq({ host: "notes.example.com", "x-forwarded-for": xff }, "172.18.0.2"), access)).toBe("203.0.114.5".replace("203.0.114.5", "203.0.114.5"));
+    // a client that forges the left side cannot choose the address that is counted
+    expect(clientIp(fakeReq({ host: "notes.example.com", "x-forwarded-for": "1.2.3.4, 8.8.8.8" }, "172.18.0.2"), access)).toBe("8.8.8.8");
+    expect(clientIp(fakeReq({ host: "notes.example.com", "x-forwarded-for": "10.0.0.1, 192.168.1.1" }, "172.18.0.2"), access)).toBe("172.18.0.2");
+    expect(clientIp(fakeReq({ host: "notes.example.com", "x-forwarded-for": "not an ip" }, "172.18.0.2"), access)).toBe("172.18.0.2");
+    expect(clientIp(fakeReq({ host: "x" }, "::ffff:9.9.9.9"), access)).toBe("9.9.9.9");
+  });
+
+  it("Secure comes from https, a trusted proxy header, or VIGIL_COOKIE_SECURE", () => {
+    expect(cookieSecure(fakeReq({ host: "localhost" }), access)).toBe(false);
+    expect(cookieSecure(fakeReq({ host: "localhost" }, "1.1.1.1", true), access)).toBe(true);
+    expect(cookieSecure(fakeReq({ host: "notes.example.com", "x-forwarded-proto": "https" }), access)).toBe(true);
+    expect(cookieSecure(fakeReq({ host: "localhost", "x-forwarded-proto": "https" }), access)).toBe(false); // not a listed host: ignored
+    process.env.VIGIL_COOKIE_SECURE = "1";
+    expect(cookieSecure(fakeReq({ host: "localhost" }), access)).toBe(true);
+  });
+});

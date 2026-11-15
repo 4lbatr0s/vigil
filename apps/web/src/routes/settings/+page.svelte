@@ -1,12 +1,14 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { ApiError, getLlmStatus, getPermissions, getUsage, putPermissions, type LlmStatus, type Usage } from "$lib/api";
+  import { goto } from "$app/navigation";
+  import { ApiError, getLlmStatus, getPermissions, getSession, getUsage, logout, putPermissions, type LlmStatus, type Session, type Usage } from "$lib/api";
   import { fieldOfError, formToSettings, messageOfError, settingsToForm, type SettingsField, type SettingsForm } from "$lib/settings-form";
 
   let form = $state<SettingsForm | null>(null);
   let saved = $state<SettingsForm | null>(null);
   let llm = $state<LlmStatus | null>(null);
   let usage = $state<Usage | null>(null);
+  let session = $state<Session | null>(null);
   let loadError = $state("");
   let saveError = $state<{ field: SettingsField | null; text: string } | null>(null);
   let notice = $state("");
@@ -30,6 +32,7 @@
         saved = settingsToForm(settings);
         llm = status;
         usage = use;
+        session = await getSession();
       } catch (err) {
         loadError = err instanceof Error ? err.message : "Could not load settings";
       }
@@ -51,6 +54,14 @@
       saveError = { field: fieldOfError(detail), text: messageOfError(detail) };
     } finally {
       busy = false;
+    }
+  }
+
+  async function signOut(): Promise<void> {
+    try {
+      await logout();
+    } finally {
+      await goto("/login");
     }
   }
 
@@ -150,6 +161,14 @@ VIGIL_MONTHLY_TOKEN_CAP=...  # optional warning level</pre>
         <div class="bar" role="img" aria-label={`${pct}% of the monthly cap`}><span class="fill" style:width={`${pct}%`}></span></div>
         <p class="muted">The cap is a warning only. It never stops an agent.</p>
       {/if}
+    {/if}
+  </section>
+  <section aria-labelledby="access">
+    <h2 id="access">Access</h2>
+    {#if session?.required}
+      <p>Signed in. <button type="button" class="ghost" onclick={() => void signOut()}>Sign out</button></p>
+    {:else if session}
+      <p class="muted">Local access: no token is set, so there is no login.</p>
     {/if}
   </section>
 </main>

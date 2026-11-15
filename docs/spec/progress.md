@@ -107,7 +107,7 @@ Legend: `[x]` done, `[ ]` not done. Add a short note after a task only for a dev
 
 ## WP12: M6 ship it (login, single process, Docker, PWA, README, CI)
 
-- [ ] WP12-T1: Browser login (ADR-0007 follow-through)
+- [x] WP12-T1: Browser login (ADR-0007 follow-through)
 - [ ] WP12-T2: One process serves the web app
 - [ ] WP12-T3: Dev story stays working
 - [ ] WP12-T4: Docker

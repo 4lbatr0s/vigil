@@ -1,6 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   ApiError,
+  UnauthorizedError,
+  onUnauthorized,
+  login,
+  logout,
+  getSession,
   createChat,
   deleteChat,
   getChat,
@@ -208,6 +213,35 @@ describe("api client", () => {
       expect(err).toBeInstanceOf(ApiError);
       expect((err as ApiError).code).toBe("agent-busy");
       expect((err as ApiError).detail).toBe("busy now");
+    });
+  });
+
+  describe("401 handling", () => {
+    afterEach(() => onUnauthorized(null));
+    it("throws UnauthorizedError and calls the registered handler once", async () => {
+      vi.stubGlobal("fetch", vi.fn(async () => ({ ok: false, status: 401, json: async () => ({ error: { code: "unauthorized", message: "Missing or wrong token" } }) })));
+      const handler = vi.fn();
+      onUnauthorized(handler);
+      const err = await listNotes().catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(UnauthorizedError);
+      expect(err).toBeInstanceOf(ApiError);
+      expect(handler).toHaveBeenCalledTimes(1);
+    });
+    it("a 403 is a plain ApiError and does not trigger the handler", async () => {
+      vi.stubGlobal("fetch", vi.fn(async () => ({ ok: false, status: 403, json: async () => ({ error: { code: "bad-host", message: "no" } }) })));
+      const handler = vi.fn();
+      onUnauthorized(handler);
+      const err = await listNotes().catch((e: unknown) => e);
+      expect(err).not.toBeInstanceOf(UnauthorizedError);
+      expect(handler).not.toHaveBeenCalled();
+    });
+    it("session endpoints use the right methods", async () => {
+      const spy = stubFetch({ data: { required: true, authenticated: true } });
+      await getSession();
+      await login("tok");
+      await logout();
+      const seen = (spy.mock.calls as unknown as Array<[string, RequestInit | undefined]>).map(([u, i]) => [u, i?.method, i?.body]);
+      expect(seen).toEqual([["/api/session", undefined, undefined], ["/api/login", "POST", JSON.stringify({ token: "tok" })], ["/api/logout", "POST", "{}"]]);
     });
   });
 });

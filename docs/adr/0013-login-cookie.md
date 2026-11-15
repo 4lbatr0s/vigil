@@ -1,7 +1,7 @@
 # ADR-0013: Browser login with a signed HttpOnly cookie (follows ADR-0007)
 
 ## Status
-Proposed (2026-11-15). Becomes Accepted when WP12 starts.
+Accepted (2026-11-15).
 
 ## Context
 ADR-0007 requires `VIGIL_TOKEN` for any non-local bind and accepts it as a bearer token. A browser UI cannot keep a bearer token safely (it would live in page script). Hosted installs need a login that survives page loads without exposing the token to scripts.
