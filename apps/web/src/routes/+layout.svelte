@@ -4,8 +4,11 @@
   import "@fontsource/ibm-plex-mono/400.css";
   import "@fontsource/ibm-plex-mono/500.css";
   import "../app.css";
+  import Shell from "$lib/components/Shell.svelte";
 
   let { children } = $props();
 </script>
 
-{@render children()}
+<Shell>
+  {@render children()}
+</Shell>

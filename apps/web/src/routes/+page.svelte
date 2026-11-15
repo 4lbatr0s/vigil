@@ -148,14 +148,15 @@
   .app {
     display: grid;
     grid-template-columns: var(--sidebar-width) 1fr;
-    height: 100vh;
+    height: 100%;
   }
 
   .main {
     display: grid;
     grid-template-rows: auto 1fr auto;
     min-width: 0;
-    height: 100vh;
+    height: 100%;
+    min-height: 0;
     background: var(--bg);
   }
 

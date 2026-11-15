@@ -19,6 +19,7 @@
     "@fontsource-variable/newsreader": "^5",
     "@fontsource-variable/schibsted-grotesk": "^5",
     "@fontsource/ibm-plex-mono": "^5",
+    "@lucide/svelte": "1.73.0",
     "@vigil/shared": "workspace:*",
     "codemirror": "^6",
     "dompurify": "^3",

@@ -84,6 +84,9 @@ importers:
       '@fontsource/ibm-plex-mono':
         specifier: ^5
         version: 5.3.0
+      '@lucide/svelte':
+        specifier: 1.73.0
+        version: 1.73.0(svelte@5.57.3)
       '@vigil/shared':
         specifier: workspace:*
         version: link:../../packages/shared
@@ -542,6 +545,11 @@ packages:
 
   '@lezer/yaml@1.0.4':
     resolution: {integrity: sha512-2lrrHqxalACEbxIbsjhqGpSW8kWpUKuY6RHgnSAFZa6qK62wvnPxA8hGOwOoDbwHcOFs5M4o27mjGu+P7TvBmw==}
+
+  '@lucide/svelte@1.73.0':
+    resolution: {integrity: sha512-Rz1uA9aTJ7HA/j2Hf9Dm2OVM8NtkzHnNeIQvVWoUkpf1ZD/7dR9cB4ftjbOiWAeJrKkEAVvTDrcVtITFdx6KAA==}
+    peerDependencies:
+      svelte: ^5
 
   '@marijn/find-cluster-break@1.0.4':
     resolution: {integrity: sha512-Wy0V7+SGUjnF9/TkiM1hKVDPj7jKXduPNboMVtHTA8dySMURWqfg/JZ9E2Sq8JgSJmkl7k7Qe9FLeMSrSraWmQ==}
@@ -2108,6 +2116,10 @@ snapshots:
       '@lezer/common': 1.5.5
       '@lezer/highlight': 1.2.5
       '@lezer/lr': 1.4.12
+
+  '@lucide/svelte@1.73.0(svelte@5.57.3)':
+    dependencies:
+      svelte: 5.57.3
 
   '@marijn/find-cluster-break@1.0.4': {}
 

@@ -44,7 +44,7 @@ Legend: `[x]` done, `[ ]` not done. Add a short note after a task only for a dev
 
 ## WP4: M2 web: agents screen, run viewer, command palette, usage banner
 
-- [ ] WP4-T1: App shell and routing
+- [x] WP4-T1: App shell and routing
 - [ ] WP4-T2: Agents list ("ledger rows")
 - [ ] WP4-T3: Agent detail
 - [ ] WP4-T4: Run viewer
