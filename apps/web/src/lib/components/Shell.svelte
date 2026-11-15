@@ -5,6 +5,7 @@
   import Bot from "@lucide/svelte/icons/bot";
   import Settings from "@lucide/svelte/icons/settings";
   import CommandPalette from "$lib/components/CommandPalette.svelte";
+  import Banner from "$lib/components/Banner.svelte";
 
   let { children }: { children: Snippet } = $props();
   let paletteOpen = $state(false);
@@ -48,6 +49,7 @@
       <span class="brand">Vigil</span>
       <button type="button" class="hint" onclick={() => (paletteOpen = true)}><kbd>⌘K</kbd> to search and run commands</button>
     </header>
+    <Banner />
     <div class="content">
       {@render children()}
     </div>
@@ -93,7 +95,7 @@
 
   .column {
     display: grid;
-    grid-template-rows: auto 1fr;
+    grid-template-rows: auto auto 1fr;
     min-width: 0;
     min-height: 0;
   }

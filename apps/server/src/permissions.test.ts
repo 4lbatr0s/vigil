@@ -67,6 +67,8 @@ describe("permission settings", () => {
       expect(res.json.error.code).toBe("invalid-body");
     }
     expect(PermissionSettingsSchema.safeParse({ retentionDays: 0 }).success).toBe(true);
+    // The message names the field, so the page can show it under the right input.
+    expect((await call("PUT", "/api/settings/permissions", { retentionDays: 3 })).json.error.message).toMatch(/^Invalid settings: retentionDays: /);
   });
 
   it("effectiveGrants needs the agent grant AND the instance switch; budget is clamped", () => {

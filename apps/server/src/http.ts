@@ -181,7 +181,10 @@ const routes: { method: string; pattern: RegExp; keys: string[]; handler: Handle
     handler: async (req, res) => {
       const parsed = PermissionSettingsSchema.safeParse(await readJsonBody(req));
       if (!parsed.success) {
-        throw new AppError("invalid-body", `Invalid settings: ${parsed.error.issues[0]?.message ?? "bad shape"}`, 400);
+        const issue = parsed.error.issues[0];
+        // The field path lets the settings page show the message under the right input.
+        const where = issue && issue.path.length > 0 ? `${issue.path.join(".")}: ` : "";
+        throw new AppError("invalid-body", `Invalid settings: ${where}${issue?.message ?? "bad shape"}`, 400);
       }
       send(res, 200, { data: putPermissions(parsed.data) });
     },
