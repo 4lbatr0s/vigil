@@ -8,12 +8,13 @@ Run from the repo root unless noted. `CHECK` means: `pnpm typecheck && pnpm test
 Vault store, SQLite index, watcher, notes API, search, editor UI, markdown preview, local-only access (ADR-0007).
 Acceptance: `CHECK` passes; `pnpm --filter @vigil/server dev` then `curl -s localhost:3001/api/health`.
 
-## M1: One agent, run by hand (done 2026-11-14, server only; ADR-0009)
+## M1: One agent, run by hand (done 2026-11-14, hardened 2026-11-15, server only; ADR-0009)
 - `@vigil/shared`: `Agent` and `Run` zod schemas (name, system prompt, tool allowlist, trigger, token budget).
 - Provider adapter: OpenAI-compatible base URL + key, native Ollama (ADR-0003). Keys come from env.
 - Tools: `read_notes`, `write_note` (author = agent, snapshot first). No web fetch yet.
 - Run log table and API: prompt, tool calls, outputs, token spend. Per-run token budget stops the run.
 - Snapshots: `data/snapshots/<note-id>/<timestamp>.md`, plus an undo endpoint.
+- Hardened (WP0): lock/undo/snapshot tests, graceful shutdown, `.env.example`, and tests that cannot touch the real `data/`.
 Acceptance: `pnpm --filter @vigil/server test` includes a fake-provider run that reads a note, writes a digest note, leaves a snapshot and a run log row; and `curl -X POST localhost:3001/api/agents/morning-digest/run` against a real or Ollama model writes a note.
 
 ## M2: Scheduled agents and the Morning Digest demo
@@ -47,7 +48,7 @@ Acceptance: `docker build` and `docker run -v vault:/vault` serve the UI; `curl`
 Subfolders in the vault (ids are flat today), `tags` UI, command palette depth, soft monthly cost cap.
 
 ## How to run an agent today (M1)
-Set the model (env only, never in notes): `VIGIL_LLM_PROVIDER=ollama|openai`, `VIGIL_LLM_MODEL`, and for `openai` also `VIGIL_LLM_BASE_URL` and `VIGIL_LLM_API_KEY`. Then:
+Set the model (env only, never in notes): `VIGIL_LLM_PROVIDER=ollama|openai`, `VIGIL_LLM_MODEL`, and for `openai` also `VIGIL_LLM_BASE_URL` and `VIGIL_LLM_API_KEY`. The full variable list, with comments, is in `.env.example`. Then:
 `PUT /api/agents/<name>` (name, systemPrompt, tools: read_notes/write_notes, tokenBudget), `POST /api/agents/<name>/run`, `GET /api/runs/<id>` (log), `POST /api/runs/<id>/undo`.
 Run state lives in `data/state.db`; pre-write copies in `data/snapshots/`. There is no agents screen until M2.
 
