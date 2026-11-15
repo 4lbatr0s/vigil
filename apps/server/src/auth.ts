@@ -52,20 +52,28 @@ export class LoginLimiter {
   spacingMs = 1000;
   private nextFree = 0;
   private queued = 0;
-  static readonly MAX_QUEUE = 10;
+  static readonly MAX_QUEUE = 50;
+  /** One address may hold at most this many places in the queue, so a single client cannot fill it. */
+  static readonly MAX_PER_IP = 2;
+  private queuedByIp = new Map<string, number>();
 
   /**
    * Under global pressure every login attempt, right or wrong, goes through one queue that lets one
    * through per `spacingMs`. That caps guessing at about one per second across all addresses without
    * ever looking at whether a guess is right. Returns false when the queue is full (refuse outright).
    */
-  async slot(now: number = Date.now()): Promise<boolean> {
-    if (this.queued >= LoginLimiter.MAX_QUEUE) return false;
+  async slot(ip: string, now: number = Date.now()): Promise<boolean> {
+    const mine = this.queuedByIp.get(ip) ?? 0;
+    if (this.queued >= LoginLimiter.MAX_QUEUE || mine >= LoginLimiter.MAX_PER_IP) return false;
     this.queued += 1;
+    this.queuedByIp.set(ip, mine + 1);
     const start = Math.max(now, this.nextFree);
     this.nextFree = start + this.spacingMs;
     await new Promise<void>((resolve) => setTimeout(resolve, start - now));
     this.queued -= 1;
+    const left = (this.queuedByIp.get(ip) ?? 1) - 1;
+    if (left <= 0) this.queuedByIp.delete(ip);
+    else this.queuedByIp.set(ip, left);
     return true;
   }
 
@@ -74,6 +82,12 @@ export class LoginLimiter {
     this.globalFailures = [];
     this.nextFree = 0;
     this.queued = 0;
+    this.queuedByIp.clear();
+  }
+
+  /** Takes back one global count (a correct token does not count as a failure). */
+  globalRefund(): void {
+    this.globalFailures.pop();
   }
 }
 
@@ -130,13 +144,24 @@ export function resetLimiterForTests(): void {
 
 const MAX_LOGIN_BODY = 4096;
 
+const BODY_TIMEOUT_MS = 5000;
+
 async function readBody(req: IncomingMessage): Promise<unknown> {
   let size = 0;
   const chunks: Buffer[] = [];
-  for await (const chunk of req) {
-    size += (chunk as Buffer).length;
-    if (size > MAX_LOGIN_BODY) throw new AppError("payload-too-large", "Request body is too large", 413);
-    chunks.push(chunk as Buffer);
+  // A client that opens a login request and never finishes it must not hold a place forever.
+  const timer = setTimeout(() => req.destroy(), BODY_TIMEOUT_MS);
+  try {
+    for await (const chunk of req) {
+      size += (chunk as Buffer).length;
+      if (size > MAX_LOGIN_BODY) throw new AppError("payload-too-large", "Request body is too large", 413);
+      chunks.push(chunk as Buffer);
+    }
+  } catch (err) {
+    if (err instanceof AppError) throw err;
+    throw new AppError("invalid-body", "The request body was not received in time", 400);
+  } finally {
+    clearTimeout(timer);
   }
   try {
     return JSON.parse(Buffer.concat(chunks).toString("utf8"));
@@ -178,16 +203,20 @@ export async function handleAuth(req: IncomingMessage, res: ServerResponse, path
     limiter.fail(ip);
     // Many failures across all addresses: slow EVERY attempt down to one per spacing interval, decided
     // before the token is looked at, so the response never tells a right guess from a wrong one.
-    if (limiter.globalBlocked() && !(await limiter.slot())) {
+    // The attempt is counted globally before the gate (like the per-address count), so a burst of
+    // parallel requests cannot all pass it; a correct token takes its count back below.
+    const pressured = limiter.globalBlocked();
+    limiter.globalFail();
+    if (pressured && !(await limiter.slot(ip))) {
       throw new AppError("too-many-attempts", "Too many tries. Wait a minute and try again.", 429);
     }
     const body = await readBody(req);
     const given = typeof body === "object" && body !== null && typeof (body as { token?: unknown }).token === "string" ? (body as { token: string }).token : "";
     if (given === "" || !sameSecret(given, access.token)) {
-      limiter.globalFail();
       throw new AppError("unauthorized", "That token isn't right.", 401);
     }
     limiter.succeed(ip);
+    limiter.globalRefund();
     send(res, 200, { data: { required: true, authenticated: true } }, sessionCookie(makeSession(access.token), cookieSecure(req, access)));
     return true;
   }

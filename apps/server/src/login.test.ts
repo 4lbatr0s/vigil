@@ -120,16 +120,31 @@ describe("login", () => {
     expect(Date.now() - t0).toBeGreaterThanOrEqual(200);
   });
 
-  it("under pressure a burst fills the queue and the overflow is refused whatever the token", async () => {
+  it("one address cannot fill the queue: under pressure it gets two places, then is refused, whatever the token", async () => {
     setPressureSpacingForTests(300);
     for (let i = 0; i < 40; i++) await call("POST", "/api/login", { body: { token: "wrong" }, headers: { host: "notes.example.com", "x-forwarded-for": `${30 + (i % 200)}.2.2.${1 + i}` } });
+    const same = { host: "notes.example.com", "x-forwarded-for": "77.7.7.7" };
+    const results = await Promise.all([TOKEN, "wrong", TOKEN, "wrong", TOKEN].map((token) => call("POST", "/api/login", { body: { token }, headers: same })));
+    // Per-address limit (5 attempts) is not reached, but the queue allows two at a time per address.
+    expect(results.filter((r) => r.status === 429).length).toBeGreaterThanOrEqual(1);
+    // Another address is not affected by that one's queue places.
+    expect((await call("POST", "/api/login", { body: { token: TOKEN }, headers: { host: "notes.example.com", "x-forwarded-for": "88.8.8.8" } })).status).toBe(200);
+  });
+
+  it("a parallel burst from many addresses is paced, not waved through: the global count is taken before the gate", async () => {
+    setPressureSpacingForTests(100);
+    const t0 = Date.now();
+    const burst = await Promise.all(Array.from({ length: 60 }, (_, i) => call("POST", "/api/login", { body: { token: "wrong" }, headers: { host: "notes.example.com", "x-forwarded-for": `${100 + i}.4.4.4` } })));
+    expect(burst.every((r) => r.status === 401)).toBe(true);
+    // 40 pass the gate at once; the other 20 are released one per 100 ms, so the burst takes about two seconds.
+    expect(Date.now() - t0).toBeGreaterThanOrEqual(1500);
+  });
+
+  it("under pressure right and wrong guesses get the same treatment: queued, then plain 200 or 401", async () => {
+    setPressureSpacingForTests(50);
+    for (let i = 0; i < 40; i++) await call("POST", "/api/login", { body: { token: "wrong" }, headers: { host: "notes.example.com", "x-forwarded-for": `${30 + (i % 200)}.2.2.${1 + i}` } });
     const burst = await Promise.all(Array.from({ length: 16 }, (_, i) => call("POST", "/api/login", { body: { token: i % 2 === 0 ? TOKEN : "wrong" }, headers: { host: "notes.example.com", "x-forwarded-for": `${60 + i}.3.3.3` } })));
-    const refused = burst.filter((r) => r.status === 429).length;
-    expect(refused).toBeGreaterThanOrEqual(5);
-    // Refusal does not depend on the token: right and wrong guesses are both among the refused.
-    const refusedRight = burst.filter((r, i) => r.status === 429 && i % 2 === 0).length;
-    const refusedWrong = burst.filter((r, i) => r.status === 429 && i % 2 === 1).length;
-    expect(refusedRight + refusedWrong).toBe(refused);
+    burst.forEach((r, i) => expect(r.status, `attempt ${i}`).toBe(i % 2 === 0 ? 200 : 401));
   });
 
   it("four failures then a success is fine and clears the count", async () => {
