@@ -14,6 +14,7 @@ import {
 import { AgentNameSchema, AgentSchema, PermissionSettingsSchema, TEMPLATES } from "@vigil/shared";
 import { withNoteLock } from "./lock";
 import { cronError, nextTickAfter } from "./cron";
+import { attachStream } from "./events";
 import { startRun, undoRun } from "./runs";
 import { getPermissions, putPermissions } from "./permissions";
 import { refreshSchedule } from "./scheduler";
@@ -199,6 +200,14 @@ const routes: { method: string; pattern: RegExp; keys: string[]; handler: Handle
     handler: async (req, res) => {
       const probe = new URL(req.url ?? "/", "http://localhost").searchParams.get("probe") === "1";
       send(res, 200, { data: await llmStatus(probe) });
+    },
+  },
+  {
+    method: "GET",
+    pattern: /^\/api\/events$/,
+    keys: [],
+    handler: (req, res) => {
+      attachStream(req, res);
     },
   },
   {

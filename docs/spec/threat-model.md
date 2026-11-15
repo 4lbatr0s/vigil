@@ -51,7 +51,7 @@ Scope: a single-user, self-hosted instance (loopback by default, optionally expo
 | T14 | Duplicate side effects (double run, double write) | persist-before-run for cron and heartbeat; approval node holds no side effects; run lock | built/planned | `scheduler.test.ts`, `agents.test.ts` |
 | T15 | Container escape or root in the container | non-root `node` user; no extra capabilities documented; vault is a mounted volume | planned (WP12) | manual |
 | T17 | A stale approval overwrites a newer human edit | approval stores the note's `updatedAt`; approving after a change answers `409 approval-stale`; apply-anyway needs `force`, snapshot first | planned (WP8) | `agents.test.ts` |
-| T18 | Event stream leaks data or exhausts connections | events carry ids and counts only, never bodies, prompts or keys; 20-stream cap; same `checkAccess` | planned (WP4-T9) | `events.test.ts` |
+| T18 | Event stream leaks data or exhausts connections | events carry ids, statuses and counts only (run-event: run id, seq and kind, never text), never bodies, prompts or keys; 20-stream cap; same `checkAccess` | built (WP4-T9) | `events.test.ts` |
 | T16 | Malicious dependency | exact pins for the LangChain family and agent-adjacent libraries; lockfile committed; `pnpm install --frozen-lockfile` in CI | partly built | CI |
 
 ## 5. Residual risks (accepted, stated plainly)

@@ -5,6 +5,7 @@
   import { ApiError, getRun, undoRun } from "$lib/api";
   import { formatStamp } from "$lib/format";
   import { budgetShare, canUndo, KIND_LABEL, lastSeq, mergeEvents, noteIdOf, noteIdsInMessage, preview } from "$lib/run-log";
+  import { refreshOnLive } from "$lib/live";
   import { statusDot } from "$lib/schedule";
   import StatusDot from "$lib/components/StatusDot.svelte";
 
@@ -39,11 +40,14 @@
 
   onMount(() => {
     void load();
-    // Append new lines every 2 s while the run is still going, and stop once it is over.
-    const timer = setInterval(() => {
-      if (run?.status === "running" && document.visibilityState === "visible") void tail();
-    }, 2000);
-    return () => clearInterval(timer);
+    // New log lines arrive with the live stream; with no stream it polls every 2 s. Either way only while running.
+    return refreshOnLive(
+      () => {
+        if (run?.status === "running") return tail();
+      },
+      ["run-event", "run"],
+      2000,
+    );
   });
 
   async function undo(): Promise<void> {

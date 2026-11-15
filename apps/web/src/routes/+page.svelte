@@ -5,7 +5,7 @@
   import { getNote, listNotes, putNote } from "$lib/api";
   import { renderMarkdown } from "$lib/render";
   import { newAgentNotes } from "$lib/notes-poll";
-  import { visiblePoll } from "$lib/poll";
+  import { refreshOnLive } from "$lib/live";
   import Editor from "$lib/components/Editor.svelte";
   import NoteList from "$lib/components/NoteList.svelte";
   import Preview from "$lib/components/Preview.svelte";
@@ -51,7 +51,7 @@
         loadError = err instanceof Error ? err.message : "Could not load notes";
       } finally {
         loading = false;
-        stop = visiblePoll(pollNotes, 5000);
+        stop = refreshOnLive(pollNotes, ["note"], 5000);
       }
     })();
     return () => stop?.();

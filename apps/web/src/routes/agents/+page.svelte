@@ -4,7 +4,7 @@
   import type { Agent, AgentTemplate, Run } from "@vigil/shared";
   import { createFromTemplate, getLlmStatus, getSchedule, listAgents, listRuns, listTemplates, type LlmStatus } from "$lib/api";
   import { formatStamp } from "$lib/format";
-  import { visiblePoll } from "$lib/poll";
+  import { refreshOnLive } from "$lib/live";
   import { describeTrigger, lastRunByAgent, statusDot } from "$lib/schedule";
   import StatusDot from "$lib/components/StatusDot.svelte";
 
@@ -40,7 +40,7 @@
         loaded = true;
       }
     })();
-    return visiblePoll(refreshRuns, 3000);
+    return refreshOnLive(refreshRuns, ["run"], 3000);
   });
 
   const llmReady = $derived(llm !== null && llm.model !== null && (llm.provider === "ollama" || llm.hasKey));

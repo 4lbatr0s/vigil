@@ -1,3 +1,4 @@
+import { closeStreams } from "./events";
 import { closeDb } from "./index-db";
 import { waitForRuns } from "./runs";
 import { closeState } from "./state-db";
@@ -16,6 +17,7 @@ export async function shutdown(deps: {
 }): Promise<void> {
   deps.scheduler?.stop(); // no new scheduled runs while stopping
   deps.housekeeping?.stop();
+  closeStreams(); // open live streams would keep the server from closing
   await deps.server.close();
   await deps.watcher.close();
   // Wait for the runs, but give up after the timeout and leave the stragglers running.

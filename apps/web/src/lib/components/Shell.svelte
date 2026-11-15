@@ -6,9 +6,14 @@
   import Settings from "@lucide/svelte/icons/settings";
   import CommandPalette from "$lib/components/CommandPalette.svelte";
   import Banner from "$lib/components/Banner.svelte";
+  import { onMount } from "svelte";
+  import { startLive } from "$lib/live";
 
   let { children }: { children: Snippet } = $props();
   let paletteOpen = $state(false);
+
+  // One live event stream for the whole app (falls back to polling inside each page).
+  onMount(() => startLive());
 
   function onKeydown(event: KeyboardEvent): void {
     if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {

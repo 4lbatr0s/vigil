@@ -5,7 +5,7 @@
   import { ApiError, getAgent, getPermissions, getSchedule, listRuns, putAgent, runAgent, type Schedule } from "$lib/api";
   import { agentToForm, describeGrants, formToAgent, riskyCombination, type AgentForm } from "$lib/agent-form";
   import { formatStamp } from "$lib/format";
-  import { visiblePoll } from "$lib/poll";
+  import { refreshOnLive } from "$lib/live";
   import { describeTrigger, describeTriggerSentence, statusDot } from "$lib/schedule";
   import StatusDot from "$lib/components/StatusDot.svelte";
 
@@ -52,7 +52,7 @@
   onMount(() => {
     void load();
     // An invalid name never reaches the API, not even through the run list.
-    return AgentNameSchema.safeParse(name).success ? visiblePoll(refreshRuns, 3000) : undefined;
+    return AgentNameSchema.safeParse(name).success ? refreshOnLive(refreshRuns, ["run"], 3000) : undefined;
   });
 
   async function save(overrides: Partial<AgentForm> = {}): Promise<boolean> {

@@ -69,7 +69,7 @@ Rule: only the server touches the filesystem or SQLite; the web app talks to `/a
 | `usage.ts` | monthly token totals | built (WP3-T3) |
 | `permissions.ts` | instance permission settings and `effectiveGrants(agent, settings)` | built (WP3-T5) |
 | `housekeeping.ts` | daily pruning of old run events and snapshots | built (WP3-T6) |
-| `events.ts` | in-process event bus feeding `GET /api/events` | planned (WP4) |
+| `events.ts` | in-process event bus feeding `GET /api/events` | built (WP4-T9) |
 | `static.ts` | static file serving | planned (WP12) |
 
 `apps/web/src`: `routes/+page.svelte` (notes), `lib/api.ts` (typed client), `lib/render.ts` (markdown to sanitized HTML), `lib/components/*`. Planned routes: `/agents`, `/agents/[name]`, `/runs/[id]`, `/approvals`, `/chat`, `/graph`, `/settings`, `/login`.

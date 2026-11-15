@@ -1,3 +1,4 @@
+import { publish } from "./events";
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync } from "node:fs";
 import path from "node:path";
@@ -100,6 +101,7 @@ export function extractLinks(body: string): string[] {
 
 export function reindexNote(note: Note): void {
   const { db, fts } = open();
+  const existed = db.prepare("SELECT 1 AS x FROM notes WHERE id = ?").get(note.id) !== undefined;
   const hash = createHash("sha256")
     .update(`${note.title}\n${note.tags.join(",")}\n${note.body}`)
     .digest("hex");
@@ -123,15 +125,18 @@ export function reindexNote(note: Note): void {
     if (dst === note.id) continue;
     insert.run(note.id, dst);
   }
+  publish({ type: "note", id: note.id, change: existed ? "updated" : "created", author: note.author });
 }
 
 export function removeNote(id: string): void {
   const { db, fts } = open();
+  const row = db.prepare("SELECT author FROM notes WHERE id = ?").get(id) as { author: string } | undefined;
   db.prepare("DELETE FROM notes WHERE id = ?").run(id);
   db.prepare("DELETE FROM notes_body WHERE id = ?").run(id);
   if (fts) db.prepare("DELETE FROM notes_fts WHERE id = ?").run(id);
   // Links FROM this note go; links TO it stay, as dangling links, because other notes still say them.
   db.prepare("DELETE FROM links WHERE src = ?").run(id);
+  if (row) publish({ type: "note", id, change: "deleted", author: row.author === "agent" ? "agent" : "human" });
 }
 
 export async function rebuildAll(): Promise<number> {

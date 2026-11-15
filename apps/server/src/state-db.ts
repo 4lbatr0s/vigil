@@ -3,6 +3,7 @@ import { readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import Database from "better-sqlite3";
 import { AgentSchema, type Agent, type Run, type RunEvent, type RunStatus } from "@vigil/shared";
+import { publish } from "./events";
 import { REPO_ROOT } from "./vault";
 
 /**
@@ -192,13 +193,17 @@ export function createRun(id: string, agent: string, tokenBudget: number, trigge
   open()
     .prepare("INSERT INTO runs (id, agent, status, started_at, token_budget, trigger, parent_run_id) VALUES (?, ?, 'running', ?, ?, ?, ?)")
     .run(id, agent, new Date().toISOString(), tokenBudget, trigger, parentRunId);
-  return getRun(id) as Run;
+  const run = getRun(id) as Run;
+  publish({ type: "run", run });
+  return run;
 }
 
 export function finishRun(id: string, status: RunStatus, tokensUsed: number, error: string | null): void {
   open()
     .prepare("UPDATE runs SET status = ?, finished_at = ?, tokens_used = ?, error = ? WHERE id = ?")
     .run(status, new Date().toISOString(), tokensUsed, error, id);
+  const run = getRun(id);
+  if (run) publish({ type: "run", run });
 }
 
 export function setTokensUsed(id: string, tokensUsed: number): void {
@@ -226,6 +231,8 @@ export function hasRunning(agent: string): boolean {
 
 export function markUndone(id: string): void {
   open().prepare("UPDATE runs SET undone = 1 WHERE id = ?").run(id);
+  const run = getRun(id);
+  if (run) publish({ type: "run", run });
 }
 
 // ---- run log ----
@@ -241,6 +248,7 @@ export function addEvent(runId: string, kind: RunEvent["kind"], text: string, da
     text,
     JSON.stringify(data),
   );
+  publish({ type: "run-event", runId, seq: next, kind });
 }
 
 /** Events of a run in order; with `after`, only those with a larger sequence number. */
