@@ -21,7 +21,15 @@ export type AgentRunner = (input: {
   depth?: 0 | 1;
   /** Continue a run that stopped at `waiting-approval`: the owner's decision per tool call id. */
   resume?: { decisions: Record<string, "approve" | "reject"> };
+  /** A chat turn: the conversation lives in the checkpoint under this thread id, so a later turn sees earlier ones. */
+  chat?: { threadId: string; first: boolean };
+  /** Aborting stops the run at the next step (or at once while waiting for the model): outcome `failed`, error `cancelled`. */
+  signal?: AbortSignal;
+  /** Live progress for a streaming caller: the model's reply text and tool activity. Never carries keys. */
+  onEvent?: (event: TurnEvent) => void;
 }) => Promise<RunOutcome>;
+
+export type TurnEvent = { type: "token"; text: string } | { type: "tool"; name: string; status: "call" | "result" };
 
 /** One model call plus one tools call per loop; 25 graph steps is about 12 tool rounds. */
 const RECURSION_LIMIT = 25;
@@ -44,6 +52,8 @@ function messageText(message: BaseMessage): string {
   return typeof message.content === "string" ? message.content : JSON.stringify(message.content);
 }
 
+class CancelledError extends Error {}
+
 const hasWrite = (a: Agent): boolean => a.tools.includes("write_notes");
 
 /** What the tools node answers for a write the owner rejected. */
@@ -51,7 +61,7 @@ export const REJECTED_TEXT = "error: the owner rejected this write";
 
 type PendingCall = { id: string; name: string; args: Record<string, unknown> };
 
-export const runAgent: AgentRunner = async ({ agent, task, runId, makeModel, depth = 0, resume }) => {
+export const runAgent: AgentRunner = async ({ agent, task, runId, makeModel, depth = 0, resume, chat, signal, onEvent }) => {
   // A resumed run continues its token count; it never starts from zero.
   let used = resume ? (getRun(runId)?.tokensUsed ?? 0) : 0;
   let finalText = "";
@@ -86,6 +96,7 @@ export const runAgent: AgentRunner = async ({ agent, task, runId, makeModel, dep
   const byName = new Map(tools.map((t) => [t.name, t]));
   // Set inside the graph nodes; the cast stops TypeScript narrowing it to `null` at the end.
   let stop = null as RunStatus | null;
+  let cancelled = false;
 
   // Approvals apply to write_note for a strict agent. A resumed run is always treated as strict, so
   // switching approvals off while it waits can never turn a rejected write into an executed one.
@@ -105,8 +116,32 @@ export const runAgent: AgentRunner = async ({ agent, task, runId, makeModel, dep
       return {};
     }
     // The remaining budget caps this one call, so a single answer cannot overshoot.
+    if (signal?.aborted) {
+      cancelled = true;
+      stop = "failed";
+      return {};
+    }
     const model = makeModel(tools, { model: agent.model, maxTokens: remaining });
-    const reply = await model.invoke(state.messages);
+    // Wait for the model, but let a cancel win at once instead of after the (possibly long) call.
+    const reply = await Promise.race([
+      model.invoke(state.messages),
+      new Promise<never>((_, reject) => signal?.addEventListener("abort", () => reject(new CancelledError()), { once: true })),
+    ]).catch((err: unknown) => {
+      if (err instanceof CancelledError) return null;
+      throw err;
+    });
+    if (reply === null) {
+      cancelled = true;
+      stop = "failed";
+      return {};
+    }
+    if (messageText(reply).trim() !== "") onEvent?.({ type: "token", text: messageText(reply) });
+    // Tool call ids come from the model: they can repeat inside one reply, across rounds, or be missing.
+    // Approvals and decisions are keyed by them, so give every call a fresh unique id once, here, and use
+    // that same id in the approve and tools nodes (the tool messages answer to it, so providers stay happy).
+    if (reply.tool_calls && reply.tool_calls.length > 0) {
+      reply.tool_calls = reply.tool_calls.map((c) => ({ ...c, id: `vg-${randomUUID()}` }));
+    }
     finalText = messageText(reply);
     const tokens = reply.usage_metadata?.total_tokens ?? estimateTokens(state.messages, reply);
     used += tokens;
@@ -130,12 +165,18 @@ export const runAgent: AgentRunner = async ({ agent, task, runId, makeModel, dep
     const calls = AIMessage.isInstance(last) ? (last.tool_calls ?? []) : [];
     const results: ToolMessage[] = [];
     for (const call of calls) {
-      const id = call.id ?? `call-${results.length}`;
+      if (signal?.aborted) {
+        cancelled = true;
+        stop = "failed";
+        break;
+      }
+      const id = call.id ?? "";
       const found = byName.get(call.name);
       // Fail closed: a write that needs approval runs only with an explicit "approve" for this exact call.
-      if (found && needsApproval(call.name) && state.decisions[id] !== "approve") {
+      // (An empty id never matches a decision, so a write without a proper id is always refused.)
+      if (found && needsApproval(call.name) && (id === "" || state.decisions[id] !== "approve")) {
         addEvent(runId, "tool-denied", `${call.name}: the owner rejected this write`, { tool: call.name });
-        results.push(new ToolMessage({ content: REJECTED_TEXT, tool_call_id: id, name: call.name }));
+        results.push(new ToolMessage({ content: REJECTED_TEXT, tool_call_id: id || `unnamed-${results.length}`, name: call.name }));
         continue;
       }
       if (!found) {
@@ -144,6 +185,7 @@ export const runAgent: AgentRunner = async ({ agent, task, runId, makeModel, dep
         continue;
       }
       addEvent(runId, "tool-call", `${call.name}(${truncate(redact(JSON.stringify(call.args)), 300)})`, { tool: call.name });
+      onEvent?.({ type: "tool", name: call.name, status: "call" });
       let output: string;
       try {
         const raw = await found.invoke(call.args);
@@ -154,6 +196,7 @@ export const runAgent: AgentRunner = async ({ agent, task, runId, makeModel, dep
       const childRunId = ctx.lastChildRunId;
       ctx.lastChildRunId = null;
       addEvent(runId, "tool-result", truncate(output, 300), { tool: call.name, ...(childRunId ? { childRunId } : {}) });
+      onEvent?.({ type: "tool", name: call.name, status: "result" });
       results.push(new ToolMessage({ content: output, tool_call_id: id, name: call.name }));
     }
     return { messages: results };
@@ -166,7 +209,8 @@ export const runAgent: AgentRunner = async ({ agent, task, runId, makeModel, dep
     const calls = AIMessage.isInstance(last) ? (last.tool_calls ?? []) : [];
     const pending: PendingCall[] = calls
       .filter((c) => needsApproval(c.name))
-      .map((c, i) => ({ id: c.id ?? `call-${i}`, name: c.name, args: c.args as Record<string, unknown> }));
+      .map((c) => ({ id: c.id ?? "", name: c.name, args: c.args as Record<string, unknown> }))
+      .filter((c) => c.id !== "");
     if (pending.length === 0) return { decisions: {} };
     const decisions = interrupt({ calls: pending }) as Record<string, "approve" | "reject">;
     return { decisions };
@@ -181,17 +225,17 @@ export const runAgent: AgentRunner = async ({ agent, task, runId, makeModel, dep
 
   const builder = new StateGraph(State).addNode("agent", agentNode).addNode("tools", toolsNode).addEdge(START, "agent");
   // Only strict runs need a checkpointer (to pause and survive a restart); the others keep the plain graph.
-  const graph = strictActive
-    ? builder
-        .addNode("approve", approveNode)
-        .addConditionalEdges("agent", route, ["approve", "tools", END])
-        .addEdge("approve", "tools")
+  const graph = strictActive || chat
+    ? (strictActive
+        ? builder.addNode("approve", approveNode).addConditionalEdges("agent", route, ["approve", "tools", END]).addEdge("approve", "tools")
+        : builder.addConditionalEdges("agent", route, ["tools", END])
+      )
         .addEdge("tools", "agent")
         .compile({ checkpointer: getCheckpointer() })
     : builder.addConditionalEdges("agent", route, ["tools", END]).addEdge("tools", "agent").compile();
 
-  const system = `${agent.systemPrompt}\n\n${SAFETY_FRAME}\nToday is ${new Date().toISOString().slice(0, 10)}.`;
-  const config = { configurable: { thread_id: runId }, recursionLimit: RECURSION_LIMIT };
+  const system = `${agent.systemPrompt}${chat && agent.archetypeHint ? `\n\n${agent.archetypeHint}` : ""}\n\n${SAFETY_FRAME}\nToday is ${new Date().toISOString().slice(0, 10)}.`;
+  const config = { configurable: { thread_id: chat?.threadId ?? runId }, recursionLimit: RECURSION_LIMIT };
 
   try {
     let result: unknown;
@@ -200,8 +244,14 @@ export const runAgent: AgentRunner = async ({ agent, task, runId, makeModel, dep
       addEvent(runId, "stop", `resumed after the owner's decision (${values.filter((d) => d === "approve").length} approved, ${values.filter((d) => d === "reject").length} rejected)`);
       result = await graph.invoke(new Command({ resume: resume.decisions }), config);
     } else {
-      addEvent(runId, "prompt", truncate(redact(`${system}\n\nTask: ${task}`), 2000), { tools: [...byName.keys()] });
-      result = await graph.invoke({ messages: [new SystemMessage(system), new HumanMessage(task)] }, config);
+      if (chat && !chat.first) {
+        // A later turn: the checkpoint already holds the conversation, so only the new message goes in.
+        addEvent(runId, "prompt", truncate(redact(`Message: ${task}`), 2000), { tools: [...byName.keys()] });
+        result = await graph.invoke({ messages: [new HumanMessage(task)] }, config);
+      } else {
+        addEvent(runId, "prompt", truncate(redact(`${system}\n\n${chat ? "Message" : "Task"}: ${task}`), 2000), { tools: [...byName.keys()] });
+        result = await graph.invoke({ messages: [new SystemMessage(system), new HumanMessage(task)] }, config);
+      }
     }
     if (isInterrupted(result)) {
       const payload = (result as unknown as { __interrupt__: Array<{ value: { calls: PendingCall[] } }> }).__interrupt__[0]?.value;
@@ -229,6 +279,7 @@ export const runAgent: AgentRunner = async ({ agent, task, runId, makeModel, dep
     return { status: "failed", tokensUsed: used, error: message, finalText };
   }
   const status: RunStatus = stop ?? "succeeded";
-  addEvent(runId, "stop", status);
-  return { status, tokensUsed: used, error: status === "budget-exceeded" ? `token budget of ${agent.tokenBudget} used up` : null, finalText };
+  addEvent(runId, "stop", cancelled ? "cancelled" : status);
+  const error = cancelled ? "cancelled" : status === "budget-exceeded" ? `token budget of ${agent.tokenBudget} used up` : null;
+  return { status, tokensUsed: used, error, finalText };
 };

@@ -1,13 +1,15 @@
 import { randomUUID } from "node:crypto";
 import type { Agent, Run } from "@vigil/shared";
-import { runAgent, type AgentRunner } from "./agent-runtime";
+import { runAgent, type AgentRunner, type RunOutcome, type TurnEvent } from "./agent-runtime";
 import { AppError } from "./errors";
 import { effectiveAgent } from "./permissions";
 import { reindexNote, removeNote } from "./index-db";
 import { withNoteLock } from "./lock";
 import { modelFactoryFromEnv, redact, type ModelFactory } from "./llm";
 import {
+  addChatMessage,
   approvalsForRun,
+  chatThreadForRun,
   createRun,
   finishRun,
   getAgent,
@@ -53,20 +55,74 @@ export function startRun(agentName: string, task?: string, trigger: Run["trigger
   return run;
 }
 
+/** Records how a run ended: a run waiting for approval is not finished; a chat turn also leaves its reply in the thread. */
+function settle(runId: string, outcome: RunOutcome): void {
+  if (outcome.status === "waiting-approval") setRunStatus(runId, "waiting-approval");
+  else finishRun(runId, outcome.status, outcome.tokensUsed, outcome.error);
+  const thread = chatThreadForRun(runId);
+  if (!thread) return;
+  if (outcome.status === "succeeded") addChatMessage(thread, "assistant", outcome.finalText?.trim() || "(no answer)", runId);
+  else if (outcome.status === "waiting-approval") {
+    if (outcome.finalText?.trim()) addChatMessage(thread, "assistant", outcome.finalText.trim(), runId);
+  } else {
+    addChatMessage(thread, "error", outcome.error ?? `The turn ended: ${outcome.status}`, runId);
+  }
+}
+
+function settleFailure(runId: string, err: unknown): void {
+  // The runner reports its own failures; this catches a bug in the runner itself.
+  const message = redact(err instanceof Error ? err.message : "run failed");
+  finishRun(runId, "failed", 0, message);
+  const thread = chatThreadForRun(runId);
+  if (thread) addChatMessage(thread, "error", message, runId);
+}
+
 /** Runs the agent in the background. A run that stops at `waiting-approval` is not finished: it waits for the owner. */
 function launch(runId: string, agent: Agent, task: string, resume?: { decisions: Record<string, "approve" | "reject"> }): void {
+  const threadId = resume ? chatThreadForRun(runId) : null;
   const work = (async () => {
     try {
-      const outcome = await deps.runner({ agent, task, runId, makeModel: deps.makeModel, ...(resume ? { resume } : {}) });
-      if (outcome.status === "waiting-approval") setRunStatus(runId, "waiting-approval");
-      else finishRun(runId, outcome.status, outcome.tokensUsed, outcome.error);
+      const outcome = await deps.runner({
+        agent,
+        task,
+        runId,
+        makeModel: deps.makeModel,
+        ...(resume ? { resume } : {}),
+        ...(threadId ? { chat: { threadId, first: false } } : {}),
+      });
+      settle(runId, outcome);
     } catch (err) {
-      // The runner reports its own failures; this catches a bug in the runner itself.
-      finishRun(runId, "failed", 0, redact(err instanceof Error ? err.message : "run failed"));
+      settleFailure(runId, err);
     }
   })();
   inFlight.add(work);
   void work.finally(() => inFlight.delete(work));
+}
+
+/**
+ * One chat turn as a run (trigger chat): same budget, log and undo as any run. Resolves with the
+ * finished (or waiting) run row. The reply is stored in the thread by `settle`.
+ */
+export function runChatTurn(input: { agent: Agent; runId: string; text: string; threadId: string; first: boolean; signal: AbortSignal; onEvent: (e: TurnEvent) => void }): Promise<Run> {
+  const work = (async () => {
+    try {
+      const outcome = await deps.runner({
+        agent: input.agent,
+        task: input.text,
+        runId: input.runId,
+        makeModel: deps.makeModel,
+        chat: { threadId: input.threadId, first: input.first },
+        signal: input.signal,
+        onEvent: input.onEvent,
+      });
+      settle(input.runId, outcome);
+    } catch (err) {
+      settleFailure(input.runId, err);
+    }
+  })();
+  inFlight.add(work);
+  void work.finally(() => inFlight.delete(work));
+  return work.then(() => getRun(input.runId) as Run);
 }
 
 /**

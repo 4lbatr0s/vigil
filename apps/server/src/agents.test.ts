@@ -105,7 +105,10 @@ describe("agent runtime", () => {
     expect(finished.status).toBe("succeeded");
     expect(listEvents(finished.id).some((e) => e.kind === "tool-denied")).toBe(true);
     const reply = seen[1]?.messages.find((m): m is ToolMessage => ToolMessage.isInstance(m));
-    expect(reply?.tool_call_id).toBe("call-9");
+    // The runtime gives every call its own id; the answer must carry the id of the call it answers.
+    const asked = seen[1]?.messages.find((m): m is AIMessage => AIMessage.isInstance(m) && (m.tool_calls?.length ?? 0) > 0);
+    expect(reply?.tool_call_id).toBe(asked?.tool_calls?.[0]?.id);
+    expect(reply?.tool_call_id).not.toBe("call-9");
     await expect(getNote("x")).rejects.toMatchObject({ code: "note-not-found" });
     expect(seen[0]?.toolNames).toEqual(["list_notes", "read_note", "search_notes"]);
   });

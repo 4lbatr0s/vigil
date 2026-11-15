@@ -90,7 +90,7 @@ describe("strict mode", () => {
     await expect(getNote("filed")).rejects.toMatchObject({ code: "note-not-found" });
     const pending = pendingForRun(runId);
     expect(pending).toHaveLength(1);
-    expect(pending[0]).toMatchObject({ tool: "write_note", toolCallId: "w1", args: { title: "Filed", body: "body text" }, baseUpdatedAt: null, status: "pending" });
+    expect(pending[0]).toMatchObject({ tool: "write_note", toolCallId: expect.stringMatching(/^vg-/), args: { title: "Filed", body: "body text" }, baseUpdatedAt: null, status: "pending" });
   });
 
   it("approve: the run resumes and succeeds, the note exists as an agent write with a snapshot", async () => {
@@ -191,6 +191,51 @@ describe("strict mode", () => {
     expect(events.filter((e) => e.kind === "note")).toHaveLength(1);
     expect(events.filter((e) => e.kind === "tool-call" && e.data["tool"] === "write_note")).toHaveLength(1);
     expect(approvalsForRun(runId)).toHaveLength(1); // the approve node re-running on resume made no second row
+  });
+
+  it("model-supplied tool call ids cannot collide: two writes with the same id get separate approvals and separate decisions", async () => {
+    const dup = new AIMessage({
+      content: "",
+      tool_calls: [
+        { id: "same", name: "write_note", args: { title: "First", body: "1" }, type: "tool_call" },
+        { id: "same", name: "write_note", args: { title: "Second", body: "2" }, type: "tool_call" },
+      ],
+      usage_metadata: usage(10),
+    });
+    const { runId } = await startStrict([dup, say("done")]);
+    const pending = pendingForRun(runId);
+    expect(pending).toHaveLength(2);
+    expect(new Set(pending.map((a) => a.toolCallId)).size).toBe(2);
+    expect(pending.every((a) => a.toolCallId !== "same")).toBe(true);
+    const first = pending.find((a) => a.args["title"] === "First")!;
+    const second = pending.find((a) => a.args["title"] === "Second")!;
+    await call("POST", `/api/approvals/${first.id}/decision`, { decision: "approve" });
+    await call("POST", `/api/approvals/${second.id}/decision`, { decision: "reject" });
+    await waitForRuns();
+    expect((await getNote("first")).body).toBe("1");
+    await expect(getNote("second")).rejects.toMatchObject({ code: "note-not-found" });
+  });
+
+  it("the same model id in two different rounds gets two separate approvals", async () => {
+    const { runId } = await startStrict([writeCall("Round one", "1", "reused"), writeCall("Round two", "2", "reused"), say("done")]);
+    await call("POST", `/api/approvals/${pendingForRun(runId)[0]!.id}/decision`, { decision: "approve" });
+    await waitForRuns();
+    expect(getRun(runId)?.status).toBe("waiting-approval"); // round two now waits on its own approval
+    const second = pendingForRun(runId);
+    expect(second).toHaveLength(1);
+    expect(second[0]?.args["title"]).toBe("Round two");
+    await call("POST", `/api/approvals/${second[0]!.id}/decision`, { decision: "reject" });
+    await waitForRuns();
+    expect((await getNote("round-one")).body).toBe("1");
+    await expect(getNote("round-two")).rejects.toMatchObject({ code: "note-not-found" });
+  });
+
+  it("a write call with no id is refused, never executed", async () => {
+    const noId = new AIMessage({ content: "", tool_calls: [{ name: "write_note", args: { title: "Idless", body: "x" }, type: "tool_call" } as never], usage_metadata: usage(10) });
+    const { runId } = await startStrict([noId, say("done")]);
+    // The runtime gave it an id, so it is an ordinary pending write that still needs approval.
+    expect(pendingForRun(runId)).toHaveLength(1);
+    await expect(getNote("idless")).rejects.toMatchObject({ code: "note-not-found" });
   });
 
   it("resume refuses a run that is not waiting, or one with writes still pending", async () => {

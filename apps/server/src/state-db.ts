@@ -112,6 +112,27 @@ export const MIGRATIONS: readonly string[] = [
   CREATE INDEX approvals_run ON approvals(run_id);
   CREATE INDEX approvals_status ON approvals(status);
   `,
+  `
+  -- migration 6: chat. The messages the UI shows; the model-side state (tool messages included) is in
+  -- the checkpoint under thread id = chat id.
+  CREATE TABLE chat_threads (
+    id TEXT PRIMARY KEY,
+    agent TEXT NOT NULL,
+    title TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+  CREATE TABLE chat_messages (
+    thread_id TEXT NOT NULL,
+    seq INTEGER NOT NULL,
+    role TEXT NOT NULL,            -- 'user' | 'assistant' | 'error'
+    content TEXT NOT NULL,
+    run_id TEXT,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (thread_id, seq)
+  );
+  CREATE INDEX chat_messages_run ON chat_messages(run_id);
+  `,
 ];
 
 let current: { key: string; db: Database.Database } | null = null;
@@ -555,4 +576,59 @@ export function listSnapshotsInOrder(runIds: string[]): SnapshotRow[] {
   const marks = runIds.map(() => "?").join(",");
   const rows = open().prepare(`SELECT run_id, note_id FROM snapshots WHERE run_id IN (${marks}) ORDER BY rowid`).all(...runIds) as { run_id: string; note_id: string }[];
   return rows.map((r) => getSnapshot(r.run_id, r.note_id) as SnapshotRow);
+}
+
+// ---- Chat (WP9) ----
+
+export type ChatThread = { id: string; agent: string; title: string; createdAt: string; updatedAt: string };
+export type ChatMessage = { seq: number; role: "user" | "assistant" | "error"; content: string; runId: string | null; createdAt: string };
+
+type ThreadRow = { id: string; agent: string; title: string; created_at: string; updated_at: string };
+const toThread = (r: ThreadRow): ChatThread => ({ id: r.id, agent: r.agent, title: r.title, createdAt: r.created_at, updatedAt: r.updated_at });
+
+export function createChatThread(id: string, agent: string): ChatThread {
+  const now = new Date().toISOString();
+  open().prepare("INSERT INTO chat_threads (id, agent, title, created_at, updated_at) VALUES (?, ?, 'New chat', ?, ?)").run(id, agent, now, now);
+  return getChatThread(id) as ChatThread;
+}
+
+export function getChatThread(id: string): ChatThread | null {
+  const row = open().prepare("SELECT * FROM chat_threads WHERE id = ?").get(id) as ThreadRow | undefined;
+  return row ? toThread(row) : null;
+}
+
+export function listChatThreads(): ChatThread[] {
+  return (open().prepare("SELECT * FROM chat_threads ORDER BY updated_at DESC").all() as ThreadRow[]).map(toThread);
+}
+
+export function setChatTitle(id: string, title: string): void {
+  open().prepare("UPDATE chat_threads SET title = ? WHERE id = ?").run(title, id);
+}
+
+export function deleteChatThread(id: string): void {
+  const db = open();
+  db.prepare("DELETE FROM chat_messages WHERE thread_id = ?").run(id);
+  db.prepare("DELETE FROM chat_threads WHERE id = ?").run(id);
+}
+
+export function addChatMessage(threadId: string, role: ChatMessage["role"], content: string, runId: string | null): ChatMessage {
+  const db = open();
+  const seq = (db.prepare("SELECT COALESCE(MAX(seq), 0) + 1 AS n FROM chat_messages WHERE thread_id = ?").get(threadId) as { n: number }).n;
+  const now = new Date().toISOString();
+  db.prepare("INSERT INTO chat_messages (thread_id, seq, role, content, run_id, created_at) VALUES (?, ?, ?, ?, ?, ?)").run(threadId, seq, role, content, runId, now);
+  db.prepare("UPDATE chat_threads SET updated_at = ? WHERE id = ?").run(now, threadId);
+  return { seq, role, content, runId, createdAt: now };
+}
+
+export function listChatMessages(threadId: string): ChatMessage[] {
+  const rows = open().prepare("SELECT seq, role, content, run_id, created_at FROM chat_messages WHERE thread_id = ? ORDER BY seq").all(threadId) as {
+    seq: number; role: string; content: string; run_id: string | null; created_at: string;
+  }[];
+  return rows.map((r) => ({ seq: r.seq, role: r.role as ChatMessage["role"], content: r.content, runId: r.run_id, createdAt: r.created_at }));
+}
+
+/** The chat thread a run was a turn of, if any (the user's message carries the run id). */
+export function chatThreadForRun(runId: string): string | null {
+  const row = open().prepare("SELECT thread_id FROM chat_messages WHERE run_id = ? LIMIT 1").get(runId) as { thread_id: string } | undefined;
+  return row?.thread_id ?? null;
 }
