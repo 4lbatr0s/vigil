@@ -5,11 +5,14 @@
   let {
     notes = [],
     selectedId = null,
+    flicker = new Set<string>(),
     onselect,
     oncreated,
   }: {
     notes?: Note[];
     selectedId?: string | null;
+    /** Ids whose title pulses amber once (an agent just landed them). */
+    flicker?: Set<string>;
     onselect: (id: string) => void;
     oncreated: (note: Note) => void;
   } = $props();
@@ -55,7 +58,16 @@
         class:selected={note.id === selectedId}
         onclick={() => onselect(note.id)}
       >
-        <span class="title">{note.title}</span>
+        <span class="title" class:flicker={flicker.has(note.id)}>
+          {#if note.author === "agent"}
+            <span
+              class="agent-dot"
+              role="img"
+              aria-label={`written by ${note.agentName ?? "an agent"}`}
+              title={`written by ${note.agentName ?? "an agent"}`}
+            ></span>
+          {/if}{note.title}
+        </span>
         <span class="date">{formatDate(note.updatedAt)}</span>
       </button>
     {:else}
@@ -132,6 +144,33 @@
     font-size: var(--text-prose);
     line-height: 1.3;
     color: var(--ink);
+  }
+
+  .agent-dot {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    margin-right: var(--space-2);
+    border-radius: 50%;
+    background: var(--amber);
+    vertical-align: middle;
+  }
+
+  /* The one orchestrated moment: the title pulses amber once. With reduced motion the dot alone stays. */
+  @media (prefers-reduced-motion: no-preference) {
+    .title.flicker {
+      animation: flicker 600ms ease-out 1;
+    }
+  }
+
+  @keyframes flicker {
+    0%,
+    100% {
+      color: var(--ink);
+    }
+    30% {
+      color: var(--amber);
+    }
   }
 
   .date {

@@ -3,6 +3,8 @@
   import type { Note } from "@vigil/shared";
   import { getNote, listNotes, putNote } from "$lib/api";
   import { renderMarkdown } from "$lib/render";
+  import { newAgentNotes } from "$lib/notes-poll";
+  import { visiblePoll } from "$lib/poll";
   import Editor from "$lib/components/Editor.svelte";
   import NoteList from "$lib/components/NoteList.svelte";
   import Preview from "$lib/components/Preview.svelte";
@@ -14,6 +16,7 @@
   let showPreview = $state(true);
   let loading = $state(true);
   let loadError = $state("");
+  let flicker = $state(new Set<string>());
 
   let dirty = false;
   // The updatedAt this editor last saw; sent with every save so a newer change is never overwritten.
@@ -21,7 +24,23 @@
 
   const html = $derived(draft ? renderMarkdown(draft.body) : "");
 
+  async function pollNotes(): Promise<void> {
+    try {
+      const next = await listNotes();
+      const landed = newAgentNotes(notes, next);
+      notes = next;
+      if (landed.length > 0) {
+        flicker = new Set(landed);
+        setTimeout(() => (flicker = new Set()), 700);
+      }
+    } catch {
+      // Keep the list we have; the next poll tries again.
+    }
+  }
+
   onMount(() => {
+    // Start polling only after the first load, so opening the page never flickers.
+    let stop: (() => void) | undefined;
     void (async () => {
       try {
         notes = await listNotes();
@@ -31,8 +50,10 @@
         loadError = err instanceof Error ? err.message : "Could not load notes";
       } finally {
         loading = false;
+        stop = visiblePoll(pollNotes, 5000);
       }
     })();
+    return () => stop?.();
   });
 
   async function select(id: string): Promise<void> {
@@ -99,7 +120,7 @@
 <svelte:window onkeydown={onKeydown} />
 
 <div class="app">
-  <NoteList {notes} {selectedId} onselect={(id) => void select(id)} oncreated={onCreated} />
+  <NoteList {notes} {selectedId} {flicker} onselect={(id) => void select(id)} oncreated={onCreated} />
 
   <main class="main">
     {#if loadError}

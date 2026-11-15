@@ -48,7 +48,7 @@ Legend: `[x]` done, `[ ]` not done. Add a short note after a task only for a dev
 - [x] WP4-T2: Agents list ("ledger rows")
 - [x] WP4-T3: Agent detail
 - [x] WP4-T4: Run viewer
-- [ ] WP4-T5: Lantern flicker and provenance in the note list
+- [x] WP4-T5: Lantern flicker and provenance in the note list
 - [ ] WP4-T6: Command palette (⌘K)
 - [ ] WP4-T7: Settings and banners
 - [ ] WP4-T8: Notes list without bodies (performance)
