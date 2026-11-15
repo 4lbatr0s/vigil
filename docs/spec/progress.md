@@ -60,7 +60,7 @@ Legend: `[x]` done, `[ ]` not done. Add a short note after a task only for a dev
 
 - [x] WP5-T1: Live-preview decorations
 - [x] WP5-T2: Wikilink autocomplete
-- [ ] WP5-T3: Backlinks API and panel
+- [x] WP5-T3: Backlinks API and panel
 - [ ] WP5-T4: Rename
 - [ ] WP5-T5: Delete with confirmation
 

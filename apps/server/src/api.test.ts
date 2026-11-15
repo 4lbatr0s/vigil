@@ -101,6 +101,27 @@ describe("json api", () => {
     expect(errCode((await req("GET", "/api/notes?fields=everything")).json)).toBe("invalid-query");
   });
 
+  it("lists backlinks, including to a note that does not exist yet", async () => {
+    await req("PUT", "/api/notes/bl-a", { title: "BL A", body: "intro\nSee [[Future note]] and more." });
+    await req("PUT", "/api/notes/bl-b", { title: "BL B", body: "Also [text](future-note) here." });
+    await req("PUT", "/api/notes/bl-c", { title: "BL C", body: "No links at all." });
+    const res = await req("GET", "/api/notes/future-note/backlinks");
+    expect(res.status).toBe(200);
+    const rows = res.json.data as Array<{ id: string; title: string; snippet: string }>;
+    expect(rows.map((r) => r.id).sort()).toEqual(["bl-a", "bl-b"]);
+    expect(rows.find((r) => r.id === "bl-a")).toEqual({ id: "bl-a", title: "BL A", snippet: "See [[Future note]] and more." });
+    expect(rows.find((r) => r.id === "bl-b")?.snippet).toBe("Also [text](future-note) here.");
+    expect((await req("GET", "/api/notes/bl-c/backlinks")).json.data).toEqual([]);
+    expect(errCode((await req("GET", "/api/notes/..%2Fx/backlinks")).json)).toBeDefined();
+  });
+
+  it("caps a long backlink snippet at 160 characters", async () => {
+    await req("PUT", "/api/notes/bl-long", { title: "BL Long", body: `[[Cap target]] ${"x".repeat(400)}` });
+    const rows = (await req("GET", "/api/notes/cap-target/backlinks")).json.data as Array<{ snippet: string }>;
+    expect(rows[0]?.snippet.length).toBe(160);
+    expect(rows[0]?.snippet.endsWith("…")).toBe(true);
+  });
+
   it("searches notes", async () => {
     const res = await req("GET", "/api/search?q=vigil");
     expect(res.status).toBe(200);

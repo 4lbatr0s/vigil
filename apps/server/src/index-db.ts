@@ -99,6 +99,30 @@ export function extractLinks(body: string): string[] {
   return [...found];
 }
 
+export type Backlink = { id: string; title: string; snippet: string };
+
+const SNIPPET_MAX = 160;
+
+/** The first line of `body` that links to `id`, trimmed and capped; empty when none is found. */
+function snippetFor(body: string, id: string): string {
+  const line = body.split("\n").find((l) => extractLinks(l).includes(id)) ?? "";
+  const text = line.trim();
+  return text.length > SNIPPET_MAX ? `${text.slice(0, SNIPPET_MAX - 1)}…` : text;
+}
+
+/** Notes that link to `id`, newest first. The target need not exist: dangling links still have sources. */
+export function backlinks(id: string): Backlink[] {
+  const { db } = open();
+  const rows = db
+    .prepare(
+      `SELECT n.id AS id, n.title AS title, b.body AS body FROM links l
+       JOIN notes n ON n.id = l.src LEFT JOIN notes_body b ON b.id = n.id
+       WHERE l.dst = ? ORDER BY n.updated_at DESC`,
+    )
+    .all(id) as { id: string; title: string; body: string | null }[];
+  return rows.map((r) => ({ id: r.id, title: r.title, snippet: snippetFor(r.body ?? "", id) }));
+}
+
 export function reindexNote(note: Note): void {
   const { db, fts } = open();
   const existed = db.prepare("SELECT 1 AS x FROM notes WHERE id = ?").get(note.id) !== undefined;

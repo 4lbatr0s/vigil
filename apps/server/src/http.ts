@@ -7,6 +7,7 @@ import {
   getNote as indexGetNote,
   listNotes as indexListNotes,
   listNoteSummaries,
+  backlinks as indexBacklinks,
   reindexNote,
   removeNote,
   searchNotes,
@@ -21,7 +22,7 @@ import { refreshSchedule } from "./scheduler";
 import { llmStatus } from "./llm-status";
 import { usage } from "./usage";
 import { getAgent, getRun, getSchedule, listAgents, listEvents, listRuns, putAgent, putSchedule } from "./state-db";
-import { createNote, deleteNote, getNote as vaultGetNote, slugify, updateNote } from "./vault";
+import { createNote, deleteNote, getNote as vaultGetNote, slugify, updateNote, validateId } from "./vault";
 
 const MAX_BODY_BYTES = 2 * 1024 * 1024;
 
@@ -72,6 +73,14 @@ const routes: { method: string; pattern: RegExp; keys: string[]; handler: Handle
       }
       const fromVault = await vaultGetNote(id);
       send(res, 200, { data: fromVault });
+    },
+  },
+  {
+    method: "GET",
+    pattern: /^\/api\/notes\/([^/]+)\/backlinks$/,
+    keys: ["id"],
+    handler: (_req, res, params) => {
+      send(res, 200, { data: indexBacklinks(validateId(params["id"] ?? "")) });
     },
   },
   {

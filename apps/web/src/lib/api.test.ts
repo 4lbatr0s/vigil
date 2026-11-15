@@ -3,6 +3,7 @@ import {
   ApiError,
   createFromTemplate,
   getAgent,
+  getBacklinks,
   getLlmStatus,
   getNote,
   getPermissions,
@@ -82,6 +83,7 @@ describe("api client", () => {
       await listRuns({ agent: "digest", limit: 20 });
       await getRun("r1");
       await getRun("r1", 7);
+      await getBacklinks("a b");
       expect(calls(spy).map(([url]) => url)).toEqual([
         "/api/agents",
         "/api/agents/digest",
@@ -95,6 +97,7 @@ describe("api client", () => {
         "/api/runs?agent=digest&limit=20",
         "/api/runs/r1",
         "/api/runs/r1?after=7",
+        "/api/notes/a%20b/backlinks",
       ]);
       expect(calls(spy).every(([, init]) => init === undefined)).toBe(true);
     });

@@ -6,6 +6,7 @@
   import { newAgentNotes } from "$lib/notes-poll";
   import { refreshOnLive } from "$lib/live";
   import NoteList from "$lib/components/NoteList.svelte";
+  import Backlinks from "$lib/components/Backlinks.svelte";
 
   let notes = $state<NoteSummary[]>([]);
   let selectedId = $state<string | null>(null);
@@ -182,6 +183,8 @@
           {/await}
         </section>
       </div>
+
+      <Backlinks noteId={selectedId ?? ""} signature={notes.map((n) => n.updatedAt).join("|")} />
 
       <footer class="status">
         <span class="path">{selectedId}.md</span>
