@@ -8,18 +8,22 @@
   import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
   import { tags } from "@lezer/highlight";
   import { livePreview } from "$lib/editor/livePreview";
+  import { wikilinkCompletion } from "$lib/editor/wikilinkComplete";
 
   let {
     value = "",
     noteId = "",
     onDocChange,
     onOpenWikilink,
+    getTitles,
   }: {
     value?: string;
     noteId?: string;
     onDocChange?: (next: string) => void;
     /** Cmd/Ctrl+click on a [[wikilink]]: the page opens or offers to create that note. */
     onOpenWikilink?: (title: string) => void;
+    /** Note titles for `[[` completion, read each time the list opens. */
+    getTitles?: () => string[];
   } = $props();
 
   let host = $state<HTMLDivElement | undefined>(undefined);
@@ -82,6 +86,7 @@
           minimalSetup,
           syntaxHighlighting(highlight),
           markdown({ base: markdownLanguage, codeLanguages: languages }),
+          wikilinkCompletion(() => getTitles?.() ?? []),
           livePreview({ onOpenWikilink: (title) => onOpenWikilink?.(title) }),
           EditorView.lineWrapping,
           theme,
