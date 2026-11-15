@@ -40,6 +40,8 @@ export const getNote = (id: string) => request<Note>(`/api/notes/${seg(id)}`);
 /** `baseUpdatedAt` is the `updatedAt` you last saw; the server answers 409 if the note moved on. */
 export const putNote = (id: string, input: { title: string; body: string; tags?: string[]; baseUpdatedAt?: string }) =>
   request<Note>(`/api/notes/${seg(id)}`, json("PUT", input));
+/** Permanent: there is no trash. The UI asks twice. */
+export const deleteNote = (id: string) => request<{ id: string }>(`/api/notes/${seg(id)}`, { method: "DELETE" });
 export type RenamePlan = { newId: string; notesToChange: string[]; titles: string[] };
 /** Dry run: what a rename would change. Writes nothing. */
 export const planRenameNote = (id: string, title: string) => request<RenamePlan>(`/api/notes/${seg(id)}/rename?dryRun=1`, json("POST", { title }));

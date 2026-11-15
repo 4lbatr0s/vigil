@@ -9,6 +9,8 @@
   import NoteList from "$lib/components/NoteList.svelte";
   import Backlinks from "$lib/components/Backlinks.svelte";
   import RenameNote from "$lib/components/RenameNote.svelte";
+  import DeleteNote from "$lib/components/DeleteNote.svelte";
+  import { nextAfterDelete } from "$lib/after-delete";
 
   let notes = $state<NoteSummary[]>([]);
   let selectedId = $state<string | null>(null);
@@ -162,6 +164,19 @@
     await select(note.id);
   }
 
+  /** After a delete: drop it from the list and open the next note, or show the empty state. */
+  async function onDeleted(id: string): Promise<void> {
+    const next = nextAfterDelete(notes.map((n) => n.id), id);
+    notes = notes.filter((n) => n.id !== id);
+    if (next) {
+      await select(next);
+    } else {
+      selectedId = null;
+      draft = null;
+      replaceState("/", {});
+    }
+  }
+
   function onCreated(note: Note) {
     notes = [note, ...notes.filter((n) => n.id !== note.id)];
     void select(note.id);
@@ -185,6 +200,7 @@
         <h1 class="title">{draft.title}</h1>
         <div class="actions">
           <RenameNote noteId={selectedId ?? ""} title={draft.title} onrenamed={onRenamed} />
+          <DeleteNote noteId={selectedId ?? ""} title={draft.title} ondeleted={onDeleted} />
         </div>
       </header>
 

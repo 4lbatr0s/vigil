@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   ApiError,
   createFromTemplate,
+  deleteNote,
   getAgent,
   getBacklinks,
   getLlmStatus,
@@ -117,6 +118,7 @@ describe("api client", () => {
       await putPermissions(settings);
       await planRenameNote("a b", "New title");
       await renameNote("a b", "New title");
+      await deleteNote("a b");
       const seen = calls(spy).map(([url, init]) => [url, init?.method, init?.body]);
       expect(seen).toEqual([
         ["/api/agents/digest", "PUT", JSON.stringify(agent)],
@@ -128,6 +130,7 @@ describe("api client", () => {
         ["/api/settings/permissions", "PUT", JSON.stringify(settings)],
         ["/api/notes/a%20b/rename?dryRun=1", "POST", JSON.stringify({ title: "New title" })],
         ["/api/notes/a%20b/rename", "POST", JSON.stringify({ title: "New title" })],
+        ["/api/notes/a%20b", "DELETE", undefined],
       ]);
     });
 
