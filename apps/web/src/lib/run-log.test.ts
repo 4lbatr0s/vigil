@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { RunEvent } from "@vigil/shared";
-import { budgetShare, canUndo, lastSeq, mergeEvents, noteIdOf, noteIdsInMessage, preview } from "./run-log";
+import { budgetShare, canUndo, childRunIdOf, lastSeq, mergeEvents, noteIdOf, noteIdsInMessage, preview } from "./run-log";
 
 const ev = (seq: number, kind: RunEvent["kind"] = "model", data: Record<string, unknown> = {}): RunEvent => ({ seq, at: "t", kind, text: `e${seq}`, data });
 
@@ -28,6 +28,12 @@ describe("run log helpers", () => {
     expect(noteIdsInMessage("Edited after the agent wrote it, so undo would lose your changes: a-1, b-2")).toEqual(["a-1", "b-2"]);
     expect(noteIdsInMessage("Changed while undoing: x. Run undo again to see what is left.")).toEqual([]);
     expect(noteIdsInMessage("no colon here")).toEqual([]);
+  });
+
+  it("finds the child run of a call_agent result", () => {
+    expect(childRunIdOf(ev(1, "tool-result", { childRunId: "abc" }))).toBe("abc");
+    expect(childRunIdOf(ev(1, "tool-call", { childRunId: "abc" }))).toBeNull();
+    expect(childRunIdOf(ev(1, "tool-result", {}))).toBeNull();
   });
 
   it("computes the budget share and collapses long text", () => {

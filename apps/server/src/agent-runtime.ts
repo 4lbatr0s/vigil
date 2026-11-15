@@ -1,17 +1,21 @@
 import { AIMessage, HumanMessage, SystemMessage, ToolMessage, type BaseMessage } from "@langchain/core/messages";
 import { END, GraphRecursionError, MessagesValue, START, StateGraph, StateSchema } from "@langchain/langgraph";
 import type { Agent, RunStatus } from "@vigil/shared";
-import { buildTools, truncate, type ToolContext } from "./agent-tools";
+import { buildTools, truncate, type ChildResult, type ToolContext } from "./agent-tools";
 import { redact, type ModelFactory } from "./llm";
-import { addEvent, setTokensUsed } from "./state-db";
+import { randomUUID } from "node:crypto";
+import { effectiveAgent } from "./permissions";
+import { addEvent, createRun, finishRun, getAgent, hasRunning, setTokensUsed } from "./state-db";
 
 /** What the rest of Vigil sees. LangGraph stays behind this (ADR-0009). */
-export type RunOutcome = { status: RunStatus; tokensUsed: number; error: string | null };
+export type RunOutcome = { status: RunStatus; tokensUsed: number; error: string | null; /** The model's last answer text (used as a child's result). */ finalText?: string };
 export type AgentRunner = (input: {
   agent: Agent;
   task: string;
   runId: string;
   makeModel: ModelFactory;
+  /** 1 for a child started by `call_agent`: such a run never gets the tool. */
+  depth?: 0 | 1;
 }) => Promise<RunOutcome>;
 
 /** One model call plus one tools call per loop; 25 graph steps is about 12 tool rounds. */
@@ -35,11 +39,40 @@ function messageText(message: BaseMessage): string {
   return typeof message.content === "string" ? message.content : JSON.stringify(message.content);
 }
 
-export const runAgent: AgentRunner = async ({ agent, task, runId, makeModel }) => {
-  const ctx: ToolContext = { runId, agentName: agent.name };
+const hasWrite = (a: Agent): boolean => a.tools.includes("write_notes");
+
+export const runAgent: AgentRunner = async ({ agent, task, runId, makeModel, depth = 0 }) => {
+  let used = 0;
+  let finalText = "";
+
+  /** Runs `name` as a child of this run: its own row and log, its budget inside ours, one level deep. */
+  const runChild = async (name: string, message: string): Promise<ChildResult> => {
+    const fail = (text: string): ChildResult => ({ text: `error: ${text}`, tokensUsed: 0, childRunId: null });
+    const stored = getAgent(name);
+    if (!stored) return fail(`no agent called ${name}`);
+    const child = effectiveAgent(stored);
+    if (hasWrite(child) && (agent.strict || child.strict)) return fail("strict agents cannot delegate writes");
+    if (hasRunning(name)) return fail(`agent ${name} already has a run in progress`);
+    const budget = Math.min(child.tokenBudget, agent.tokenBudget - used);
+    if (budget <= 0) return fail("no token budget left");
+    const childRunId = randomUUID();
+    createRun(childRunId, name, budget, "call", runId);
+    let outcome: RunOutcome;
+    try {
+      outcome = await runAgent({ agent: { ...child, tokenBudget: budget }, task: message, runId: childRunId, makeModel, depth: 1 });
+    } catch (err) {
+      outcome = { status: "failed", tokensUsed: 0, error: redact(err instanceof Error ? err.message : "child run failed") };
+    }
+    finishRun(childRunId, outcome.status, outcome.tokensUsed, outcome.error);
+    used += outcome.tokensUsed; // the child spends the parent's budget
+    setTokensUsed(runId, used);
+    const text = outcome.status === "succeeded" ? outcome.finalText || "(no answer)" : `error: the child run ended ${outcome.status}${outcome.error ? `: ${outcome.error}` : ""}`;
+    return { text, tokensUsed: outcome.tokensUsed, childRunId };
+  };
+
+  const ctx: ToolContext = { runId, agentName: agent.name, depth, callable: agent.callable, remainingBudget: () => agent.tokenBudget - used, runChild };
   const tools = buildTools(agent.tools, ctx);
   const byName = new Map(tools.map((t) => [t.name, t]));
-  let used = 0;
   // Set inside the graph nodes; the cast stops TypeScript narrowing it to `null` at the end.
   let stop = null as RunStatus | null;
 
@@ -54,6 +87,7 @@ export const runAgent: AgentRunner = async ({ agent, task, runId, makeModel }) =
     // The remaining budget caps this one call, so a single answer cannot overshoot.
     const model = makeModel(tools, { model: agent.model, maxTokens: remaining });
     const reply = await model.invoke(state.messages);
+    finalText = messageText(reply);
     const tokens = reply.usage_metadata?.total_tokens ?? estimateTokens(state.messages, reply);
     used += tokens;
     setTokensUsed(runId, used);
@@ -91,7 +125,9 @@ export const runAgent: AgentRunner = async ({ agent, task, runId, makeModel }) =
       } catch (err) {
         output = `error: ${redact(err instanceof Error ? err.message : "tool failed")}`;
       }
-      addEvent(runId, "tool-result", truncate(output, 300), { tool: call.name });
+      const childRunId = ctx.lastChildRunId;
+      ctx.lastChildRunId = null;
+      addEvent(runId, "tool-result", truncate(output, 300), { tool: call.name, ...(childRunId ? { childRunId } : {}) });
       results.push(new ToolMessage({ content: output, tool_call_id: id, name: call.name }));
     }
     return { messages: results };
@@ -119,13 +155,13 @@ export const runAgent: AgentRunner = async ({ agent, task, runId, makeModel }) =
   } catch (err) {
     if (err instanceof GraphRecursionError) {
       addEvent(runId, "stop", "step limit reached");
-      return { status: "step-limit", tokensUsed: used, error: "step limit reached" };
+      return { status: "step-limit", tokensUsed: used, error: "step limit reached", finalText };
     }
     const message = redact(err instanceof Error ? err.message : "run failed");
     addEvent(runId, "stop", `failed: ${message}`);
-    return { status: "failed", tokensUsed: used, error: message };
+    return { status: "failed", tokensUsed: used, error: message, finalText };
   }
   const status: RunStatus = stop ?? "succeeded";
   addEvent(runId, "stop", status);
-  return { status, tokensUsed: used, error: status === "budget-exceeded" ? `token budget of ${agent.tokenBudget} used up` : null };
+  return { status, tokensUsed: used, error: status === "budget-exceeded" ? `token budget of ${agent.tokenBudget} used up` : null, finalText };
 };

@@ -60,7 +60,7 @@ Rule: only the server touches the filesystem or SQLite; the web app talks to `/a
 | `watcher.ts` | reconcile external file changes into the index | built |
 | `lock.ts` | `withNoteLock`: serialize every note-changing operation | built, uncommitted |
 | `state-db.ts` | append-only migrations; agents, runs, events, snapshots | built; later tables planned |
-| `agent-tools.ts` | tool builders per grant | built (`read_notes`, `write_notes`) |
+| `agent-tools.ts` | tool builders per grant | built (`read_notes`, `write_notes`, `call_agent`) |
 | `agent-runtime.ts` | graph, budget, step limit, run log | built |
 | `llm.ts` | `modelFactoryFromEnv`, `redact` | built |
 | `runs.ts` | background execution, undo | built |
@@ -93,7 +93,7 @@ Rule: only the server touches the filesystem or SQLite; the web app talks to `/a
 
 ### 5.3 Undo
 
-`POST /api/runs/:id/undo` (inside `withNoteLock`): refuse if the run is running or already undone; consider only snapshots with a recorded write time; if any such note's current mtime differs from the recorded one, refuse the whole undo with `409 undo-conflict` (a human edited it after the agent); otherwise restore each snapshot (or delete a note the run created), re-checking each note just before touching it; mark the run undone. Children of a run (call_agent) are undone first. **[children planned]**
+`POST /api/runs/:id/undo` (inside `withNoteLock`): refuse if the run is running or already undone; consider only snapshots with a recorded write time; if any such note's current mtime differs from the recorded one, refuse the whole undo with `409 undo-conflict` (a human edited it after the agent); otherwise restore each snapshot (or delete a note the run created), re-checking each note just before touching it; mark the run undone. Children of a run (call_agent) are undone first.
 
 ### 5.4 Scheduled run **[planned]**
 

@@ -72,9 +72,9 @@ Legend: `[x]` done, `[ ]` not done. Add a short note after a task only for a dev
 
 ## WP7: M3 `call_agent` (bounded agent-to-agent)
 
-- [ ] WP7-T1: Tool and runtime plumbing
-- [ ] WP7-T2: Undo across a family
-- [ ] WP7-T3: Tests
+- [x] WP7-T1: Tool and runtime plumbing
+- [x] WP7-T2: Undo across a family
+- [x] WP7-T3: Tests
 
 ## WP8: M3 strict mode and the approvals queue
 

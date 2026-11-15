@@ -12,6 +12,7 @@ import {
   getAgent,
   getRun,
   hasRunning,
+  listChildRuns,
   listSnapshots,
   markUndone,
   readSnapshotFile,
@@ -78,23 +79,37 @@ async function undoLocked(runId: string): Promise<Run> {
   if (!run) throw new AppError("run-not-found", `Run not found: ${runId}`, 404);
   if (run.status === "running") throw new AppError("run-active", "Run is still in progress", 409);
   if (run.undone) throw new AppError("already-undone", "Run was already undone", 409);
-  // A snapshot without a recorded write time means the agent never finished writing that note
-  // (a crash between the snapshot and the write). Leave such notes alone: restoring or deleting
-  // could destroy something a human did since.
-  const all = listSnapshots(runId);
-  if (all.some((s) => s.expired)) throw new AppError("undo-expired", "This run is too old to undo.", 410);
-  const snapshots = all.filter((s) => s.writtenUpdatedAt !== null);
 
-  const editedSince = async (snap: (typeof snapshots)[number]): Promise<boolean> => {
-    const current = await getNote(snap.noteId).catch((err: unknown) => {
+  // The family: children (started by call_agent) first, the run itself last. A child that was
+  // already undone on its own is left out; one still running blocks the undo.
+  const children = listChildRuns(runId);
+  if (children.some((c) => c.status === "running")) throw new AppError("run-active", "A child run is still in progress", 409);
+  const family = [...children.filter((c) => !c.undone), run];
+
+  // A snapshot without a recorded write time means the agent never finished writing that note
+  // (a crash between the snapshot and the write). Leave such notes alone.
+  const all = family.flatMap((r) => listSnapshots(r.id));
+  if (all.some((s) => s.expired)) throw new AppError("undo-expired", "This run is too old to undo.", 410);
+  const snapshots = family.flatMap((r) => listSnapshots(r.id).filter((s) => s.writtenUpdatedAt !== null));
+
+  // What a note's file time may be if no human touched it since the agents: any write time recorded
+  // for it in this family, plus the times our own restores produce while we work.
+  const expected = new Map<string, Set<string>>();
+  for (const s of snapshots) {
+    const set = expected.get(s.noteId) ?? new Set<string>();
+    set.add(s.writtenUpdatedAt as string);
+    expected.set(s.noteId, set);
+  }
+  const editedSince = async (noteId: string): Promise<boolean> => {
+    const current = await getNote(noteId).catch((err: unknown) => {
       if (err instanceof AppError && err.code === "note-not-found") return null;
       throw err;
     });
-    return current !== null && current.updatedAt !== snap.writtenUpdatedAt;
+    return current !== null && !(expected.get(noteId)?.has(current.updatedAt) ?? false);
   };
 
   const changed: string[] = [];
-  for (const snap of snapshots) if (await editedSince(snap)) changed.push(snap.noteId);
+  for (const noteId of expected.keys()) if (await editedSince(noteId)) changed.push(noteId);
   if (changed.length > 0) {
     throw new AppError(
       "undo-conflict",
@@ -103,20 +118,24 @@ async function undoLocked(runId: string): Promise<Run> {
     );
   }
 
-  for (const snap of snapshots) {
-    // Re-check right before acting: narrows the window for an editor outside this server.
-    if (await editedSince(snap)) {
-      throw new AppError("undo-conflict", `Changed while undoing: ${snap.noteId}. Run undo again to see what is left.`, 409);
+  for (const member of family) {
+    for (const snap of listSnapshots(member.id).filter((s) => s.writtenUpdatedAt !== null)) {
+      // Re-check right before acting: narrows the window for an editor outside this server.
+      if (await editedSince(snap.noteId)) {
+        throw new AppError("undo-conflict", `Changed while undoing: ${snap.noteId}. Run undo again to see what is left.`, 409);
+      }
+      if (snap.existed && snap.file) {
+        const restored = await restoreNoteFile(snap.noteId, await readSnapshotFile(snap.file));
+        expected.get(snap.noteId)?.add(restored.updatedAt);
+        reindexNote(restored);
+      } else {
+        await deleteNote(snap.noteId).catch((err: unknown) => {
+          if (!(err instanceof AppError && err.code === "note-not-found")) throw err;
+        });
+        removeNote(snap.noteId);
+      }
     }
-    if (snap.existed && snap.file) {
-      reindexNote(await restoreNoteFile(snap.noteId, await readSnapshotFile(snap.file)));
-    } else {
-      await deleteNote(snap.noteId).catch((err: unknown) => {
-        if (!(err instanceof AppError && err.code === "note-not-found")) throw err;
-      });
-      removeNote(snap.noteId);
-    }
+    markUndone(member.id);
   }
-  markUndone(runId);
   return getRun(runId) as Run;
 }

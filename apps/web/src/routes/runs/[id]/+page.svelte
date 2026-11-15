@@ -4,7 +4,7 @@
   import type { Run, RunEvent } from "@vigil/shared";
   import { ApiError, getRun, undoRun } from "$lib/api";
   import { formatStamp } from "$lib/format";
-  import { budgetShare, canUndo, KIND_LABEL, lastSeq, mergeEvents, noteIdOf, noteIdsInMessage, preview } from "$lib/run-log";
+  import { budgetShare, canUndo, childRunIdOf, KIND_LABEL, lastSeq, mergeEvents, noteIdOf, noteIdsInMessage, preview } from "$lib/run-log";
   import { refreshOnLive } from "$lib/live";
   import { statusDot } from "$lib/schedule";
   import StatusDot from "$lib/components/StatusDot.svelte";
@@ -81,6 +81,7 @@
       <dt>Started</dt><dd class="mono">{formatStamp(run.startedAt)}</dd>
       <dt>Finished</dt><dd class="mono">{run.finishedAt ? formatStamp(run.finishedAt) : "still running"}</dd>
       <dt>Trigger</dt><dd class="mono">{run.trigger}</dd>
+      {#if run.parentRunId}<dt>Parent</dt><dd><a class="mono" href={`/runs/${encodeURIComponent(run.parentRunId)}`}>parent run</a></dd>{/if}
       <dt>Tokens</dt>
       <dd>
         <span class="mono">{run.tokensUsed} / {run.tokenBudget}</span>
@@ -112,11 +113,13 @@
       {#each events as e (e.seq)}
         {@const p = preview(e.text)}
         {@const note = noteIdOf(e)}
+        {@const child = childRunIdOf(e)}
         <li class="line">
           <span class="kind" class:stop={e.kind === "stop"}>{KIND_LABEL[e.kind]}</span>
           <span class="text">
             {#if open[e.seq]}<span class="full">{e.text}</span>{:else}{p.short}{/if}
             {#if note}<a href={`/?note=${note}`}>open note</a>{/if}
+            {#if child}<a href={`/runs/${encodeURIComponent(child)}`}>open child run</a>{/if}
             {#if p.long}
               <button type="button" class="more" onclick={() => (open[e.seq] = !open[e.seq])} aria-expanded={open[e.seq] ?? false}>
                 {open[e.seq] ? "less" : "more"}

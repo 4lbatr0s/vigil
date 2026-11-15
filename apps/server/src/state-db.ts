@@ -170,7 +170,12 @@ type RunRow = {
 
 function toRun(row: RunRow): Run {
   const touched = (
-    open().prepare("SELECT note_id FROM snapshots WHERE run_id = ? ORDER BY rowid").all(row.id) as { note_id: string }[]
+    open()
+      .prepare(
+        `SELECT DISTINCT note_id FROM snapshots
+         WHERE run_id = ? OR run_id IN (SELECT id FROM runs WHERE parent_run_id = ?)`,
+      )
+      .all(row.id, row.id) as { note_id: string }[]
   ).map((r) => r.note_id);
   return {
     id: row.id,
@@ -427,4 +432,10 @@ export function touchHeartbeat(agent: string, lastCheckedAt: string): void {
 
 export function clearHeartbeat(agent: string): void {
   open().prepare("DELETE FROM heartbeat_state WHERE agent = ?").run(agent);
+}
+
+/** Runs started by `call_agent` from this run, oldest first. */
+export function listChildRuns(parentRunId: string): Run[] {
+  const rows = open().prepare("SELECT * FROM runs WHERE parent_run_id = ? ORDER BY started_at").all(parentRunId) as RunRow[];
+  return rows.map(toRun);
 }

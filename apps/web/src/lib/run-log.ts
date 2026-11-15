@@ -54,3 +54,9 @@ export function preview(text: string, max = 160): { short: string; long: boolean
   const long = text.length > max || text.includes("\n");
   return { short: firstLine.length > max ? `${firstLine.slice(0, max)}…` : firstLine, long };
 }
+
+/** The child run a `call_agent` result event points at, if any. */
+export function childRunIdOf(event: RunEvent): string | null {
+  const id = event.data["childRunId"];
+  return event.kind === "tool-result" && typeof id === "string" ? id : null;
+}
