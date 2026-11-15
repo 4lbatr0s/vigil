@@ -180,7 +180,7 @@ VIGIL_MONTHLY_TOKEN_CAP=...  # optional warning level</pre>
     margin: var(--space-1) 0 0 var(--space-6);
   }
   .error {
-    color: var(--err);
+    color: var(--err-ink);
     font-size: var(--text-label);
   }
   .switches {

@@ -8,9 +8,12 @@
   --hairline: #26262b;
   --ink: #ededef;
   --ink-muted: #8b8b92;
-  --amber: #e8a33d; /* agent life only — reserved, not used in this slice */
+  --amber: #e8a33d; /* agent life only: dots, outlines, graph glow */
   --ok: #4ea36a;
   --err: #c75450;
+  /* Text-safe variants (contrast >= 4.5:1 on --bg and --surface, checked by contrast.test.ts). */
+  --amber-ink: #e8a33d;
+  --err-ink: #dd6a66;
 
   /* Type */
   --font-serif: "Newsreader Variable", Georgia, serif;
@@ -40,8 +43,9 @@
   --measure: 68ch;
 }
 
+/* Light follows the system unless the page says data-theme="dark". */
 @media (prefers-color-scheme: light) {
-  :root {
+  :root:not([data-theme="dark"]) {
     --bg: #fafaf8;
     --surface: #ffffff;
     --hairline: #e7e7e3;
@@ -50,7 +54,23 @@
     --amber: #b47612;
     --ok: #2e7d4f;
     --err: #b03a36;
+    --amber-ink: #8f5c0a;
+    --err-ink: #b03a36;
   }
+}
+
+/* An explicit light choice wins over the system setting. */
+:root[data-theme="light"] {
+  --bg: #fafaf8;
+  --surface: #ffffff;
+  --hairline: #e7e7e3;
+  --ink: #16181d;
+  --ink-muted: #6e6e74;
+  --amber: #b47612;
+  --ok: #2e7d4f;
+  --err: #b03a36;
+  --amber-ink: #8f5c0a;
+  --err-ink: #b03a36;
 }
 
 *,

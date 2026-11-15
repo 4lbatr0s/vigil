@@ -135,7 +135,7 @@
     color: var(--ink-muted);
   }
   .error {
-    color: var(--err);
+    color: var(--err-ink);
     margin-bottom: var(--space-4);
   }
   .empty {

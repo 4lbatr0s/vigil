@@ -164,7 +164,7 @@
   }
   .error,
   .err {
-    color: var(--err);
+    color: var(--err-ink);
   }
   .error {
     margin: var(--space-2) 0;
@@ -243,7 +243,7 @@
   }
   .running .kind,
   .running .text {
-    color: var(--amber);
+    color: var(--amber-ink);
   }
   .text {
     white-space: pre-wrap;

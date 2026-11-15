@@ -6,9 +6,7 @@
   import { renderMarkdown } from "$lib/render";
   import { newAgentNotes } from "$lib/notes-poll";
   import { refreshOnLive } from "$lib/live";
-  import Editor from "$lib/components/Editor.svelte";
   import NoteList from "$lib/components/NoteList.svelte";
-  import Preview from "$lib/components/Preview.svelte";
 
   let notes = $state<NoteSummary[]>([]);
   let selectedId = $state<string | null>(null);
@@ -156,15 +154,16 @@
 
       <div class="panes" class:source-only={!showPreview}>
         <section class="pane editor-pane">
-          <Editor
-            value={draft.body}
-            noteId={selectedId ?? ""}
-            onDocChange={onDocChange}
-          />
+          <!-- The editor (CodeMirror) and preview (marked, DOMPurify) are the heavy part: load them after the shell and list. -->
+          {#await import("$lib/components/Editor.svelte") then { default: Editor }}
+            <Editor value={draft.body} noteId={selectedId ?? ""} onDocChange={onDocChange} />
+          {/await}
         </section>
         {#if showPreview}
           <section class="pane preview-pane">
-            <Preview {html} />
+            {#await import("$lib/components/Preview.svelte") then { default: Preview }}
+              <Preview {html} />
+            {/await}
           </section>
         {/if}
       </div>

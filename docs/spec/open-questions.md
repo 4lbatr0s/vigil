@@ -30,4 +30,14 @@ Guiding rule from the owner: **performance and usability balance is everything.*
 
 Format: `### YYYY-MM-DD <task id>: <question>` then what you assumed and why, then `Answer:` left empty for the owner.
 
-(No open entries yet.)
+### 2026-11-15 WP4-T10: the editor chunk is about 240 KB gzip
+First measure of the "/" route: 296 KB gzip with CodeMirror (`basicSetup`), `marked` and DOMPurify in the entry. I moved the editor and preview behind dynamic `import()`, so the first load is 83 KB gzip (budget 180 KB, enforced by `scripts/check-bundle-size.mjs`) and the editor loads right after. I did not trim `basicSetup` (autocomplete, search, lint) because WP5 rebuilds the editor; trim there and measure again.
+Answer:
+
+### 2026-11-15 WP4-T10: text-safe color tokens added
+Dark `--err` (4.32:1 on `--bg`) and light `--amber` (3.63:1) fail 4.5:1 as text. I added `--err-ink` and `--amber-ink` for text use (documented in `docs/design/ui.md`) and kept `--err`/`--amber` for dots and borders. `contrast.test.ts` enforces it.
+Answer:
+
+### 2026-11-15 WP4-T10: typing-latency test not written
+The live-preview plugin it measures arrives in WP5-T1, so the 50 ms guard test belongs there.
+Answer:

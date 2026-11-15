@@ -192,7 +192,7 @@
   }
   .error {
     padding: var(--space-2) var(--space-4);
-    color: var(--err);
+    color: var(--err-ink);
     font-size: var(--text-label);
   }
 </style>

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { slugify, type Note, type NoteSummary } from "@vigil/shared";
   import { putNote } from "$lib/api";
+  import { ROW_HEIGHT, VIRTUALIZE_ABOVE, visibleWindow } from "$lib/window";
 
   let {
     notes = [],
@@ -20,6 +21,13 @@
   let newTitle = $state("");
   let creating = $state(false);
   let error = $state("");
+  let scrollTop = $state(0);
+  let viewport = $state(800);
+
+  // Past a few hundred notes only the rows on screen are rendered (fixed-height rows).
+  const windowed = $derived(notes.length > VIRTUALIZE_ABOVE);
+  const win = $derived(windowed ? visibleWindow({ total: notes.length, scrollTop, viewport }) : { start: 0, end: notes.length, padTop: 0, padBottom: 0 });
+  const rows = $derived(notes.slice(win.start, win.end));
 
   function formatDate(iso: string): string {
     const date = new Date(iso);
@@ -45,13 +53,14 @@
   }
 </script>
 
-<aside class="sidebar">
+<aside class="sidebar" style:--row-height={`${ROW_HEIGHT}px`}>
   <header class="head">
     <span class="label">Notes</span>
   </header>
 
-  <div class="list">
-    {#each notes as note (note.id)}
+  <div class="list" bind:clientHeight={viewport} onscroll={(e) => (scrollTop = e.currentTarget.scrollTop)}>
+    {#if win.padTop > 0}<div style:height={`${win.padTop}px`} aria-hidden="true"></div>{/if}
+    {#each rows as note (note.id)}
       <button
         type="button"
         class="row"
@@ -73,6 +82,7 @@
     {:else}
       <p class="empty">No notes yet.</p>
     {/each}
+    {#if win.padBottom > 0}<div style:height={`${win.padBottom}px`} aria-hidden="true"></div>{/if}
   </div>
 
   <form class="create" onsubmit={create}>
@@ -122,10 +132,12 @@
 
   .row {
     display: flex;
-    flex-direction: column;
-    gap: var(--space-1);
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
     width: 100%;
-    padding: var(--space-3) var(--space-4);
+    height: var(--row-height);
+    padding: 0 var(--space-4);
     border-left: 2px solid transparent;
     border-bottom: 1px solid var(--hairline);
     text-align: left;
@@ -141,6 +153,10 @@
   }
 
   .title {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
     font-family: var(--font-serif);
     font-size: var(--text-prose);
     line-height: 1.3;
@@ -170,11 +186,12 @@
       color: var(--ink);
     }
     30% {
-      color: var(--amber);
+      color: var(--amber-ink);
     }
   }
 
   .date {
+    flex: none;
     font-family: var(--font-mono);
     font-size: var(--text-label);
     color: var(--ink-muted);
@@ -229,6 +246,6 @@
     padding: 0 var(--space-4) var(--space-3);
     font-family: var(--font-mono);
     font-size: var(--text-label);
-    color: var(--err);
+    color: var(--err-ink);
   }
 </style>

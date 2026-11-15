@@ -12,7 +12,9 @@ Single source of truth for all UI. Components may not use raw hex values outside
 | --ink-muted | #8B8B92 | #6E6E74 | secondary text, labels |
 | --amber | #E8A33D | #B47612 | agent life ONLY: active runs, agent-written notes, graph glow, lantern flicker |
 | --ok | #4EA36A | #2E7D4F | run success |
-| --err | #C75450 | #B03A36 | run failure |
+| --err | #C75450 | #B03A36 | run failure (dots, borders) |
+| --err-ink | #DD6A66 | #B03A36 | error text (>= 4.5:1 on --bg and --surface) |
+| --amber-ink | #E8A33D | #8F5C0A | amber used as text (>= 4.5:1) |
 Dark is default. Light is a first-class theme, not an afterthought.
 
 ## Typography

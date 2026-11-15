@@ -244,7 +244,7 @@
     margin: var(--space-1) 0 var(--space-4);
   }
   .error {
-    color: var(--err);
+    color: var(--err-ink);
     margin: var(--space-2) 0;
   }
   .warn {
