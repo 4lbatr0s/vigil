@@ -1,0 +1,18 @@
+# Never ship real notes, data, secrets or build output into an image.
+vault/
+data/
+node_modules/
+**/node_modules/
+dist/
+**/dist/
+build/
+**/build/
+.svelte-kit/
+**/.svelte-kit/
+.env
+.env.*
+!.env.example
+.git/
+.github/
+*.log
+.DS_Store

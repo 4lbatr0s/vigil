@@ -1,12 +1,15 @@
 {
   "name": "@vigil/server",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "start": "tsx src/index.ts",
+    "start": "node dist/server.mjs",
     "typecheck": "tsc -p tsconfig.json",
-    "test": "vitest run"
+    "test": "vitest run",
+    "build": "node ../../scripts/build-server.mjs",
+    "start:dev": "tsx src/index.ts"
   },
   "dependencies": {
     "@langchain/core": "1.4.1",

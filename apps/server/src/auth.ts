@@ -48,10 +48,6 @@ export class LoginLimiter {
     this.globalFailures.push(now);
   }
 
-  globalRefund(): void {
-    this.globalFailures.pop();
-  }
-
   reset(): void {
     this.seen.clear();
     this.globalFailures = [];
@@ -148,18 +144,20 @@ export async function handleAuth(req: IncomingMessage, res: ServerResponse, path
       return true;
     }
     const ip = clientIp(req, access);
-    if (limiter.blocked(ip) || limiter.globalBlocked()) throw new AppError("too-many-attempts", "Too many tries. Wait a minute and try again.", 429);
+    if (limiter.blocked(ip)) throw new AppError("too-many-attempts", "Too many tries. Wait a minute and try again.", 429);
     // Count the attempt BEFORE reading the body, so a burst of parallel requests cannot all slip past
     // the check while earlier ones are still being read. A correct token clears it again.
     limiter.fail(ip);
-    limiter.globalFail();
     const body = await readBody(req);
     const given = typeof body === "object" && body !== null && typeof (body as { token?: unknown }).token === "string" ? (body as { token: string }).token : "";
     if (given === "" || !sameSecret(given, access.token)) {
+      // The global cap slows a spray from many addresses, but it only ever refuses WRONG tokens:
+      // the owner with the right token is never locked out by someone else's guesses.
+      if (limiter.globalBlocked()) throw new AppError("too-many-attempts", "Too many tries. Wait a minute and try again.", 429);
+      limiter.globalFail();
       throw new AppError("unauthorized", "That token isn't right.", 401);
     }
     limiter.succeed(ip);
-    limiter.globalRefund();
     send(res, 200, { data: { required: true, authenticated: true } }, sessionCookie(makeSession(access.token), cookieSecure(req, access)));
     return true;
   }

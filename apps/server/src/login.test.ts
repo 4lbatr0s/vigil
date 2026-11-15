@@ -113,7 +113,9 @@ describe("login", () => {
       if (r.status === 429) blocked += 1;
     }
     expect(blocked).toBeGreaterThan(0);
-    expect((await call("POST", "/api/login", { body: { token: TOKEN }, headers: { host: "notes.example.com", "x-forwarded-for": "99.9.9.9" } })).status).toBe(429);
+    // ...but the global cap only refuses wrong tokens: the owner with the right token still gets in.
+    expect((await call("POST", "/api/login", { body: { token: "wrong again" }, headers: { host: "notes.example.com", "x-forwarded-for": "99.9.9.8" } })).status).toBe(429);
+    expect((await call("POST", "/api/login", { body: { token: TOKEN }, headers: { host: "notes.example.com", "x-forwarded-for": "99.9.9.9" } })).status).toBe(200);
   });
 
   it("four failures then a success is fine and clears the count", async () => {

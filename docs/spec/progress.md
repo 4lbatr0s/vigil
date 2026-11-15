@@ -110,11 +110,11 @@ Legend: `[x]` done, `[ ]` not done. Add a short note after a task only for a dev
 - [x] WP12-T1: Browser login (ADR-0007 follow-through)
 - [x] WP12-T2: One process serves the web app
 - [x] WP12-T3: Dev story stays working
-- [ ] WP12-T4: Docker
-- [ ] WP12-T5: PWA
-- [ ] WP12-T6: README and the demo
-- [ ] WP12-T7: CI
-- [ ] WP12-T8: Release hygiene
+- [x] WP12-T4: Docker
+- [x] WP12-T5: PWA
+- [x] WP12-T6: README and the demo
+- [x] WP12-T7: CI
+- [x] WP12-T8: Release hygiene
 
 ## WP13: after v1 (ordered backlog, do not start before the release)
 

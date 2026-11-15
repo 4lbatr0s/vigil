@@ -1,5 +1,6 @@
 {
   "name": "vigil",
+  "version": "1.0.0",
   "private": true,
   "engines": {
     "node": ">=20"
@@ -11,6 +12,8 @@
     "build": "pnpm --filter @vigil/web build && node scripts/print-static-dir.mjs"
   },
   "devDependencies": {
+    "esbuild": "0.28.2",
     "typescript": "^5.7.0"
-  }
+  },
+  "packageManager": "pnpm@11.15.0"
 }

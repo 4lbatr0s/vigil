@@ -1,3 +1,4 @@
+import { accessFromEnv } from "./access";
 import { rebuildAll, isEmpty } from "./index-db";
 import { resumeDecidedRuns, startRun } from "./runs";
 import { startHousekeeping } from "./housekeeping";
@@ -10,6 +11,8 @@ import { startWatcher } from "./watcher";
 const port = Number(process.env.PORT ?? 3001);
 
 async function main(): Promise<void> {
+  // Fail fast on bad access settings (a non-local bind without a token) before touching any data.
+  accessFromEnv();
   const interrupted = markInterruptedRuns();
   if (interrupted > 0) console.log(`vigil-server marked ${interrupted} unfinished run(s) as interrupted`);
   // Runs paused for approval stay paused; one whose writes were all decided just before a crash continues.
@@ -54,4 +57,8 @@ async function main(): Promise<void> {
   process.on("SIGINT", onSignal);
 }
 
-void main();
+main().catch((err: unknown) => {
+  // One readable line instead of a stack trace: the usual cause is a missing VIGIL_TOKEN on a non-local bind.
+  console.error(`vigil-server could not start: ${err instanceof Error ? err.message : String(err)}`);
+  process.exit(1);
+});

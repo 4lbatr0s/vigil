@@ -18,3 +18,26 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
       - run: pnpm test
+      # Performance budgets: first load of "/" under 180 KB gzip, graph libraries out of it.
+      - run: pnpm check:bundle
+      # The production bundle starts with plain node and answers /api/health.
+      - run: pnpm --filter @vigil/server build
+      - run: node scripts/smoke-dist.mjs
+
+  docker:
+    needs: ci
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t vigil .
+      - name: Run the image and check it
+        run: |
+          docker run -d --name vigil -e VIGIL_TOKEN=test-token -p 3001:3001 -v vigil-data:/data vigil
+          for i in $(seq 1 30); do curl -sf localhost:3001/api/health >/dev/null && break; sleep 2; done
+          curl -sf localhost:3001/api/health
+          test "$(curl -s -o /dev/null -w '%{http_code}' localhost:3001/api/notes)" = "401"
+          curl -s localhost:3001/ | head -c 200 | grep -qi "<!doctype html"
+          test "$(curl -s -o /dev/null -w '%{http_code}' -H 'Authorization: Bearer test-token' localhost:3001/api/notes)" = "200"
+      - name: Print the container log if something failed
+        if: failure()
+        run: docker logs vigil

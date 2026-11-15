@@ -1,0 +1,22 @@
+# Copy to docker-compose.yml, set the values marked REQUIRED, then: docker compose up -d
+services:
+  vigil:
+    build: .
+    ports:
+      - "127.0.0.1:3001:3001"   # only this machine; put a reverse proxy with TLS in front for anything else
+    environment:
+      VIGIL_TOKEN: "${VIGIL_TOKEN:?set VIGIL_TOKEN}"   # REQUIRED: the access token you sign in with
+      # Your model (see docs/deploy.md). Ollama on the host:
+      VIGIL_LLM_PROVIDER: "ollama"
+      VIGIL_LLM_BASE_URL: "http://host.docker.internal:11434"
+      VIGIL_LLM_MODEL: "llama3.1"
+      # Behind a reverse proxy on a real domain, also set:
+      # VIGIL_ALLOWED_HOSTS: "notes.example.com"
+      # VIGIL_COOKIE_SECURE: "1"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - vigil-data:/data
+    restart: unless-stopped
+volumes:
+  vigil-data:

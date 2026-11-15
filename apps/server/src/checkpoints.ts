@@ -4,9 +4,10 @@ import { SqliteSaver } from "@langchain/langgraph-checkpoint-sqlite";
 import Database from "better-sqlite3";
 import { statePath } from "./state-db";
 
-/** LangGraph checkpoints live in their own file next to state.db (ADR-0011). Thread id = run id. */
+/** LangGraph checkpoints live in their own file (ADR-0011): CHECKPOINT_DB_PATH, else next to state.db. Thread id = run id. */
 export function checkpointsPath(): string {
-  return path.join(path.dirname(statePath()), "checkpoints.db");
+  const configured = process.env.CHECKPOINT_DB_PATH;
+  return configured ? path.resolve(configured) : path.join(path.dirname(statePath()), "checkpoints.db");
 }
 
 let current: { key: string; db: Database.Database; saver: SqliteSaver } | null = null;

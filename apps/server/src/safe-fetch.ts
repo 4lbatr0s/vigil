@@ -4,7 +4,7 @@ import https from "node:https";
 import { BlockList, isIP } from "node:net";
 
 /** Sent as the user-agent. Bump with releases. */
-export const VIGIL_VERSION = "0.1.0";
+export const VIGIL_VERSION = "1.0.0";
 
 export type FetchPolicy = { allowedHosts: string[]; maxBytes: number; timeoutMs: number; maxRedirects: number };
 export type Resolved = { address: string; family: 4 | 6 };
