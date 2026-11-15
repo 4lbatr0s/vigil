@@ -1,3 +1,4 @@
+import { readNdjson } from "./ndjson";
 import type { Agent, AgentTemplate, Note, NoteSummary, PermissionSettings, Run, RunEvent } from "@vigil/shared";
 
 type Envelope<T> = { data: T } | { error: { code: string; message: string } };
@@ -85,6 +86,38 @@ export const listRuns = (opts: { agent?: string; limit?: number } = {}) => {
 export const getRun = (id: string, after?: number) =>
   request<{ run: Run; events: RunEvent[] }>(`/api/runs/${seg(id)}${after ? `?after=${after}` : ""}`);
 export const undoRun = (id: string) => request<Run>(`/api/runs/${seg(id)}/undo`, json("POST"));
+
+// ---- Chat ----
+
+export type ChatThread = { id: string; agent: string; title: string; createdAt: string; updatedAt: string };
+export type ChatMessage = { seq: number; role: "user" | "assistant" | "error"; content: string; runId: string | null; createdAt: string };
+/** One line of a streamed turn (mirrors apps/server/src/chat.ts). */
+export type ChatLine =
+  | { type: "token"; text: string }
+  | { type: "tool"; name: string; status: "call" | "result" }
+  | { type: "approval"; approvalId: string }
+  | { type: "done"; run: Run }
+  | { type: "error"; message: string };
+
+export const listChats = () => request<ChatThread[]>("/api/chats");
+export const createChat = (agent: string) => request<ChatThread>("/api/chats", json("POST", { agent }));
+export const getChat = (id: string) => request<{ thread: ChatThread; messages: ChatMessage[] }>(`/api/chats/${seg(id)}`);
+export const deleteChat = (id: string) => request<{ id: string }>(`/api/chats/${seg(id)}`, { method: "DELETE" });
+export const saveChat = (id: string) => request<{ id: string; title: string }>(`/api/chats/${seg(id)}/save`, json("POST"));
+
+/**
+ * Sends one message and calls `onLine` for every streamed line. Aborting `signal` stops the turn on
+ * the server too (it sees the connection close). Rejects with an ApiError when the server refuses
+ * the turn before streaming (busy agent, unknown chat, empty text).
+ */
+export async function streamTurn(id: string, text: string, signal: AbortSignal, onLine: (line: ChatLine) => void): Promise<void> {
+  const res = await fetch(`/api/chats/${seg(id)}/messages`, { ...json("POST", { text }), signal });
+  if (!res.ok || !res.body) {
+    const payload = (await res.json().catch(() => null)) as { error?: { code: string; message: string } } | null;
+    throw new ApiError(payload?.error?.code ?? "request-failed", payload?.error?.message ?? `The server answered ${res.status}`);
+  }
+  for await (const line of readNdjson<ChatLine>(res.body)) onLine(line);
+}
 
 // ---- Approvals ----
 

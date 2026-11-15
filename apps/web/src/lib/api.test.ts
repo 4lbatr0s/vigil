@@ -1,6 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   ApiError,
+  createChat,
+  deleteChat,
+  getChat,
+  listChats,
+  saveChat,
+  streamTurn,
   createFromTemplate,
   decideApproval,
   deleteNote,
@@ -90,6 +96,8 @@ describe("api client", () => {
       await getRun("r1", 7);
       await getBacklinks("a b");
       await listApprovals();
+      await listChats();
+      await getChat("a/b");
       expect(calls(spy).map(([url]) => url)).toEqual([
         "/api/agents",
         "/api/agents/digest",
@@ -105,6 +113,8 @@ describe("api client", () => {
         "/api/runs/r1?after=7",
         "/api/notes/a%20b/backlinks",
         "/api/approvals?status=pending",
+        "/api/chats",
+        "/api/chats/a%2Fb",
       ]);
       expect(calls(spy).every(([, init]) => init === undefined)).toBe(true);
     });
@@ -123,6 +133,9 @@ describe("api client", () => {
       await planRenameNote("a b", "New title");
       await renameNote("a b", "New title");
       await deleteNote("a b");
+      await createChat("helper");
+      await saveChat("c 1");
+      await deleteChat("c 1");
       await decideApproval("x/y", "approve");
       await decideApproval("x/y", "approve", true);
       const seen = calls(spy).map(([url, init]) => [url, init?.method, init?.body]);
@@ -137,6 +150,9 @@ describe("api client", () => {
         ["/api/notes/a%20b/rename?dryRun=1", "POST", JSON.stringify({ title: "New title" })],
         ["/api/notes/a%20b/rename", "POST", JSON.stringify({ title: "New title" })],
         ["/api/notes/a%20b", "DELETE", undefined],
+        ["/api/chats", "POST", JSON.stringify({ agent: "helper" })],
+        ["/api/chats/c%201/save", "POST", "{}"],
+        ["/api/chats/c%201", "DELETE", undefined],
         ["/api/approvals/x%2Fy/decision", "POST", JSON.stringify({ decision: "approve" })],
         ["/api/approvals/x%2Fy/decision", "POST", JSON.stringify({ decision: "approve", force: true })],
       ]);
@@ -160,6 +176,35 @@ describe("api client", () => {
       expect(err).toBeInstanceOf(ApiError);
       expect((err as ApiError).code).toBe("undo-conflict");
       expect((err as ApiError).detail).toBe("Edited after the agent wrote it");
+    });
+  });
+
+  describe("streamTurn", () => {
+    it("reads streamed lines in order and sends the message as JSON", async () => {
+      const body = new ReadableStream<Uint8Array>({
+        start(c) {
+          c.enqueue(new TextEncoder().encode('{"type":"token","text":"Hi"}\n{"type":"do'));
+          c.enqueue(new TextEncoder().encode('ne","run":{}}\n'));
+          c.close();
+        },
+      });
+      const spy = vi.fn(async () => ({ ok: true, status: 200, body }));
+      vi.stubGlobal("fetch", spy);
+      const seen: string[] = [];
+      await streamTurn("c1", "hello", new AbortController().signal, (l) => seen.push(l.type));
+      expect(seen).toEqual(["token", "done"]);
+      const [url, init] = (spy.mock.calls as unknown as Array<[string, RequestInit]>)[0]!;
+      expect(url).toBe("/api/chats/c1/messages");
+      expect(init.method).toBe("POST");
+      expect(init.body).toBe(JSON.stringify({ text: "hello" }));
+    });
+
+    it("turns a refusal before streaming into an ApiError", async () => {
+      vi.stubGlobal("fetch", vi.fn(async () => ({ ok: false, status: 409, body: null, json: async () => ({ error: { code: "agent-busy", message: "busy now" } }) })));
+      const err = await streamTurn("c1", "x", new AbortController().signal, () => undefined).catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(ApiError);
+      expect((err as ApiError).code).toBe("agent-busy");
+      expect((err as ApiError).detail).toBe("busy now");
     });
   });
 });

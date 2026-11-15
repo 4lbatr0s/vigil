@@ -11,8 +11,10 @@ export type PaletteState = {
 
 const FIXED: Command[] = [
   { id: "cmd:new-note", label: "New note", group: "Commands", action: { type: "goto", href: "/?new=1" } },
+  { id: "cmd:chat", label: "New chat", group: "Commands", action: { type: "goto", href: "/chat?new=1" } },
   { id: "cmd:agents", label: "Open Agents", group: "Commands", action: { type: "goto", href: "/agents" } },
   { id: "cmd:settings", label: "Open Settings", group: "Commands", action: { type: "goto", href: "/settings" } },
+  { id: "cmd:approvals", label: "Open Approvals", group: "Commands", action: { type: "goto", href: "/approvals" } },
 ];
 
 /**

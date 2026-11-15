@@ -1,8 +1,9 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import { goto } from "$app/navigation";
   import { page } from "$app/state";
   import { AgentNameSchema, type Agent, type PermissionSettings, type Run } from "@vigil/shared";
-  import { ApiError, getAgent, getPermissions, getSchedule, listRuns, putAgent, runAgent, type Schedule } from "$lib/api";
+  import { ApiError, createChat, getAgent, getPermissions, getSchedule, listRuns, putAgent, runAgent, type Schedule } from "$lib/api";
   import { agentToForm, describeGrants, formToAgent, riskyCombination, type AgentForm } from "$lib/agent-form";
   import { describeCheck, formatStamp } from "$lib/format";
   import { refreshOnLive } from "$lib/live";
@@ -93,6 +94,15 @@
 
   async function turnOn(): Promise<void> {
     if (await save({ enabled: true })) notice = "Turned on.";
+  }
+
+  async function startChatWith(): Promise<void> {
+    try {
+      const t = await createChat(name);
+      await goto(`/chat/${t.id}`);
+    } catch (err) {
+      runError = err instanceof ApiError ? err.detail : err instanceof Error ? err.message : "Could not start the chat";
+    }
   }
 
   async function runNow(): Promise<void> {
@@ -212,6 +222,7 @@
       <div class="actions">
         <button type="button" class="primary" disabled={busy || !dirty} onclick={() => void save()}>Save</button>
         <button type="button" class="ghost" disabled={running} onclick={() => void runNow()}>{running ? "Running…" : "Run now"}</button>
+        <button type="button" class="ghost" onclick={() => void startChatWith()}>Chat</button>
         {#if notice && !dirty}<span class="muted" aria-live="polite">{notice}</span>{/if}
       </div>
       {#if runError}<p class="error" role="alert">{runError}</p>{/if}

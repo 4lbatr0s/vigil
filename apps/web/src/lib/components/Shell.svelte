@@ -5,6 +5,7 @@
   import Bot from "@lucide/svelte/icons/bot";
   import Settings from "@lucide/svelte/icons/settings";
   import ShieldCheck from "@lucide/svelte/icons/shield-check";
+  import MessageSquare from "@lucide/svelte/icons/message-square";
   import { pendingCount, trackPending } from "$lib/approvals-state";
   import CommandPalette from "$lib/components/CommandPalette.svelte";
   import Banner from "$lib/components/Banner.svelte";
@@ -34,6 +35,7 @@
   const items = [
     { href: "/", label: "Notes", icon: NotebookText, match: (p: string) => p === "/" },
     { href: "/agents", label: "Agents", icon: Bot, match: (p: string) => p.startsWith("/agents") || p.startsWith("/runs") },
+    { href: "/chat", label: "Chat", icon: MessageSquare, match: (p: string) => p.startsWith("/chat") },
     { href: "/approvals", label: "Approvals", icon: ShieldCheck, match: (p: string) => p.startsWith("/approvals") },
     { href: "/settings", label: "Settings", icon: Settings, match: (p: string) => p.startsWith("/settings") },
   ];

@@ -14,6 +14,7 @@ import {
 } from "./index-db";
 import { AgentNameSchema, AgentSchema, PermissionSettingsSchema, TEMPLATES } from "@vigil/shared";
 import { withNoteLock } from "./lock";
+import { chatTurn, chatWithMessages, newChat, removeChat, saveChatAsNote, type ChatLine } from "./chat";
 import { cronError, nextTickAfter } from "./cron";
 import { attachStream } from "./events";
 import { resumeRun, startRun, undoRun } from "./runs";
@@ -22,7 +23,7 @@ import { planRename, renameNote } from "./rename";
 import { refreshSchedule } from "./scheduler";
 import { llmStatus } from "./llm-status";
 import { usage } from "./usage";
-import { approvalsForRun, clearHeartbeat, decideApproval, getApproval, listApprovals, getAgent, getHeartbeat, getRun, getSchedule, listAgents, listEvents, listRuns, putAgent, putSchedule } from "./state-db";
+import { approvalsForRun, clearHeartbeat, decideApproval, getApproval, listApprovals, listChatThreads, getAgent, getHeartbeat, getRun, getSchedule, listAgents, listEvents, listRuns, putAgent, putSchedule } from "./state-db";
 import { createNote, deleteNote, getNote as vaultGetNote, slugify, updateNote, validateId } from "./vault";
 
 const MAX_BODY_BYTES = 2 * 1024 * 1024;
@@ -234,6 +235,78 @@ const routes: { method: string; pattern: RegExp; keys: string[]; handler: Handle
     keys: [],
     handler: (req, res) => {
       attachStream(req, res);
+    },
+  },
+  {
+    method: "GET",
+    pattern: /^\/api\/chats$/,
+    keys: [],
+    handler: (_req, res) => {
+      send(res, 200, { data: listChatThreads() });
+    },
+  },
+  {
+    method: "POST",
+    pattern: /^\/api\/chats$/,
+    keys: [],
+    handler: async (req, res) => {
+      const parsed = z.object({ agent: AgentNameSchema }).safeParse(await readJsonBody(req));
+      if (!parsed.success) throw new AppError("invalid-body", "agent is required", 400);
+      send(res, 201, { data: newChat(parsed.data.agent) });
+    },
+  },
+  {
+    method: "GET",
+    pattern: /^\/api\/chats\/([^/]+)$/,
+    keys: ["id"],
+    handler: (_req, res, params) => {
+      send(res, 200, { data: chatWithMessages(params["id"] ?? "") });
+    },
+  },
+  {
+    method: "DELETE",
+    pattern: /^\/api\/chats\/([^/]+)$/,
+    keys: ["id"],
+    handler: async (_req, res, params) => {
+      await removeChat(params["id"] ?? "");
+      send(res, 200, { data: { id: params["id"] } });
+    },
+  },
+  {
+    method: "POST",
+    pattern: /^\/api\/chats\/([^/]+)\/save$/,
+    keys: ["id"],
+    handler: async (_req, res, params) => {
+      send(res, 201, { data: await saveChatAsNote(params["id"] ?? "") });
+    },
+  },
+  {
+    // Streams one turn as newline-delimited JSON. Problems found before the first line are ordinary
+    // errors; later ones arrive as an `error` line. Closing the connection cancels the turn.
+    method: "POST",
+    pattern: /^\/api\/chats\/([^/]+)\/messages$/,
+    keys: ["id"],
+    handler: async (req, res, params) => {
+      const parsed = z.object({ text: z.string() }).safeParse(await readJsonBody(req));
+      if (!parsed.success) throw new AppError("invalid-body", "text is required", 400);
+      const abort = new AbortController();
+      // `res` closing before we ended it means the client went away (the request's own close fires early).
+      res.on("close", () => {
+        if (!res.writableEnded) abort.abort();
+      });
+      const emit = (line: ChatLine): void => {
+        if (!res.writableEnded && !res.destroyed) res.write(`${JSON.stringify(line)}\n`);
+      };
+      const begin = (): void => {
+        res.writeHead(200, { "content-type": "application/x-ndjson", "cache-control": "no-store", "x-accel-buffering": "no" });
+      };
+      try {
+        await chatTurn(params["id"] ?? "", parsed.data.text, begin, emit, abort.signal);
+      } catch (err) {
+        if (!res.headersSent) throw err; // nothing sent yet: the normal error envelope
+        emit({ type: "error", message: isAppError(err) ? err.message : "The turn failed" });
+      }
+      if (!res.writableEnded) res.end();
     },
   },
   {

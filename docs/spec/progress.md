@@ -88,10 +88,10 @@ Legend: `[x]` done, `[ ]` not done. Add a short note after a task only for a dev
 
 ## WP9: M3 chat
 
-- [ ] WP9-T1: Storage and routes
-- [ ] WP9-T2: Streaming turn
-- [ ] WP9-T3: Web
-- [ ] WP9-T4: Tests
+- [x] WP9-T1: Storage and routes
+- [x] WP9-T2: Streaming turn
+- [x] WP9-T3: Web
+- [x] WP9-T4: Tests
 
 ## WP10: M4 `web_fetch` (ADR-0006 implemented to the letter)
 
