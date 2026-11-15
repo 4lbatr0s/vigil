@@ -7,6 +7,8 @@ import { hasValidSession, makeSession, sessionCookie } from "./session";
 
 const MAX_FAILURES = 5;
 const WINDOW_MS = 60_000;
+/** Across all addresses: a spray from many addresses (or forged ones) still runs into this. */
+const GLOBAL_MAX_FAILURES = 40;
 
 /** Failed logins per client address: five inside a minute locks that address out for the rest of the minute. */
 export class LoginLimiter {
@@ -33,6 +35,27 @@ export class LoginLimiter {
   succeed(ip: string): void {
     this.seen.delete(ip);
   }
+
+  private globalFailures: number[] = [];
+
+  /** Count an attempt against the global cap; true when the cap is already used up. */
+  globalBlocked(now: number = Date.now()): boolean {
+    this.globalFailures = this.globalFailures.filter((t) => now - t < WINDOW_MS);
+    return this.globalFailures.length >= GLOBAL_MAX_FAILURES;
+  }
+
+  globalFail(now: number = Date.now()): void {
+    this.globalFailures.push(now);
+  }
+
+  globalRefund(): void {
+    this.globalFailures.pop();
+  }
+
+  reset(): void {
+    this.seen.clear();
+    this.globalFailures = [];
+  }
 }
 
 const isIpAddress = (s: string): boolean => /^[0-9a-f:.]+$/i.test(s);
@@ -45,7 +68,13 @@ const isIpAddress = (s: string): boolean => /^[0-9a-f:.]+$/i.test(s);
 export function clientIp(req: IncomingMessage, access: Access): string {
   const socketIp = (req.socket.remoteAddress ?? "unknown").replace(/^::ffff:/, "");
   const forwarded = req.headers["x-forwarded-for"];
-  if (typeof forwarded === "string" && access.allowedHosts.includes(hostNameOf(req.headers.host ?? ""))) {
+  // Only a proxy may speak for the client: the connection itself must come from a private or loopback
+  // address (a reverse proxy on this machine or in the same Docker network) or one listed in
+  // VIGIL_TRUSTED_PROXIES, and the Host must be one the owner allowed. A client connecting directly
+  // from the internet cannot pick the address that is counted.
+  const trustedProxies = (process.env.VIGIL_TRUSTED_PROXIES ?? "").split(",").map((p) => p.trim()).filter((p) => p !== "");
+  const fromProxy = !isPublicAddress(socketIp) || trustedProxies.includes(socketIp);
+  if (typeof forwarded === "string" && fromProxy && access.allowedHosts.includes(hostNameOf(req.headers.host ?? ""))) {
     const entries = forwarded.split(",").map((e) => e.trim().replace(/^::ffff:/, "")).filter((e) => e !== "");
     for (let i = entries.length - 1; i >= 0; i--) {
       const entry = entries[i] as string;
@@ -72,7 +101,7 @@ function sameSecret(given: string, expected: string): boolean {
 const limiter = new LoginLimiter();
 /** Tests start each case with a clean slate. */
 export function resetLimiterForTests(): void {
-  (limiter as unknown as { seen: Map<string, unknown> }).seen.clear();
+  limiter.reset();
 }
 
 const MAX_LOGIN_BODY = 4096;
@@ -106,7 +135,7 @@ export async function handleAuth(req: IncomingMessage, res: ServerResponse, path
   if (pathname === "/api/session" && req.method === "GET") {
     const required = access.token !== undefined;
     const bearer = (req.headers.authorization ?? "").startsWith("Bearer ") && access.token !== undefined && sameSecret((req.headers.authorization ?? "").slice(7), access.token);
-    send(res, 200, { data: { required, authenticated: !required || hasValidSession(req) || bearer } });
+    send(res, 200, { data: { required, authenticated: !required || (access.token !== undefined && hasValidSession(req, access.token)) || bearer } });
     return true;
   }
   if (pathname === "/api/logout" && req.method === "POST") {
@@ -119,15 +148,19 @@ export async function handleAuth(req: IncomingMessage, res: ServerResponse, path
       return true;
     }
     const ip = clientIp(req, access);
-    if (limiter.blocked(ip)) throw new AppError("too-many-attempts", "Too many tries. Wait a minute and try again.", 429);
+    if (limiter.blocked(ip) || limiter.globalBlocked()) throw new AppError("too-many-attempts", "Too many tries. Wait a minute and try again.", 429);
+    // Count the attempt BEFORE reading the body, so a burst of parallel requests cannot all slip past
+    // the check while earlier ones are still being read. A correct token clears it again.
+    limiter.fail(ip);
+    limiter.globalFail();
     const body = await readBody(req);
     const given = typeof body === "object" && body !== null && typeof (body as { token?: unknown }).token === "string" ? (body as { token: string }).token : "";
     if (given === "" || !sameSecret(given, access.token)) {
-      limiter.fail(ip);
       throw new AppError("unauthorized", "That token isn't right.", 401);
     }
     limiter.succeed(ip);
-    send(res, 200, { data: { required: true, authenticated: true } }, sessionCookie(makeSession(), cookieSecure(req, access)));
+    limiter.globalRefund();
+    send(res, 200, { data: { required: true, authenticated: true } }, sessionCookie(makeSession(access.token), cookieSecure(req, access)));
     return true;
   }
   return false;

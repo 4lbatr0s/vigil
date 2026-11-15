@@ -97,6 +97,25 @@ describe("login", () => {
     expect(blocked.headers["set-cookie"]).toBeUndefined();
   });
 
+  it("a burst of parallel attempts cannot slip past the lockout while earlier ones are still being read", async () => {
+    const results = await Promise.all(Array.from({ length: 20 }, () => login("wrong")));
+    const statuses = results.map((r) => r.status);
+    expect(statuses.filter((s) => s === 401).length).toBeLessThanOrEqual(5);
+    expect(statuses.filter((s) => s === 429).length).toBeGreaterThanOrEqual(15);
+    expect((await login(TOKEN)).status).toBe(429);
+  });
+
+  it("a spray from many addresses runs into the global cap (forged addresses do not help)", async () => {
+    // Each request claims another address; the socket here is loopback and the Host is allowed, so the claims count.
+    let blocked = 0;
+    for (let i = 0; i < 60; i++) {
+      const r = await call("POST", "/api/login", { body: { token: "wrong" }, headers: { host: "notes.example.com", "x-forwarded-for": `${20 + (i % 200)}.1.1.${1 + i}` } });
+      if (r.status === 429) blocked += 1;
+    }
+    expect(blocked).toBeGreaterThan(0);
+    expect((await call("POST", "/api/login", { body: { token: TOKEN }, headers: { host: "notes.example.com", "x-forwarded-for": "99.9.9.9" } })).status).toBe(429);
+  });
+
   it("four failures then a success is fine and clears the count", async () => {
     for (let i = 0; i < 4; i++) await login("wrong");
     expect((await login(TOKEN)).status).toBe(200);
@@ -143,34 +162,41 @@ describe("login", () => {
 describe("session values", () => {
   it("accepts a fresh one, rejects expired, tampered, malformed and foreign-key ones", async () => {
     const now = Date.now();
-    const good = makeSession(now, 60);
-    expect(verifySession(good, now)).toBe(true);
-    expect(verifySession(good, now + 61_000)).toBe(false); // expired
+    const good = makeSession(TOKEN, now, 60);
+    expect(verifySession(good, TOKEN, now)).toBe(true);
+    expect(verifySession(good, TOKEN, now + 61_000)).toBe(false); // expired
     const [payload, sig] = good.split(".") as [string, string];
     const forged = Buffer.from(JSON.stringify({ exp: Math.floor(now / 1000) + 99_999_999 })).toString("base64url");
-    expect(verifySession(`${forged}.${sig}`, now)).toBe(false); // payload changed, signature kept
-    expect(verifySession(`${payload}.${sig.slice(0, -2)}AA`, now)).toBe(false); // tampered signature
-    for (const bad of [undefined, "", "abc", ".", "a.", ".b", "a.b.c", `${payload}.`]) expect(verifySession(bad, now), String(bad)).toBe(false);
+    expect(verifySession(`${forged}.${sig}`, TOKEN, now)).toBe(false); // payload changed, signature kept
+    expect(verifySession(`${payload}.${sig.slice(0, -2)}AA`, TOKEN, now)).toBe(false); // tampered signature
+    for (const bad of [undefined, "", "abc", ".", "a.", ".b", "a.b.c", `${payload}.`]) expect(verifySession(bad, TOKEN, now), String(bad)).toBe(false);
     // A value signed with another key is refused.
     await rm(sessionKeyPath());
     resetSessionKeyCache();
-    expect(verifySession(good, now)).toBe(false);
+    expect(verifySession(good, TOKEN, now)).toBe(false);
+  });
+
+  it("a session is bound to the token: a new VIGIL_TOKEN invalidates every old session", () => {
+    const now = Date.now();
+    const old = makeSession("old-token", now, 60);
+    expect(verifySession(old, "old-token", now)).toBe(true);
+    expect(verifySession(old, "new-token", now)).toBe(false);
   });
 
   it("the key file is created with mode 0600 and 32 bytes, and is reused", async () => {
-    makeSession();
+    makeSession(TOKEN);
     const info = await stat(sessionKeyPath());
     expect(info.mode & 0o777).toBe(0o600);
     expect(info.size).toBe(32);
-    const before = makeSession(1_700_000_000_000, 60);
+    const before = makeSession(TOKEN, 1_700_000_000_000, 60);
     resetSessionKeyCache();
-    expect(makeSession(1_700_000_000_000, 60)).toBe(before); // same key read back from the file
+    expect(makeSession(TOKEN, 1_700_000_000_000, 60)).toBe(before); // same key read back from the file
   });
 
   it("SESSION_KEY_PATH moves the key", async () => {
     process.env.SESSION_KEY_PATH = path.join(root, "elsewhere", "k.key");
     resetSessionKeyCache();
-    makeSession();
+    makeSession(TOKEN);
     expect((await stat(process.env.SESSION_KEY_PATH)).mode & 0o777).toBe(0o600);
   });
 });
@@ -184,12 +210,20 @@ describe("client address and Secure flag behind a proxy", () => {
   it("ignores x-forwarded-for unless the Host is allowed, then takes the right-most non-private entry", () => {
     const xff = "6.6.6.6, 203.0.114.5, 10.1.1.1, 192.168.0.4";
     expect(clientIp(fakeReq({ host: "localhost:3001", "x-forwarded-for": xff }, "127.0.0.1"), access)).toBe("127.0.0.1");
-    expect(clientIp(fakeReq({ host: "notes.example.com", "x-forwarded-for": xff }, "172.18.0.2"), access)).toBe("203.0.114.5".replace("203.0.114.5", "203.0.114.5"));
+    expect(clientIp(fakeReq({ host: "notes.example.com", "x-forwarded-for": xff }, "172.18.0.2"), access)).toBe("203.0.114.5");
     // a client that forges the left side cannot choose the address that is counted
     expect(clientIp(fakeReq({ host: "notes.example.com", "x-forwarded-for": "1.2.3.4, 8.8.8.8" }, "172.18.0.2"), access)).toBe("8.8.8.8");
     expect(clientIp(fakeReq({ host: "notes.example.com", "x-forwarded-for": "10.0.0.1, 192.168.1.1" }, "172.18.0.2"), access)).toBe("172.18.0.2");
     expect(clientIp(fakeReq({ host: "notes.example.com", "x-forwarded-for": "not an ip" }, "172.18.0.2"), access)).toBe("172.18.0.2");
     expect(clientIp(fakeReq({ host: "x" }, "::ffff:9.9.9.9"), access)).toBe("9.9.9.9");
+  });
+
+  it("a client connecting directly from the internet cannot forge the counted address", () => {
+    const direct = fakeReq({ host: "notes.example.com", "x-forwarded-for": "8.8.8.8" }, "198.51.101.7");
+    expect(clientIp(direct, access)).toBe("198.51.101.7");
+    process.env.VIGIL_TRUSTED_PROXIES = "198.51.101.7";
+    expect(clientIp(direct, access)).toBe("8.8.8.8"); // unless the owner listed that address as a proxy
+    delete process.env.VIGIL_TRUSTED_PROXIES;
   });
 
   it("Secure comes from https, a trusted proxy header, or VIGIL_COOKIE_SECURE", () => {

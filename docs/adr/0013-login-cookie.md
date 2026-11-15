@@ -15,6 +15,6 @@ ADR-0007 requires `VIGIL_TOKEN` for any non-local bind and accepts it as a beare
 - The web client turns a `401` into a redirect to `/login?next=<same-origin path>`.
 
 ## Consequences
-- Rotating `data/session.key` logs everyone out; changing `VIGIL_TOKEN` does not invalidate existing cookies until expiry (document; delete the key to force it).
+- Sessions are bound to the token: the signing key is derived from `data/session.key` and `VIGIL_TOKEN`, so rotating either logs everyone out. Logout clears the browser cookie only; a copied cookie stays valid until it expires or the token changes (single-user instance, no server-side session list).
 - One shared secret, one user: consistent with v1 scope.
 - The rate limit is per process memory and resets on restart; acceptable for a single-user instance.

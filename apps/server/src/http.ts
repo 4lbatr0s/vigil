@@ -2,6 +2,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { z } from "zod";
 import { checkAccess, type Access } from "./access";
 import { handleAuth } from "./auth";
+import { serveStatic } from "./static";
 import { AppError, isAppError } from "./errors";
 import { healthPayload } from "./health";
 import {
@@ -572,6 +573,8 @@ export function createHandler(access: Access): (req: IncomingMessage, res: Serve
           await route.handler(req, res, params, url);
           return;
         }
+        // The web app comes after the API, so a file can never shadow an API route.
+        if (!url.pathname.startsWith("/api/") && serveStatic(req, res, url.pathname)) return;
         throw new AppError("not-found", `No route for ${req.method} ${url.pathname}`, 404);
       } catch (err) {
         if (isAppError(err)) {

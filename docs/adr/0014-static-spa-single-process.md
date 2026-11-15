@@ -1,7 +1,7 @@
 # ADR-0014: The web app is a static SPA served by the API server
 
 ## Status
-Proposed (2026-11-15). Becomes Accepted when WP12 starts.
+Accepted (2026-11-15).
 
 ## Context
 v1 ships as one Docker image with one volume (decision 13). SvelteKit can run its own Node server (SSR) or build a static single-page app. Vigil's pages are private and interactive; nothing needs SSR or SEO. ADR-0007 wants the UI and API on one origin (no CORS). The markdown preview uses DOMPurify, which needs a real DOM.
@@ -13,6 +13,8 @@ v1 ships as one Docker image with one volume (decision 13). SvelteKit can run it
 - The Host check applies to static requests; token and cookie do not (the shell holds no data).
 - In development the Vite dev server keeps proxying `/api`.
 - **Container runtime:** the server is bundled with esbuild (`apps/server/dist/server.mjs`, `@vigil/shared` inlined, every other dependency external, native modules installed in the image) and started with plain `node`. Reason: cold start and image size matter (owner's guiding rule: performance and usability balance). If bundling a package fails because of dynamic requires, mark that package external; do not fall back to `tsx`. A smoke check starts the bundle against a temp directory in CI.
+
+- **Pinned:** `@sveltejs/adapter-static` 3.0.11 (4.x needs SvelteKit 3). The static build allows its one inline bootstrap script by hash in a `<meta>` policy (`kit.csp` hash mode); the server builds its CSP header from that same policy in `index.html` plus `frame-ancestors 'none'`, so the header never needs `'unsafe-inline'` for scripts and cannot drift from the build.
 
 ## Consequences
 - One process, one port, one origin; no CORS ever.

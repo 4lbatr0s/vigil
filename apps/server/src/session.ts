@@ -38,24 +38,32 @@ export function resetSessionKeyCache(): void {
 
 const b64 = (buf: Buffer): string => buf.toString("base64url");
 
-function sign(payload: string): string {
-  return b64(createHmac("sha256", getSessionKey()).update(payload).digest());
+/**
+ * The signing key is derived from the key file AND the access token, so changing VIGIL_TOKEN
+ * invalidates every session at once (ADR-0013 amended), and so does deleting the key file.
+ */
+function signingKey(secret: string): Buffer {
+  return createHmac("sha256", getSessionKey()).update(`vigil-session-v1:${secret}`).digest();
 }
 
-/** `<payload>.<signature>`: payload is base64url of {"exp": unix seconds}. */
-export function makeSession(nowMs: number = Date.now(), ttlSeconds: number = SESSION_SECONDS): string {
+function sign(payload: string, secret: string): string {
+  return b64(createHmac("sha256", signingKey(secret)).update(payload).digest());
+}
+
+/** `<payload>.<signature>`: payload is base64url of {"exp": unix seconds}. `secret` is the configured access token. */
+export function makeSession(secret: string, nowMs: number = Date.now(), ttlSeconds: number = SESSION_SECONDS): string {
   const payload = b64(Buffer.from(JSON.stringify({ exp: Math.floor(nowMs / 1000) + ttlSeconds })));
-  return `${payload}.${sign(payload)}`;
+  return `${payload}.${sign(payload, secret)}`;
 }
 
 /** True for a well-formed, correctly signed, unexpired session value. */
-export function verifySession(value: string | undefined, nowMs: number = Date.now()): boolean {
+export function verifySession(value: string | undefined, secret: string, nowMs: number = Date.now()): boolean {
   if (!value) return false;
   const dot = value.indexOf(".");
   if (dot <= 0 || dot === value.length - 1 || value.indexOf(".", dot + 1) !== -1) return false;
   const payload = value.slice(0, dot);
   const given = Buffer.from(value.slice(dot + 1));
-  const expected = Buffer.from(sign(payload));
+  const expected = Buffer.from(sign(payload, secret));
   if (given.length !== expected.length || !timingSafeEqual(given, expected)) return false;
   try {
     const parsed = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as { exp?: unknown };
@@ -75,8 +83,8 @@ export function readCookie(req: IncomingMessage, name: string): string | undefin
   return undefined;
 }
 
-export function hasValidSession(req: IncomingMessage): boolean {
-  return verifySession(readCookie(req, COOKIE_NAME));
+export function hasValidSession(req: IncomingMessage, secret: string): boolean {
+  return verifySession(readCookie(req, COOKIE_NAME), secret);
 }
 
 /** The Set-Cookie value for a new session (or an immediate expiry when `clear`). */

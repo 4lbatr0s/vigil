@@ -81,7 +81,7 @@ export function checkAccess(req: IncomingMessage, access: Access, pathname: stri
   if (access.token && pathname.startsWith("/api/") && !OPEN_PATHS.has(pathname)) {
     const auth = req.headers.authorization ?? "";
     const given = auth.startsWith("Bearer ") ? auth.slice(7) : "";
-    if (!sameToken(given, access.token) && !hasValidSession(req)) {
+    if (!sameToken(given, access.token) && !hasValidSession(req, access.token)) {
       throw new AppError("unauthorized", "Missing or wrong token", 401);
     }
   }

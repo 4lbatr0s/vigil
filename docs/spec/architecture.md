@@ -25,7 +25,7 @@ One Node process serves a JSON API (and, in production, the built web app). The 
  | llm.ts      model adapters from env, key redaction                                      |
  | scheduler.ts cron tick loop, catch-up, at-most-once (heartbeat planned)                 |
  | safe-fetch.ts allowlisted, SSRF-safe HTTP GET                                           |
- | static.ts   [planned] serves the built web app                                          |
+ | static.ts   serves the built web app                                                    |
  | permissions.ts [planned] instance switches + effectiveGrants    events.ts [planned] bus   |
  +------------------------------------------------------------------------------------------+
         |                         |                         |
@@ -70,7 +70,7 @@ Rule: only the server touches the filesystem or SQLite; the web app talks to `/a
 | `permissions.ts` | instance permission settings and `effectiveGrants(agent, settings)` | built (WP3-T5) |
 | `housekeeping.ts` | daily pruning of old run events and snapshots | built (WP3-T6) |
 | `events.ts` | in-process event bus feeding `GET /api/events` | built (WP4-T9) |
-| `static.ts` | static file serving | planned (WP12) |
+| `static.ts` | static file serving | built (WP12-T2) |
 
 `apps/web/src`: `routes/+page.svelte` (notes), `lib/api.ts` (typed client), `lib/render.ts` (markdown to sanitized HTML), `lib/components/*`. Planned routes: `/agents`, `/agents/[name]`, `/runs/[id]`, `/approvals`, `/chat`, `/graph`, `/settings`, `/login`.
 
