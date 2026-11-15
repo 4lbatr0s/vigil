@@ -15,7 +15,7 @@ Legend: `[x]` done, `[ ]` not done. Add a short note after a task only for a dev
 
 - [x] WP0-T1: Tests for the lock, `dropSnapshot`, and null-write-time skip
 - [x] WP0-T2: Graceful shutdown
-- [ ] WP0-T3: `.env.example` and README run section
+- [x] WP0-T3: `.env.example` and README run section
 - [ ] WP0-T4: Make it impossible for a test to touch real data
 - [ ] WP0-T5: Docs
 
