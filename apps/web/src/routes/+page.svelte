@@ -1,9 +1,8 @@
 <script lang="ts">
   import { onMount, tick } from "svelte";
   import { page } from "$app/state";
-  import type { Note, NoteSummary } from "@vigil/shared";
+  import { slugify, type Note, type NoteSummary } from "@vigil/shared";
   import { getNote, listNotes, putNote } from "$lib/api";
-  import { renderMarkdown } from "$lib/render";
   import { newAgentNotes } from "$lib/notes-poll";
   import { refreshOnLive } from "$lib/live";
   import NoteList from "$lib/components/NoteList.svelte";
@@ -12,7 +11,8 @@
   let selectedId = $state<string | null>(null);
   let draft = $state<{ title: string; body: string } | null>(null);
   let status = $state("");
-  let showPreview = $state(true);
+  // A wikilink that points at no note yet: the inline "create it?" prompt.
+  let pendingCreate = $state<string | null>(null);
   let loading = $state(true);
   let loadError = $state("");
   let flicker = $state(new Set<string>());
@@ -20,8 +20,6 @@
   let dirty = false;
   // The updatedAt this editor last saw; sent with every save so a newer change is never overwritten.
   let baseUpdatedAt: string | undefined;
-
-  const html = $derived(draft ? renderMarkdown(draft.body) : "");
 
   async function pollNotes(): Promise<void> {
     try {
@@ -121,6 +119,30 @@
     }
   }
 
+  /** Cmd/Ctrl+click on [[Title]]: open that note, or ask before creating it. */
+  async function openWikilink(title: string): Promise<void> {
+    const id = slugify(title);
+    if (id === "") return;
+    if (notes.some((n) => n.id === id)) {
+      pendingCreate = null;
+      await select(id);
+    } else {
+      pendingCreate = title;
+    }
+  }
+
+  async function createPending(): Promise<void> {
+    const title = pendingCreate;
+    pendingCreate = null;
+    if (!title) return;
+    try {
+      const note = await putNote(slugify(title), { title, body: "" });
+      onCreated(note);
+    } catch (err) {
+      status = err instanceof Error ? err.message : "Could not create the note";
+    }
+  }
+
   function onCreated(note: Note) {
     notes = [note, ...notes.filter((n) => n.id !== note.id)];
     void select(note.id);
@@ -142,30 +164,23 @@
     {:else}
       <header class="head">
         <h1 class="title">{draft.title}</h1>
-        <button
-          type="button"
-          class="toggle"
-          class:active={showPreview}
-          onclick={() => (showPreview = !showPreview)}
-        >
-          {showPreview ? "Preview" : "Source"}
-        </button>
       </header>
 
-      <div class="panes" class:source-only={!showPreview}>
+      {#if pendingCreate}
+        <div class="prompt" role="alertdialog" aria-label="Create note">
+          <span>No note called “{pendingCreate}” yet. Create it?</span>
+          <button type="button" class="act primary" onclick={() => void createPending()}>Create</button>
+          <button type="button" class="act" onclick={() => (pendingCreate = null)}>Cancel</button>
+        </div>
+      {/if}
+
+      <div class="panes">
         <section class="pane editor-pane">
-          <!-- The editor (CodeMirror) and preview (marked, DOMPurify) are the heavy part: load them after the shell and list. -->
+          <!-- The editor (CodeMirror) is the heavy part: load it after the shell and list. -->
           {#await import("$lib/components/Editor.svelte") then { default: Editor }}
-            <Editor value={draft.body} noteId={selectedId ?? ""} onDocChange={onDocChange} />
+            <Editor value={draft.body} noteId={selectedId ?? ""} onDocChange={onDocChange} onOpenWikilink={(t) => void openWikilink(t)} />
           {/await}
         </section>
-        {#if showPreview}
-          <section class="pane preview-pane">
-            {#await import("$lib/components/Preview.svelte") then { default: Preview }}
-              <Preview {html} />
-            {/await}
-          </section>
-        {/if}
       </div>
 
       <footer class="status">
@@ -184,8 +199,8 @@
   }
 
   .main {
-    display: grid;
-    grid-template-rows: auto 1fr auto;
+    display: flex;
+    flex-direction: column;
     min-width: 0;
     height: 100%;
     min-height: 0;
@@ -209,48 +224,40 @@
     color: var(--ink);
   }
 
-  .toggle {
-    padding: var(--space-1) var(--space-3);
-    border: 1px solid var(--hairline);
-    border-radius: var(--radius);
-    background: var(--surface);
-    color: var(--ink);
-    font-family: var(--font-chrome);
-    font-size: var(--text-label);
-    letter-spacing: 0.04em;
-  }
-
-  .toggle.active {
-    background: var(--ink);
-    color: var(--bg);
-  }
-
   .panes {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr;
+    flex: 1;
     min-height: 0;
   }
 
-  .panes.source-only {
-    grid-template-columns: 1fr;
+  .prompt {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-2) var(--space-6);
+    border-bottom: 1px solid var(--hairline);
+    background: var(--surface);
+    font-size: var(--text-label);
+  }
+
+  .act {
+    padding: var(--space-1) var(--space-3);
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius);
+    font-size: var(--text-label);
+  }
+
+  .act.primary {
+    background: var(--ink);
+    color: var(--bg);
+    border-color: var(--ink);
   }
 
   .pane {
     min-width: 0;
     overflow: auto;
     padding: var(--space-6);
-  }
-
-  .editor-pane {
-    border-right: 1px solid var(--hairline);
-  }
-
-  .panes.source-only .editor-pane {
-    border-right: none;
-  }
-
-  .preview-pane {
-    background: var(--bg);
   }
 
   .status {

@@ -58,7 +58,7 @@ Legend: `[x]` done, `[ ]` not done. Add a short note after a task only for a dev
 
 ## WP5: Editor quality bar (live preview, wikilinks, backlinks)
 
-- [ ] WP5-T1: Live-preview decorations
+- [x] WP5-T1: Live-preview decorations
 - [ ] WP5-T2: Wikilink autocomplete
 - [ ] WP5-T3: Backlinks API and panel
 - [ ] WP5-T4: Rename

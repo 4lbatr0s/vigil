@@ -63,9 +63,15 @@ importers:
 
   apps/web:
     dependencies:
+      '@codemirror/autocomplete':
+        specifier: 6.20.4
+        version: 6.20.4
       '@codemirror/lang-markdown':
         specifier: ^6
         version: 6.5.2
+      '@codemirror/language':
+        specifier: 6.13.1
+        version: 6.13.1
       '@codemirror/language-data':
         specifier: ^6
         version: 6.5.2
@@ -84,6 +90,12 @@ importers:
       '@fontsource/ibm-plex-mono':
         specifier: ^5
         version: 5.3.0
+      '@lezer/highlight':
+        specifier: 1.2.5
+        version: 1.2.5
+      '@lezer/markdown':
+        specifier: 1.8.1
+        version: 1.8.1
       '@lucide/svelte':
         specifier: 1.73.0
         version: 1.73.0(svelte@5.57.3)

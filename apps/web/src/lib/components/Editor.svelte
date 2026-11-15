@@ -2,22 +2,38 @@
   import { untrack } from "svelte";
   import { EditorState } from "@codemirror/state";
   import { EditorView } from "@codemirror/view";
-  import { basicSetup } from "codemirror";
-  import { markdown } from "@codemirror/lang-markdown";
+  import { minimalSetup } from "codemirror";
+  import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
   import { languages } from "@codemirror/language-data";
+  import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
+  import { tags } from "@lezer/highlight";
+  import { livePreview } from "$lib/editor/livePreview";
 
   let {
     value = "",
     noteId = "",
     onDocChange,
+    onOpenWikilink,
   }: {
     value?: string;
     noteId?: string;
     onDocChange?: (next: string) => void;
+    /** Cmd/Ctrl+click on a [[wikilink]]: the page opens or offers to create that note. */
+    onOpenWikilink?: (title: string) => void;
   } = $props();
 
   let host = $state<HTMLDivElement | undefined>(undefined);
   let view = $state.raw<EditorView | undefined>(undefined);
+
+  // Code colors come from tokens too: ink for code, muted for comments and strings, bold for keywords.
+  const highlight = HighlightStyle.define([
+    { tag: [tags.comment, tags.lineComment, tags.blockComment], color: "var(--ink-muted)", fontStyle: "italic" },
+    { tag: [tags.string, tags.regexp], color: "var(--ink-muted)" },
+    { tag: [tags.keyword, tags.operatorKeyword, tags.modifier], fontWeight: "600" },
+    { tag: [tags.number, tags.bool, tags.null], color: "var(--ink)" },
+    { tag: tags.heading, fontWeight: "600" },
+    { tag: tags.link, textDecoration: "underline" },
+  ]);
 
   const theme = EditorView.theme({
     "&": {
@@ -33,6 +49,8 @@
       lineHeight: "1.6",
       caretColor: "var(--ink)",
       padding: "0",
+      maxWidth: "var(--measure)",
+      margin: "0 auto",
     },
     ".cm-scroller": {
       fontFamily: "var(--font-serif)",
@@ -61,8 +79,10 @@
       state: EditorState.create({
         doc: initial,
         extensions: [
-          basicSetup,
-          markdown({ codeLanguages: languages }),
+          minimalSetup,
+          syntaxHighlighting(highlight),
+          markdown({ base: markdownLanguage, codeLanguages: languages }),
+          livePreview({ onOpenWikilink: (title) => onOpenWikilink?.(title) }),
           EditorView.lineWrapping,
           theme,
           EditorView.updateListener.of((update) => {
