@@ -267,7 +267,15 @@ const routes: { method: string; pattern: RegExp; keys: string[]; handler: Handle
     pattern: /^\/api\/runs$/,
     keys: [],
     handler: (_req, res, _params, url) => {
-      send(res, 200, { data: listRuns(url.searchParams.get("agent") ?? undefined) });
+      const raw = url.searchParams.get("limit");
+      let limit = 50;
+      if (raw !== null) {
+        limit = Number(raw);
+        if (!Number.isInteger(limit) || limit < 1 || limit > 200) {
+          throw new AppError("invalid-query", "limit must be a whole number from 1 to 200", 400);
+        }
+      }
+      send(res, 200, { data: listRuns(url.searchParams.get("agent") ?? undefined, limit) });
     },
   },
   {

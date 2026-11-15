@@ -160,4 +160,17 @@ describe("agents and runs api", () => {
     expect(JSON.stringify(res.json)).not.toContain("sk-never-leak-this-key-9876");
     expect((await req("GET", "/api/llm/status?probe=1")).json.data.reachable).toBe(false);
   });
+
+  it("GET /api/runs honours limit (default 50, max 200)", async () => {
+    await req("PUT", "/api/agents/lim", { name: "lim", systemPrompt: "x" });
+    for (let i = 0; i < 3; i++) {
+      await req("POST", "/api/agents/lim/run");
+      await waitForRuns();
+    }
+    expect((await req("GET", "/api/runs?agent=lim")).json.data).toHaveLength(3);
+    expect((await req("GET", "/api/runs?agent=lim&limit=2")).json.data).toHaveLength(2);
+    for (const bad of ["0", "201", "abc", "1.5"]) {
+      expect((await req("GET", `/api/runs?limit=${bad}`)).json.error?.code, bad).toBe("invalid-query");
+    }
+  });
 });
