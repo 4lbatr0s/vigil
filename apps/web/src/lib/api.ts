@@ -40,6 +40,10 @@ export const getNote = (id: string) => request<Note>(`/api/notes/${seg(id)}`);
 /** `baseUpdatedAt` is the `updatedAt` you last saw; the server answers 409 if the note moved on. */
 export const putNote = (id: string, input: { title: string; body: string; tags?: string[]; baseUpdatedAt?: string }) =>
   request<Note>(`/api/notes/${seg(id)}`, json("PUT", input));
+export type RenamePlan = { newId: string; notesToChange: string[]; titles: string[] };
+/** Dry run: what a rename would change. Writes nothing. */
+export const planRenameNote = (id: string, title: string) => request<RenamePlan>(`/api/notes/${seg(id)}/rename?dryRun=1`, json("POST", { title }));
+export const renameNote = (id: string, title: string) => request<Note>(`/api/notes/${seg(id)}/rename`, json("POST", { title }));
 export type Backlink = { id: string; title: string; snippet: string };
 /** Notes that link to this one (the note itself may not exist yet). */
 export const getBacklinks = (id: string) => request<Backlink[]>(`/api/notes/${seg(id)}/backlinks`);

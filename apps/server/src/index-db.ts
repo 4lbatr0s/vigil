@@ -1,4 +1,5 @@
 import { publish } from "./events";
+import { extractLinks } from "./links";
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync } from "node:fs";
 import path from "node:path";
@@ -79,25 +80,9 @@ export function closeDb(): void {
   }
 }
 
-const ID_LIKE = /^[a-z0-9][a-z0-9-]*$/;
 
-/** Naive link extraction: [[wikilink]] and [text](target). Targets need not exist yet. */
-export function extractLinks(body: string): string[] {
-  const found = new Set<string>();
-  const wiki = /\[\[([^\]|#]+)(?:#[^\]|]*)?(?:\|[^\]]*)?\]\]/g;
-  for (const match of body.matchAll(wiki)) {
-    const slug = slugify((match[1] ?? "").trim());
-    if (slug) found.add(slug);
-  }
-  const md = /\[[^\]]*\]\(([^)\s]+)\)/g;
-  for (const match of body.matchAll(md)) {
-    const raw = (match[1] ?? "").trim();
-    if (!raw || raw.includes("#")) continue;
-    const candidate = raw.replace(/^\.\//, "").replace(/\.md$/, "");
-    if (ID_LIKE.test(candidate)) found.add(candidate);
-  }
-  return [...found];
-}
+// Link extraction lives in links.ts (shared with rename); re-exported for existing callers.
+export { extractLinks } from "./links";
 
 export type Backlink = { id: string; title: string; snippet: string };
 

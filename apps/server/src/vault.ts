@@ -203,3 +203,26 @@ export async function restoreNoteFile(id: string, raw: string): Promise<Note> {
   await writeAtomic(file, raw);
   return readNote(file, id);
 }
+
+/** Rewrite a note's body, keeping its title, tags and provenance as they are. */
+export async function replaceBody(id: string, body: string): Promise<Note> {
+  const file = notePath(id);
+  const existing = await readNote(file, id);
+  const mtime = await writeAtomic(file, serialize({ ...existing, body }));
+  return { ...existing, body, updatedAt: mtime.toISOString() };
+}
+
+/**
+ * Move a note to a new id and title: the new file is written first (atomic), then the old one is
+ * removed, so a failure part-way never loses the note. Tags and provenance carry over.
+ */
+export async function moveNote(oldId: string, newId: string, title: string, body: string): Promise<Note> {
+  const oldFile = notePath(oldId);
+  const newFile = notePath(newId);
+  if (oldId !== newId && existsSync(newFile)) throw new AppError("note-exists", `Note already exists: ${newId}`, 409);
+  const existing = await readNote(oldFile, oldId);
+  const note: Note = { ...existing, id: newId, title, body };
+  const mtime = await writeAtomic(newFile, serialize(note));
+  if (oldId !== newId) await unlink(oldFile);
+  return { ...note, updatedAt: mtime.toISOString() };
+}

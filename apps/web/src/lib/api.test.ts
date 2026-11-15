@@ -15,7 +15,9 @@ import {
   listRuns,
   listTemplates,
   putAgent,
+  planRenameNote,
   putNote,
+  renameNote,
   putPermissions,
   runAgent,
   undoRun,
@@ -113,6 +115,8 @@ describe("api client", () => {
       await createFromTemplate("morning-digest", "mine");
       await undoRun("r1");
       await putPermissions(settings);
+      await planRenameNote("a b", "New title");
+      await renameNote("a b", "New title");
       const seen = calls(spy).map(([url, init]) => [url, init?.method, init?.body]);
       expect(seen).toEqual([
         ["/api/agents/digest", "PUT", JSON.stringify(agent)],
@@ -122,6 +126,8 @@ describe("api client", () => {
         ["/api/agents/from-template/morning-digest", "POST", JSON.stringify({ name: "mine" })],
         ["/api/runs/r1/undo", "POST", "{}"],
         ["/api/settings/permissions", "PUT", JSON.stringify(settings)],
+        ["/api/notes/a%20b/rename?dryRun=1", "POST", JSON.stringify({ title: "New title" })],
+        ["/api/notes/a%20b/rename", "POST", JSON.stringify({ title: "New title" })],
       ]);
     });
 

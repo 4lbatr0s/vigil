@@ -122,6 +122,23 @@ describe("json api", () => {
     expect(rows[0]?.snippet.endsWith("…")).toBe(true);
   });
 
+  it("renames a note over the API: dry run first, then the real thing", async () => {
+    await req("PUT", "/api/notes/rn-old", { title: "RN Old", body: "x" });
+    await req("PUT", "/api/notes/rn-user", { title: "RN User", body: "points at [[RN Old]]" });
+    const dry = await req("POST", "/api/notes/rn-old/rename?dryRun=1", { title: "RN Fresh" });
+    expect(dry.status).toBe(200);
+    expect(dry.json.data).toEqual({ newId: "rn-fresh", notesToChange: ["rn-user"], titles: ["RN User"] });
+    expect((await req("GET", "/api/notes/rn-old")).status).toBe(200); // nothing moved
+    const real = await req("POST", "/api/notes/rn-old/rename", { title: "RN Fresh" });
+    expect(real.status).toBe(200);
+    expect(real.json.data).toMatchObject({ id: "rn-fresh", title: "RN Fresh" });
+    expect((await req("GET", "/api/notes/rn-old")).status).toBe(404);
+    expect((await req("GET", "/api/notes/rn-user")).json.data).toMatchObject({ body: "points at [[RN Fresh]]" });
+    expect(errCode((await req("POST", "/api/notes/rn-user/rename", { title: "RN Fresh" })).json)).toBe("note-exists");
+    expect(errCode((await req("POST", "/api/notes/rn-user/rename", {})).json)).toBe("invalid-body");
+    expect(errCode((await req("POST", "/api/notes/nope/rename", { title: "Z" })).json)).toBe("note-not-found");
+  });
+
   it("searches notes", async () => {
     const res = await req("GET", "/api/search?q=vigil");
     expect(res.status).toBe(200);

@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { onMount, tick } from "svelte";
+  import { onMount, tick, untrack } from "svelte";
+  import { replaceState } from "$app/navigation";
   import { page } from "$app/state";
   import { slugify, type Note, type NoteSummary } from "@vigil/shared";
   import { getNote, listNotes, putNote } from "$lib/api";
@@ -7,6 +8,7 @@
   import { refreshOnLive } from "$lib/live";
   import NoteList from "$lib/components/NoteList.svelte";
   import Backlinks from "$lib/components/Backlinks.svelte";
+  import RenameNote from "$lib/components/RenameNote.svelte";
 
   let notes = $state<NoteSummary[]>([]);
   let selectedId = $state<string | null>(null);
@@ -42,8 +44,9 @@
     void (async () => {
       try {
         notes = await listNotes();
-        const first = notes[0];
-        if (first) await select(first.id);
+        // The address wins over "newest first" when it names a note.
+        const target = page.url.searchParams.get("note") ?? notes[0]?.id;
+        if (target) await select(target);
       } catch (err) {
         loadError = err instanceof Error ? err.message : "Could not load notes";
       } finally {
@@ -56,8 +59,11 @@
 
   // The command palette and run viewer link here: /?note=<id> opens a note, /?new=1 focuses the new-note box.
   $effect(() => {
+    // Runs when the address changes, not when the selection does (select() updates the address itself).
     const wanted = page.url.searchParams.get("note");
-    if (wanted && !loading && wanted !== selectedId) void select(wanted);
+    untrack(() => {
+      if (wanted && !loading && wanted !== selectedId) void select(wanted);
+    });
   });
   $effect(() => {
     if (page.url.searchParams.get("new") === "1" && !loading) {
@@ -72,6 +78,8 @@
       selectedId = note.id;
       draft = { title: note.title, body: note.body };
       baseUpdatedAt = note.updatedAt;
+      // Keep the address in step with the open note, so a reload or a copied link opens the same one.
+      if (page.url.searchParams.get("note") !== note.id) replaceState(`/?note=${encodeURIComponent(note.id)}`, {});
     } catch (err) {
       status = err instanceof Error ? err.message : "Could not open note";
     }
@@ -144,6 +152,16 @@
     }
   }
 
+  /** After a rename the id changed: refresh the list and open the note under its new id. */
+  async function onRenamed(note: Note): Promise<void> {
+    try {
+      notes = await listNotes();
+    } catch {
+      // The poll refreshes the list shortly; opening the renamed note below still works.
+    }
+    await select(note.id);
+  }
+
   function onCreated(note: Note) {
     notes = [note, ...notes.filter((n) => n.id !== note.id)];
     void select(note.id);
@@ -165,6 +183,9 @@
     {:else}
       <header class="head">
         <h1 class="title">{draft.title}</h1>
+        <div class="actions">
+          <RenameNote noteId={selectedId ?? ""} title={draft.title} onrenamed={onRenamed} />
+        </div>
       </header>
 
       {#if pendingCreate}
@@ -210,7 +231,14 @@
     background: var(--bg);
   }
 
+  .actions {
+    position: relative;
+    display: flex;
+    gap: var(--space-2);
+  }
+
   .head {
+    position: relative;
     display: flex;
     align-items: baseline;
     justify-content: space-between;

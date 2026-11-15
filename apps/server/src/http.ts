@@ -18,6 +18,7 @@ import { cronError, nextTickAfter } from "./cron";
 import { attachStream } from "./events";
 import { startRun, undoRun } from "./runs";
 import { getPermissions, putPermissions } from "./permissions";
+import { planRename, renameNote } from "./rename";
 import { refreshSchedule } from "./scheduler";
 import { llmStatus } from "./llm-status";
 import { usage } from "./usage";
@@ -73,6 +74,21 @@ const routes: { method: string; pattern: RegExp; keys: string[]; handler: Handle
       }
       const fromVault = await vaultGetNote(id);
       send(res, 200, { data: fromVault });
+    },
+  },
+  {
+    method: "POST",
+    pattern: /^\/api\/notes\/([^/]+)\/rename$/,
+    keys: ["id"],
+    handler: async (req, res, params, url) => {
+      const parsed = z.object({ title: z.string().min(1).max(200) }).safeParse(await readJsonBody(req));
+      if (!parsed.success) throw new AppError("invalid-body", "title is required (1 to 200 characters)", 400);
+      const id = validateId(params["id"] ?? "");
+      if (url.searchParams.get("dryRun") === "1") {
+        send(res, 200, { data: await planRename(id, parsed.data.title) });
+        return;
+      }
+      send(res, 200, { data: await renameNote(id, parsed.data.title) });
     },
   },
   {
