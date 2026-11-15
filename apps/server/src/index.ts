@@ -1,5 +1,7 @@
 import { rebuildAll, isEmpty } from "./index-db";
-import { markInterruptedRuns } from "./state-db";
+import { startRun } from "./runs";
+import { createScheduler } from "./scheduler";
+import { hasRunning, listAgents, markInterruptedRuns } from "./state-db";
 import { shutdown } from "./shutdown";
 import { start } from "./server";
 import { startWatcher } from "./watcher";
@@ -21,6 +23,15 @@ async function main(): Promise<void> {
     console.log(`vigil-server listening on http://localhost:${actual}`);
   });
   const watcher = startWatcher();
+  const catchUpHours = Number(process.env.VIGIL_CATCHUP_HOURS ?? 24);
+  const scheduler = createScheduler({
+    now: () => new Date(),
+    listAgents,
+    startRun,
+    hasRunning,
+    catchUpWindowMs: (Number.isFinite(catchUpHours) && catchUpHours > 0 ? catchUpHours : 24) * 3_600_000,
+  });
+  scheduler.start();
 
   // First signal: stop cleanly (close, watcher, runs up to 10 s, databases, exit 0).
   // Second signal while that is in flight: leave now with code 1.
@@ -32,7 +43,7 @@ async function main(): Promise<void> {
     }
     stopping = true;
     console.log(`vigil-server received ${signal}, shutting down`);
-    void shutdown({ server: running, watcher, timeoutMs: 10_000 }).then(() => process.exit(0));
+    void shutdown({ server: running, watcher, scheduler, timeoutMs: 10_000 }).then(() => process.exit(0));
   };
   process.on("SIGTERM", onSignal);
   process.on("SIGINT", onSignal);

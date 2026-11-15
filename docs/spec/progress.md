@@ -28,10 +28,10 @@ Legend: `[x]` done, `[ ]` not done. Add a short note after a task only for a dev
 
 ## WP2: M2 scheduled agents (cron with catch-up)
 
-- [ ] WP2-T1: ADR-0010 and dependency
-- [ ] WP2-T2: `scheduler.ts`
-- [ ] WP2-T3: Validation at the API
-- [ ] WP2-T4: Schedule visibility endpoint
+- [x] WP2-T1: ADR-0010 and dependency
+- [x] WP2-T2: `scheduler.ts`
+- [x] WP2-T3: Validation at the API
+- [x] WP2-T4: Schedule visibility endpoint
 
 ## WP3: M2 templates and usage cap
 

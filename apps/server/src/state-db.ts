@@ -304,3 +304,33 @@ export function setWrittenUpdatedAt(runId: string, noteId: string, updatedAt: st
 export async function readSnapshotFile(file: string): Promise<string> {
   return readFile(file, "utf8");
 }
+
+// ---- Schedule state (WP2) ----
+
+export type ScheduleState = {
+  agent: string;
+  lastScheduledFor: string | null;
+  lastStartedAt: string | null;
+  lastSkipReason: string | null;
+};
+
+export function getSchedule(agent: string): ScheduleState | null {
+  const row = open()
+    .prepare("SELECT agent, last_scheduled_for, last_started_at, last_skip_reason FROM schedule_state WHERE agent = ?")
+    .get(agent) as { agent: string; last_scheduled_for: string | null; last_started_at: string | null; last_skip_reason: string | null } | undefined;
+  if (!row) return null;
+  return { agent: row.agent, lastScheduledFor: row.last_scheduled_for, lastStartedAt: row.last_started_at, lastSkipReason: row.last_skip_reason };
+}
+
+/** Merges the given fields into the agent's schedule row (creating it when missing). */
+export function putSchedule(agent: string, patch: Partial<Omit<ScheduleState, "agent">>): void {
+  const now = getSchedule(agent) ?? { agent, lastScheduledFor: null, lastStartedAt: null, lastSkipReason: null };
+  const next = { ...now, ...patch };
+  open()
+    .prepare(
+      `INSERT INTO schedule_state (agent, last_scheduled_for, last_started_at, last_skip_reason) VALUES (?, ?, ?, ?)
+       ON CONFLICT(agent) DO UPDATE SET last_scheduled_for = excluded.last_scheduled_for,
+         last_started_at = excluded.last_started_at, last_skip_reason = excluded.last_skip_reason`,
+    )
+    .run(next.agent, next.lastScheduledFor, next.lastStartedAt, next.lastSkipReason);
+}

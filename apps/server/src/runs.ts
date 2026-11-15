@@ -34,13 +34,13 @@ export async function waitForRuns(): Promise<void> {
 }
 
 /** Starts a run in the background and returns at once with the new `running` row. */
-export function startRun(agentName: string, task?: string): Run {
+export function startRun(agentName: string, task?: string, trigger: Run["trigger"] = "manual"): Run {
   const agent = getAgent(agentName);
   if (!agent) throw new AppError("agent-not-found", `Agent not found: ${agentName}`, 404);
   if (hasRunning(agentName)) {
     throw new AppError("agent-busy", `Agent ${agentName} already has a run in progress`, 409);
   }
-  const run = createRun(randomUUID(), agent.name, agent.tokenBudget);
+  const run = createRun(randomUUID(), agent.name, agent.tokenBudget, trigger);
   const work = (async () => {
     try {
       const outcome = await deps.runner({

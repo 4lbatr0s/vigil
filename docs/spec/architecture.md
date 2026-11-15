@@ -23,7 +23,7 @@ One Node process serves a JSON API (and, in production, the built web app). The 
  | agent-runtime.ts  LangGraph: agent node -> [approve node] -> tools node -> agent        |
  | agent-tools.ts    read_notes, write_notes, web_fetch, call_agents   (allowlisted)       |
  | llm.ts      model adapters from env, key redaction                                      |
- | scheduler.ts [planned] cron + heartbeat tick loop, catch-up, at-most-once               |
+ | scheduler.ts cron tick loop, catch-up, at-most-once (heartbeat planned)                 |
  | safe-fetch.ts [planned] allowlisted, SSRF-safe HTTP GET                                 |
  | static.ts   [planned] serves the built web app                                          |
  | permissions.ts [planned] instance switches + effectiveGrants    events.ts [planned] bus   |
@@ -64,7 +64,7 @@ Rule: only the server touches the filesystem or SQLite; the web app talks to `/a
 | `agent-runtime.ts` | graph, budget, step limit, run log | built |
 | `llm.ts` | `modelFactoryFromEnv`, `redact` | built |
 | `runs.ts` | background execution, undo | built |
-| `scheduler.ts`, `heartbeat.ts` | cron and heartbeat firing | planned (WP2, WP6) |
+| `scheduler.ts`, `cron.ts` | cron firing with catch-up; cron validation | built (WP2); heartbeat planned (WP6) |
 | `safe-fetch.ts` | fetch tool core | planned (WP10) |
 | `usage.ts` | monthly token totals | planned (WP3) |
 | `permissions.ts` | instance permission settings and `effectiveGrants(agent, settings)` | planned (WP3) |

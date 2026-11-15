@@ -12,8 +12,10 @@ import {
 } from "./index-db";
 import { AgentSchema } from "@vigil/shared";
 import { withNoteLock } from "./lock";
+import { cronError, nextTickAfter } from "./cron";
 import { startRun, undoRun } from "./runs";
-import { getAgent, getRun, listAgents, listEvents, listRuns, putAgent } from "./state-db";
+import { refreshSchedule } from "./scheduler";
+import { getAgent, getRun, getSchedule, listAgents, listEvents, listRuns, putAgent, putSchedule } from "./state-db";
 import { createNote, deleteNote, getNote as vaultGetNote, slugify, updateNote } from "./vault";
 
 const MAX_BODY_BYTES = 2 * 1024 * 1024;
@@ -139,7 +141,46 @@ const routes: { method: string; pattern: RegExp; keys: string[]; handler: Handle
       if (parsed.data.name !== params["name"]) {
         throw new AppError("invalid-body", "Agent name in the body must match the URL", 400);
       }
-      send(res, 200, { data: putAgent(parsed.data) });
+      const trigger = parsed.data.trigger;
+      if (trigger.kind === "cron") {
+        const problem = cronError(trigger.expression, trigger.timezone);
+        if (problem) throw new AppError("invalid-body", problem, 400);
+      }
+      if (trigger.kind === "heartbeat" && !parsed.data.tools.includes("read_notes")) {
+        throw new AppError("invalid-body", "A heartbeat agent needs the read_notes tool: it has nothing to watch without it", 400);
+      }
+      const before = getAgent(parsed.data.name);
+      const saved = putAgent(parsed.data);
+      // A new or changed schedule, or a re-enabled agent, starts from a fresh baseline (no immediate past run).
+      if (JSON.stringify(before?.trigger) !== JSON.stringify(saved.trigger) || before?.enabled !== saved.enabled) {
+        putSchedule(saved.name, { lastScheduledFor: null, lastSkipReason: null });
+      }
+      refreshSchedule(saved.name);
+      send(res, 200, { data: saved });
+    },
+  },
+  {
+    method: "GET",
+    pattern: /^\/api\/agents\/([^/]+)\/schedule$/,
+    keys: ["name"],
+    handler: (_req, res, params) => {
+      const agent = getAgent(params["name"] ?? "");
+      if (!agent) throw new AppError("agent-not-found", `Agent not found: ${params["name"]}`, 404);
+      const state = getSchedule(agent.name);
+      const nextRunAt =
+        agent.enabled && agent.trigger.kind === "cron" && !cronError(agent.trigger.expression, agent.trigger.timezone)
+          ? (nextTickAfter(agent.trigger.expression, agent.trigger.timezone, new Date())?.toISOString() ?? null)
+          : null;
+      send(res, 200, {
+        data: {
+          trigger: agent.trigger,
+          enabled: agent.enabled,
+          nextRunAt,
+          lastScheduledFor: state?.lastScheduledFor ?? null,
+          lastStartedAt: state?.lastStartedAt ?? null,
+          lastSkipReason: state?.lastSkipReason ?? null,
+        },
+      });
     },
   },
   {

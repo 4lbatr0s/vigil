@@ -42,7 +42,7 @@ afterAll(async () => {
   await rm(root, { recursive: true, force: true });
 });
 
-type Json = { data?: any; error?: { code?: string } };
+type Json = { data?: any; error?: { code?: string; message?: string } };
 async function req(method: string, p: string, body?: unknown): Promise<{ status: number; json: Json }> {
   const res = await fetch(`${base}${p}`, {
     method,
@@ -92,5 +92,26 @@ describe("agents and runs api", () => {
     const empty = await req("PUT", "/api/agents/fetcher", { name: "fetcher", systemPrompt: "x", tools: ["web_fetch", "call_agents"] });
     expect(empty.status).toBe(200);
     expect(empty.json.data).toMatchObject({ allowedHosts: [], callable: [] });
+  });
+
+  it("validates cron triggers and heartbeat tools at save time", async () => {
+    const cron = (expression: string, timezone?: string) => ({ name: "c", systemPrompt: "x", trigger: { kind: "cron", expression, timezone } });
+    expect((await req("PUT", "/api/agents/c", cron("not a cron"))).json.error?.code).toBe("invalid-body");
+    expect((await req("PUT", "/api/agents/c", cron("0 7 * * *", "Mars/Base"))).json.error?.message).toMatch(/Unknown time zone/);
+    expect((await req("PUT", "/api/agents/c", cron("0 7 * * *", "Europe/Istanbul"))).status).toBe(200);
+    const beat = { name: "h", systemPrompt: "x", trigger: { kind: "heartbeat", everyMinutes: 30 } };
+    expect((await req("PUT", "/api/agents/h", beat)).status).toBe(400);
+    expect((await req("PUT", "/api/agents/h", { ...beat, tools: ["read_notes"] })).status).toBe(200);
+  });
+
+  it("GET /api/agents/:name/schedule reports the next run", async () => {
+    await req("PUT", "/api/agents/c", { name: "c", systemPrompt: "x", trigger: { kind: "cron", expression: "0 7 * * *", timezone: "UTC" } });
+    const res = await req("GET", "/api/agents/c/schedule");
+    expect(res.status).toBe(200);
+    expect(res.json.data).toMatchObject({ enabled: true, trigger: { kind: "cron" }, lastStartedAt: null, lastSkipReason: null });
+    expect(new Date(res.json.data.nextRunAt as string).getUTCHours()).toBe(7);
+    await req("PUT", "/api/agents/m", { name: "m", systemPrompt: "x" });
+    expect((await req("GET", "/api/agents/m/schedule")).json.data.nextRunAt).toBeNull();
+    expect((await req("GET", "/api/agents/nope/schedule")).status).toBe(404);
   });
 });
