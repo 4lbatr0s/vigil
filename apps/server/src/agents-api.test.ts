@@ -84,4 +84,13 @@ describe("agents and runs api", () => {
     expect((await req("PUT", "/api/agents/a", { name: "b", systemPrompt: "x" })).json.error?.code).toBe("invalid-body");
     expect((await req("PUT", "/api/agents/a", { name: "a", systemPrompt: "x", tools: ["shell"] })).status).toBe(400);
   });
+
+  it("accepts the legacy string trigger and web_fetch or call_agents with empty lists", async () => {
+    const legacy = await req("PUT", "/api/agents/old", { name: "old", systemPrompt: "x", trigger: "manual" });
+    expect(legacy.status).toBe(200);
+    expect(legacy.json.data).toMatchObject({ trigger: { kind: "manual" } });
+    const empty = await req("PUT", "/api/agents/fetcher", { name: "fetcher", systemPrompt: "x", tools: ["web_fetch", "call_agents"] });
+    expect(empty.status).toBe(200);
+    expect(empty.json.data).toMatchObject({ allowedHosts: [], callable: [] });
+  });
 });
