@@ -282,10 +282,13 @@ const routes: { method: string; pattern: RegExp; keys: string[]; handler: Handle
     method: "GET",
     pattern: /^\/api\/runs\/([^/]+)$/,
     keys: ["id"],
-    handler: (_req, res, params) => {
+    handler: (_req, res, params, url) => {
       const run = getRun(params["id"] ?? "");
       if (!run) throw new AppError("run-not-found", `Run not found: ${params["id"]}`, 404);
-      send(res, 200, { data: { run, events: listEvents(run.id) } });
+      const rawAfter = url.searchParams.get("after");
+      const after = rawAfter === null ? 0 : Number(rawAfter);
+      if (!Number.isInteger(after) || after < 0) throw new AppError("invalid-query", "after must be a whole number, 0 or more", 400);
+      send(res, 200, { data: { run, events: listEvents(run.id, after) } });
     },
   },
   {

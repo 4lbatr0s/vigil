@@ -173,4 +173,19 @@ describe("agents and runs api", () => {
       expect((await req("GET", `/api/runs?limit=${bad}`)).json.error?.code, bad).toBe("invalid-query");
     }
   });
+
+  it("GET /api/runs/:id?after=<seq> returns only newer events", async () => {
+    await req("PUT", "/api/agents/ev", { name: "ev", systemPrompt: "x", tools: ["write_notes"] });
+    const started = await req("POST", "/api/agents/ev/run");
+    await waitForRuns();
+    const id = started.json.data.id as string;
+    const all = (await req("GET", `/api/runs/${id}`)).json.data.events as { seq: number }[];
+    expect(all.length).toBeGreaterThan(2);
+    const second = all[1]?.seq as number;
+    const rest = (await req("GET", `/api/runs/${id}?after=${second}`)).json.data.events as { seq: number }[];
+    expect(rest.map((e) => e.seq)).toEqual(all.filter((e) => e.seq > second).map((e) => e.seq));
+    expect((await req("GET", `/api/runs/${id}?after=999999`)).json.data.events).toEqual([]);
+    expect((await req("GET", `/api/runs/${id}?after=-1`)).json.error?.code).toBe("invalid-query");
+    expect((await req("GET", `/api/runs/${id}?after=x`)).status).toBe(400);
+  });
 });

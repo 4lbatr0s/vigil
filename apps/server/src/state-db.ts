@@ -243,10 +243,11 @@ export function addEvent(runId: string, kind: RunEvent["kind"], text: string, da
   );
 }
 
-export function listEvents(runId: string): RunEvent[] {
+/** Events of a run in order; with `after`, only those with a larger sequence number. */
+export function listEvents(runId: string, after = 0): RunEvent[] {
   const rows = open()
-    .prepare("SELECT seq, at, kind, text, data FROM run_events WHERE run_id = ? ORDER BY seq")
-    .all(runId) as { seq: number; at: string; kind: string; text: string; data: string }[];
+    .prepare("SELECT seq, at, kind, text, data FROM run_events WHERE run_id = ? AND seq > ? ORDER BY seq")
+    .all(runId, after) as { seq: number; at: string; kind: string; text: string; data: string }[];
   return rows.map((r) => ({
     seq: r.seq,
     at: r.at,
