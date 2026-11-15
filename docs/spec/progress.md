@@ -35,7 +35,7 @@ Legend: `[x]` done, `[ ]` not done. Add a short note after a task only for a dev
 
 ## WP3: M2 templates and usage cap
 
-- [ ] WP3-T1: Template registry
+- [x] WP3-T1: Template registry
 - [ ] WP3-T2: API
 - [ ] WP3-T3: Usage and soft monthly cap
 - [ ] WP3-T4: LLM status endpoint (onboarding support)
