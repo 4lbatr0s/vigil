@@ -121,6 +121,29 @@ Legend: `[x]` done, `[ ]` not done. Add a short note after a task only for a dev
 
 ## Release
 
-- [ ] Release checklist (implementation-plan.md section 10) all ticked
-- [ ] `docs/spec/roadmap.md` marks M0 to M6 done with dates
+- [x] `docs/spec/roadmap.md` marks M0 to M6 done with dates
+- [x] v1.0.0 tagged (2026-11-15)
+- [ ] Release checklist (implementation-plan.md section 10) all ticked: the items below are still open
 
+### Open to-do list (after v1.0.0)
+
+Owner:
+- [ ] Name check: search npm, GitHub and trademark databases for "Vigil"; write the result in `docs/spec/open-questions.md`.
+- [ ] Decide when to push release notes / announce.
+
+To verify by hand (not yet done):
+- [ ] Keyboard-only pass over every page (focus ring, reachable controls, dialogs).
+- [ ] README "Run it" commands on a clean machine or an empty directory and volume.
+- [ ] Permissions page: switch off web fetch, confirm a run no longer offers the tool; templates are created switched off.
+- [ ] Research Scout on a real model: allowed host works, a loopback URL is refused and logged.
+- [ ] Heartbeat: observe live that an agent's own write does not trigger a second run.
+- [ ] Graph: force the no-WebGL path and confirm the automatic list fallback.
+- [ ] Record the 20-second Morning Digest demo (under 5 MB) and put it at the top of the README.
+
+Known gaps (from `docs/spec/open-questions.md`):
+- [ ] True per-token chat streaming (needs `stream()` on the model adapters).
+- [ ] Trim or summarise long chat history (each turn re-sends the whole conversation).
+- [ ] Trim the editor chunk (about 240 KB gzip, loads lazily after the shell).
+- [ ] Logout only clears the browser cookie; add a server-side session epoch if copied cookies matter.
+- [ ] A botnet with 25+ addresses can make the owner wait at login while an attack lasts.
+- [ ] WP13 backlog (post-v1) in `docs/spec/implementation-plan.md`.
