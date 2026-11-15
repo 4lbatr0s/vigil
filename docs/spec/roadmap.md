@@ -17,7 +17,7 @@ Acceptance: `CHECK` passes; `pnpm --filter @vigil/server dev` then `curl -s loca
 - Hardened (WP0): lock/undo/snapshot tests, graceful shutdown, `.env.example`, and tests that cannot touch the real `data/`.
 Acceptance: `pnpm --filter @vigil/server test` includes a fake-provider run that reads a note, writes a digest note, leaves a snapshot and a run log row; and `curl -X POST localhost:3001/api/agents/morning-digest/run` against a real or Ollama model writes a note.
 
-## M2: Scheduled agents and the Morning Digest demo
+## M2: Scheduled agents and the Morning Digest demo (done 2026-11-15; the README recording is WP12-T6)
 - `node-cron` in the server process. Agent trigger `cron: "0 7 * * *"`.
 - **Catch-up rule:** store `last_run_at` per agent. On start, if a scheduled run was missed (the previous cron tick is later than `last_run_at`), run once, not once per missed tick. Runs never overlap: a running agent skips its next tick and logs it.
 - Agents UI: ledger rows (ui.md), run log view, lantern flicker when a run lands a note.

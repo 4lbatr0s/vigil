@@ -99,6 +99,11 @@ body {
   outline-offset: 2px;
 }
 
+a {
+  color: var(--ink);
+  text-underline-offset: 2px;
+}
+
 button {
   font: inherit;
   color: inherit;
