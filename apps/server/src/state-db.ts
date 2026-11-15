@@ -20,7 +20,7 @@ export function snapshotsDir(): string {
 }
 
 // Each step runs once, in order. Never edit or reorder a released step; append a new one.
-const MIGRATIONS: string[] = [
+export const MIGRATIONS: readonly string[] = [
   `
   CREATE TABLE agents (
     name TEXT PRIMARY KEY,
@@ -55,6 +55,39 @@ const MIGRATIONS: string[] = [
     file TEXT,
     written_updated_at TEXT,
     PRIMARY KEY (run_id, note_id)
+  );
+  `,
+  `
+  -- migration 2: schedules, run lineage, instance settings
+  CREATE TABLE settings (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL            -- JSON
+  );
+  CREATE TABLE schedule_state (
+    agent TEXT PRIMARY KEY,
+    last_scheduled_for TEXT,       -- ISO time of the last cron tick we acted on
+    last_started_at TEXT,
+    last_skip_reason TEXT
+  );
+  ALTER TABLE runs ADD COLUMN trigger TEXT NOT NULL DEFAULT 'manual';
+  ALTER TABLE runs ADD COLUMN parent_run_id TEXT;
+  CREATE INDEX runs_parent ON runs(parent_run_id);
+  `,
+  `
+  -- migration 3: what agents read and wrote (graph edges, WP11) and heartbeat memory (WP6)
+  CREATE TABLE agent_touches (
+    agent TEXT NOT NULL,
+    note_id TEXT NOT NULL,
+    kind TEXT NOT NULL,            -- 'read' | 'wrote'
+    run_id TEXT NOT NULL,
+    at TEXT NOT NULL
+  );
+  CREATE INDEX agent_touches_agent ON agent_touches(agent, at);
+  CREATE INDEX agent_touches_note ON agent_touches(note_id, at);
+  CREATE TABLE heartbeat_state (
+    agent TEXT PRIMARY KEY,
+    last_checked_at TEXT,
+    last_hashes TEXT               -- JSON {"note-id": "hash", ...}
   );
   `,
 ];
@@ -125,6 +158,8 @@ type RunRow = {
   token_budget: number;
   error: string | null;
   undone: number;
+  trigger?: string | null;
+  parent_run_id?: string | null;
 };
 
 function toRun(row: RunRow): Run {
@@ -140,17 +175,18 @@ function toRun(row: RunRow): Run {
     tokensUsed: row.tokens_used,
     tokenBudget: row.token_budget,
     error: row.error,
-    trigger: "manual", // WP1-T2 maps the real columns
-    parentRunId: null, // WP1-T2 maps the real columns
+    // The column is written only by createRun (union-typed) or the migration default 'manual'.
+    trigger: (row.trigger ?? "manual") as Run["trigger"],
+    parentRunId: row.parent_run_id ?? null,
     touched,
     undone: row.undone === 1,
   };
 }
 
-export function createRun(id: string, agent: string, tokenBudget: number): Run {
+export function createRun(id: string, agent: string, tokenBudget: number, trigger: Run["trigger"] = "manual", parentRunId: string | null = null): Run {
   open()
-    .prepare("INSERT INTO runs (id, agent, status, started_at, token_budget) VALUES (?, ?, 'running', ?, ?)")
-    .run(id, agent, new Date().toISOString(), tokenBudget);
+    .prepare("INSERT INTO runs (id, agent, status, started_at, token_budget, trigger, parent_run_id) VALUES (?, ?, 'running', ?, ?, ?, ?)")
+    .run(id, agent, new Date().toISOString(), tokenBudget, trigger, parentRunId);
   return getRun(id) as Run;
 }
 
