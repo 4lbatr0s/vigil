@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   ApiError,
   createFromTemplate,
+  decideApproval,
   deleteNote,
   getAgent,
   getBacklinks,
@@ -12,6 +13,7 @@ import {
   getSchedule,
   getUsage,
   listAgents,
+  listApprovals,
   listNotes,
   listRuns,
   listTemplates,
@@ -87,6 +89,7 @@ describe("api client", () => {
       await getRun("r1");
       await getRun("r1", 7);
       await getBacklinks("a b");
+      await listApprovals();
       expect(calls(spy).map(([url]) => url)).toEqual([
         "/api/agents",
         "/api/agents/digest",
@@ -101,6 +104,7 @@ describe("api client", () => {
         "/api/runs/r1",
         "/api/runs/r1?after=7",
         "/api/notes/a%20b/backlinks",
+        "/api/approvals?status=pending",
       ]);
       expect(calls(spy).every(([, init]) => init === undefined)).toBe(true);
     });
@@ -119,6 +123,8 @@ describe("api client", () => {
       await planRenameNote("a b", "New title");
       await renameNote("a b", "New title");
       await deleteNote("a b");
+      await decideApproval("x/y", "approve");
+      await decideApproval("x/y", "approve", true);
       const seen = calls(spy).map(([url, init]) => [url, init?.method, init?.body]);
       expect(seen).toEqual([
         ["/api/agents/digest", "PUT", JSON.stringify(agent)],
@@ -131,6 +137,8 @@ describe("api client", () => {
         ["/api/notes/a%20b/rename?dryRun=1", "POST", JSON.stringify({ title: "New title" })],
         ["/api/notes/a%20b/rename", "POST", JSON.stringify({ title: "New title" })],
         ["/api/notes/a%20b", "DELETE", undefined],
+        ["/api/approvals/x%2Fy/decision", "POST", JSON.stringify({ decision: "approve" })],
+        ["/api/approvals/x%2Fy/decision", "POST", JSON.stringify({ decision: "approve", force: true })],
       ]);
     });
 

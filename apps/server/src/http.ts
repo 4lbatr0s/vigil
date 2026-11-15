@@ -16,13 +16,13 @@ import { AgentNameSchema, AgentSchema, PermissionSettingsSchema, TEMPLATES } fro
 import { withNoteLock } from "./lock";
 import { cronError, nextTickAfter } from "./cron";
 import { attachStream } from "./events";
-import { startRun, undoRun } from "./runs";
+import { resumeRun, startRun, undoRun } from "./runs";
 import { getPermissions, putPermissions } from "./permissions";
 import { planRename, renameNote } from "./rename";
 import { refreshSchedule } from "./scheduler";
 import { llmStatus } from "./llm-status";
 import { usage } from "./usage";
-import { clearHeartbeat, getAgent, getHeartbeat, getRun, getSchedule, listAgents, listEvents, listRuns, putAgent, putSchedule } from "./state-db";
+import { approvalsForRun, clearHeartbeat, decideApproval, getApproval, listApprovals, getAgent, getHeartbeat, getRun, getSchedule, listAgents, listEvents, listRuns, putAgent, putSchedule } from "./state-db";
 import { createNote, deleteNote, getNote as vaultGetNote, slugify, updateNote, validateId } from "./vault";
 
 const MAX_BODY_BYTES = 2 * 1024 * 1024;
@@ -234,6 +234,64 @@ const routes: { method: string; pattern: RegExp; keys: string[]; handler: Handle
     keys: [],
     handler: (req, res) => {
       attachStream(req, res);
+    },
+  },
+  {
+    method: "GET",
+    pattern: /^\/api\/approvals$/,
+    keys: [],
+    handler: async (_req, res, _params, url) => {
+      const raw = url.searchParams.get("status");
+      if (raw !== null && raw !== "pending" && raw !== "approved" && raw !== "rejected") {
+        throw new AppError("invalid-query", "status must be pending, approved or rejected", 400);
+      }
+      const rows = await Promise.all(
+        listApprovals(raw ?? undefined).map(async (a) => {
+          const title = typeof a.args["title"] === "string" ? a.args["title"] : "";
+          const noteId = slugify(title);
+          // The current text, so the page can show a diff against what is on disk now (it may have changed since).
+          const current = await vaultGetNote(noteId).catch(() => null);
+          return {
+            ...a,
+            agent: getRun(a.runId)?.agent ?? null,
+            noteId,
+            title,
+            currentBody: current?.body ?? null,
+            currentUpdatedAt: current?.updatedAt ?? null,
+            proposedBody: typeof a.args["body"] === "string" ? a.args["body"] : "",
+            stale: current === null ? a.baseUpdatedAt !== null : current.updatedAt !== a.baseUpdatedAt,
+          };
+        }),
+      );
+      send(res, 200, { data: rows });
+    },
+  },
+  {
+    method: "POST",
+    pattern: /^\/api\/approvals\/([^/]+)\/decision$/,
+    keys: ["id"],
+    handler: async (req, res, params) => {
+      const parsed = z.object({ decision: z.enum(["approve", "reject"]), force: z.boolean().optional() }).safeParse(await readJsonBody(req));
+      if (!parsed.success) throw new AppError("invalid-body", "decision must be approve or reject", 400);
+      const approval = getApproval(params["id"] ?? "");
+      if (!approval) throw new AppError("approval-not-found", `Approval not found: ${params["id"]}`, 404);
+      if (approval.status !== "pending") throw new AppError("approval-decided", "This write was already decided", 409);
+      if (parsed.data.decision === "approve" && !parsed.data.force) {
+        const title = typeof approval.args["title"] === "string" ? approval.args["title"] : "";
+        const current = await vaultGetNote(slugify(title)).catch(() => null);
+        const stale = current === null ? approval.baseUpdatedAt !== null : current.updatedAt !== approval.baseUpdatedAt;
+        if (stale) {
+          throw new AppError("approval-stale", "The note changed after the agent proposed this write. Review it, then apply anyway or reject.", 409);
+        }
+      }
+      if (!decideApproval(approval.id, parsed.data.decision)) throw new AppError("approval-decided", "This write was already decided", 409);
+      // When the run's last write is decided, the paused graph continues in the background.
+      let resumed = false;
+      if (approvalsForRun(approval.runId).every((a) => a.status !== "pending")) {
+        resumeRun(approval.runId);
+        resumed = true;
+      }
+      send(res, 200, { data: { approval: getApproval(approval.id), runResumed: resumed } });
     },
   },
   {

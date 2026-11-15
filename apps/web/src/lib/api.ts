@@ -86,6 +86,27 @@ export const getRun = (id: string, after?: number) =>
   request<{ run: Run; events: RunEvent[] }>(`/api/runs/${seg(id)}${after ? `?after=${after}` : ""}`);
 export const undoRun = (id: string) => request<Run>(`/api/runs/${seg(id)}/undo`, json("POST"));
 
+// ---- Approvals ----
+
+export type ApprovalItem = {
+  id: string;
+  runId: string;
+  agent: string | null;
+  tool: string;
+  status: "pending" | "approved" | "rejected";
+  createdAt: string;
+  noteId: string;
+  title: string;
+  /** The note as it is on disk now; null when it does not exist. */
+  currentBody: string | null;
+  proposedBody: string;
+  /** The note changed (or appeared) after the agent proposed this write. */
+  stale: boolean;
+};
+export const listApprovals = (status: "pending" | "approved" | "rejected" = "pending") => request<ApprovalItem[]>(`/api/approvals?status=${status}`);
+export const decideApproval = (id: string, decision: "approve" | "reject", force = false) =>
+  request<{ approval: ApprovalItem; runResumed: boolean }>(`/api/approvals/${seg(id)}/decision`, json("POST", force ? { decision, force } : { decision }));
+
 // ---- Settings, usage, model status ----
 
 export type Usage = { month: string; tokens: number; cap: number | null; level: "ok" | "warn" | "over" };

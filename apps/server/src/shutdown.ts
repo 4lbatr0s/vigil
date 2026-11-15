@@ -1,3 +1,4 @@
+import { closeCheckpoints } from "./checkpoints";
 import { closeStreams } from "./events";
 import { closeDb } from "./index-db";
 import { waitForRuns } from "./runs";
@@ -33,5 +34,6 @@ export async function shutdown(deps: {
     clearTimeout(timer);
   }
   closeDb();
+  closeCheckpoints();
   closeState();
 }

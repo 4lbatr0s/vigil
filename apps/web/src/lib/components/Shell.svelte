@@ -4,6 +4,8 @@
   import NotebookText from "@lucide/svelte/icons/notebook-text";
   import Bot from "@lucide/svelte/icons/bot";
   import Settings from "@lucide/svelte/icons/settings";
+  import ShieldCheck from "@lucide/svelte/icons/shield-check";
+  import { pendingCount, trackPending } from "$lib/approvals-state";
   import CommandPalette from "$lib/components/CommandPalette.svelte";
   import Banner from "$lib/components/Banner.svelte";
   import { onMount } from "svelte";
@@ -13,7 +15,14 @@
   let paletteOpen = $state(false);
 
   // One live event stream for the whole app (falls back to polling inside each page).
-  onMount(() => startLive());
+  onMount(() => {
+    const stopLive = startLive();
+    const stopPending = trackPending();
+    return () => {
+      stopLive();
+      stopPending();
+    };
+  });
 
   function onKeydown(event: KeyboardEvent): void {
     if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
@@ -25,6 +34,7 @@
   const items = [
     { href: "/", label: "Notes", icon: NotebookText, match: (p: string) => p === "/" },
     { href: "/agents", label: "Agents", icon: Bot, match: (p: string) => p.startsWith("/agents") || p.startsWith("/runs") },
+    { href: "/approvals", label: "Approvals", icon: ShieldCheck, match: (p: string) => p.startsWith("/approvals") },
     { href: "/settings", label: "Settings", icon: Settings, match: (p: string) => p.startsWith("/settings") },
   ];
 </script>
@@ -46,6 +56,9 @@
         title={item.label}
       >
         <Icon size={20} strokeWidth={1.5} />
+        {#if item.href === "/approvals" && $pendingCount > 0}
+          <span class="badge" aria-label={`${$pendingCount} waiting`}>{$pendingCount}</span>
+        {/if}
       </a>
     {/each}
   </nav>
@@ -87,6 +100,27 @@
     color: var(--ink-muted);
     text-decoration: none;
     transition: color 100ms ease-out, background 100ms ease-out;
+  }
+
+  .rail-link {
+    position: relative;
+  }
+
+  .badge {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    display: grid;
+    place-items: center;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    border-radius: 8px;
+    background: var(--ink);
+    color: var(--bg);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    line-height: 1;
   }
 
   .rail-link:hover {

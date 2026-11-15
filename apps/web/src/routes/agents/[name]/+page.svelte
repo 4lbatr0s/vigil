@@ -21,6 +21,7 @@
   let runError = $state("");
   let notice = $state("");
   let busy = $state(false);
+  let confirmOff = $state(false);
 
   const running = $derived(runs.some((r) => r.status === "running"));
   const grants = $derived(agent && settings ? describeGrants(agent, settings) : []);
@@ -54,6 +55,22 @@
     // An invalid name never reaches the API, not even through the run list.
     return AgentNameSchema.safeParse(name).success ? refreshOnLive(refreshRuns, ["run"], 3000) : undefined;
   });
+
+  /** Turning approvals off for an agent that reads notes and fetches the web asks first (ux-spec section 5). */
+  function onStrictChange(event: Event): void {
+    if (!form || !agent) return;
+    const box = event.currentTarget as HTMLInputElement;
+    if (box.checked) {
+      form.strict = true;
+      return;
+    }
+    if (agent.tools.includes("read_notes") && agent.tools.includes("web_fetch")) {
+      box.checked = true; // stays on until the owner confirms
+      confirmOff = true;
+    } else {
+      form.strict = false;
+    }
+  }
 
   async function save(overrides: Partial<AgentForm> = {}): Promise<boolean> {
     if (!agent || !form) return false;
@@ -160,9 +177,19 @@
     <section class="edit" aria-label="Edit">
       <div class="toggles">
         <label><input type="checkbox" bind:checked={form.enabled} /> Enabled</label>
-        <label><input type="checkbox" bind:checked={form.strict} /> Ask me before this agent writes</label>
+        <label><input type="checkbox" checked={form.strict} onchange={onStrictChange} /> Ask me before this agent writes</label>
       </div>
-      <p class="hint">With approvals on, writes wait in a queue until you accept them. This arrives in a later release; the setting is saved now.</p>
+      <p class="hint">Writes wait in <a href="/approvals">Approvals</a> until you accept them.</p>
+      {#if confirmOff}
+        <div class="confirm" role="alertdialog" aria-labelledby="off-title">
+          <h3 id="off-title">Turn off approvals for an agent that reads the web?</h3>
+          <p>A web page could trick this agent into writing something or sending your note text to a host you allowed. With approvals on, you check every write first.</p>
+          <div class="actions">
+            <button type="button" class="primary" onclick={() => (confirmOff = false)}>Keep approvals on</button>
+            <button type="button" class="danger" onclick={() => { form && (form.strict = false); confirmOff = false; }}>Turn off</button>
+          </div>
+        </div>
+      {/if}
 
       <label class="field">
         <span>Description</span>
@@ -369,6 +396,26 @@
   }
   .narrow {
     max-width: 160px;
+  }
+  .confirm {
+    border: 1px solid var(--err);
+    border-radius: var(--radius);
+    padding: var(--space-3);
+    margin: var(--space-3) 0;
+    display: grid;
+    gap: var(--space-2);
+    font-size: var(--text-label);
+  }
+  .confirm h3 {
+    font-size: var(--text-ui);
+    font-weight: 600;
+  }
+  button.danger {
+    padding: var(--space-2) var(--space-4);
+    border: 1px solid var(--err);
+    border-radius: var(--radius);
+    color: var(--err-ink);
+    font-size: var(--text-label);
   }
   .ledger {
     list-style: none;

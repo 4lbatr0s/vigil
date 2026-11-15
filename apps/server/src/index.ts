@@ -1,5 +1,5 @@
 import { rebuildAll, isEmpty } from "./index-db";
-import { startRun } from "./runs";
+import { resumeDecidedRuns, startRun } from "./runs";
 import { startHousekeeping } from "./housekeeping";
 import { createScheduler } from "./scheduler";
 import { hasRunning, listAgents, markInterruptedRuns } from "./state-db";
@@ -12,6 +12,9 @@ const port = Number(process.env.PORT ?? 3001);
 async function main(): Promise<void> {
   const interrupted = markInterruptedRuns();
   if (interrupted > 0) console.log(`vigil-server marked ${interrupted} unfinished run(s) as interrupted`);
+  // Runs paused for approval stay paused; one whose writes were all decided just before a crash continues.
+  const resumed = resumeDecidedRuns();
+  if (resumed > 0) console.log(`vigil-server resumed ${resumed} run(s) whose approvals were already decided`);
   if (isEmpty()) {
     const count = await rebuildAll();
     console.log(`vigil-server indexed ${count} note(s) from the vault`);

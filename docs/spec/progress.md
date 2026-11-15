@@ -78,13 +78,13 @@ Legend: `[x]` done, `[ ]` not done. Add a short note after a task only for a dev
 
 ## WP8: M3 strict mode and the approvals queue
 
-- [ ] WP8-T1: ADR-0011 and checkpointer
-- [ ] WP8-T2: Migration 5 and store
-- [ ] WP8-T3: Runner changes
-- [ ] WP8-T4: API
-- [ ] WP8-T5: Web
-- [ ] WP8-T6: Defaults and the owner's control
-- [ ] WP8-T7: Tests
+- [x] WP8-T1: ADR-0011 and checkpointer
+- [x] WP8-T2: Migration 5 and store
+- [x] WP8-T3: Runner changes
+- [x] WP8-T4: API
+- [x] WP8-T5: Web
+- [x] WP8-T6: Defaults and the owner's control
+- [x] WP8-T7: Tests
 
 ## WP9: M3 chat
 

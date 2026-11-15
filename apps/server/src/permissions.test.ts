@@ -134,4 +134,10 @@ describe("permission settings", () => {
     // The owner can switch approvals off for any agent, with no extra flag.
     expect((await call("PUT", "/api/agents/pinned", { name: "pinned", systemPrompt: "x", strict: false })).json.data.strict).toBe(false);
   });
+
+  it("an agent that reads notes and fetches the web can be saved non-strict, with no extra flag", async () => {
+    const res = await call("PUT", "/api/agents/risky", { name: "risky", systemPrompt: "x", tools: ["read_notes", "web_fetch"], strict: false });
+    expect(res.status).toBe(200);
+    expect(res.json.data.strict).toBe(false);
+  });
 });

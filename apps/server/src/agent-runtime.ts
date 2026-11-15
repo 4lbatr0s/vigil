@@ -1,11 +1,14 @@
 import { AIMessage, HumanMessage, SystemMessage, ToolMessage, type BaseMessage } from "@langchain/core/messages";
-import { END, GraphRecursionError, MessagesValue, START, StateGraph, StateSchema } from "@langchain/langgraph";
+import { Command, END, GraphRecursionError, MessagesValue, START, StateGraph, StateSchema, interrupt, isInterrupted } from "@langchain/langgraph";
+import * as z from "zod";
 import type { Agent, RunStatus } from "@vigil/shared";
 import { buildTools, truncate, type ChildResult, type ToolContext } from "./agent-tools";
 import { redact, type ModelFactory } from "./llm";
 import { randomUUID } from "node:crypto";
 import { effectiveAgent } from "./permissions";
-import { addEvent, createRun, finishRun, getAgent, hasRunning, setTokensUsed } from "./state-db";
+import { getCheckpointer } from "./checkpoints";
+import { addEvent, createApproval, createRun, finishRun, getAgent, getRun, hasRunning, setTokensUsed } from "./state-db";
+import { getNote as vaultGetNote, slugify, validateId } from "./vault";
 
 /** What the rest of Vigil sees. LangGraph stays behind this (ADR-0009). */
 export type RunOutcome = { status: RunStatus; tokensUsed: number; error: string | null; /** The model's last answer text (used as a child's result). */ finalText?: string };
@@ -16,6 +19,8 @@ export type AgentRunner = (input: {
   makeModel: ModelFactory;
   /** 1 for a child started by `call_agent`: such a run never gets the tool. */
   depth?: 0 | 1;
+  /** Continue a run that stopped at `waiting-approval`: the owner's decision per tool call id. */
+  resume?: { decisions: Record<string, "approve" | "reject"> };
 }) => Promise<RunOutcome>;
 
 /** One model call plus one tools call per loop; 25 graph steps is about 12 tool rounds. */
@@ -41,8 +46,14 @@ function messageText(message: BaseMessage): string {
 
 const hasWrite = (a: Agent): boolean => a.tools.includes("write_notes");
 
-export const runAgent: AgentRunner = async ({ agent, task, runId, makeModel, depth = 0 }) => {
-  let used = 0;
+/** What the tools node answers for a write the owner rejected. */
+export const REJECTED_TEXT = "error: the owner rejected this write";
+
+type PendingCall = { id: string; name: string; args: Record<string, unknown> };
+
+export const runAgent: AgentRunner = async ({ agent, task, runId, makeModel, depth = 0, resume }) => {
+  // A resumed run continues its token count; it never starts from zero.
+  let used = resume ? (getRun(runId)?.tokensUsed ?? 0) : 0;
   let finalText = "";
 
   /** Runs `name` as a child of this run: its own row and log, its budget inside ours, one level deep. */
@@ -76,7 +87,16 @@ export const runAgent: AgentRunner = async ({ agent, task, runId, makeModel, dep
   // Set inside the graph nodes; the cast stops TypeScript narrowing it to `null` at the end.
   let stop = null as RunStatus | null;
 
-  const State = new StateSchema({ messages: MessagesValue });
+  // Approvals apply to write_note for a strict agent. A resumed run is always treated as strict, so
+  // switching approvals off while it waits can never turn a rejected write into an executed one.
+  const strictActive = byName.has("write_note") && (agent.strict || resume !== undefined);
+  const needsApproval = (callName: string): boolean => strictActive && callName === "write_note";
+
+  const State = new StateSchema({
+    messages: MessagesValue,
+    /** The owner's decision per tool call id, set by the approve node; replaced at every approval round. */
+    decisions: z.record(z.string(), z.enum(["approve", "reject"])).default({}),
+  });
 
   const agentNode = async (state: { messages: BaseMessage[] }) => {
     const remaining = agent.tokenBudget - used;
@@ -105,13 +125,19 @@ export const runAgent: AgentRunner = async ({ agent, task, runId, makeModel, dep
 
   // Our own tools node: every call gets a tool message back, even denied or failed ones, or the
   // next request to an OpenAI-compatible API is rejected.
-  const toolsNode = async (state: { messages: BaseMessage[] }) => {
+  const toolsNode = async (state: { messages: BaseMessage[]; decisions: Record<string, "approve" | "reject"> }) => {
     const last = state.messages.at(-1);
     const calls = AIMessage.isInstance(last) ? (last.tool_calls ?? []) : [];
     const results: ToolMessage[] = [];
     for (const call of calls) {
       const id = call.id ?? `call-${results.length}`;
       const found = byName.get(call.name);
+      // Fail closed: a write that needs approval runs only with an explicit "approve" for this exact call.
+      if (found && needsApproval(call.name) && state.decisions[id] !== "approve") {
+        addEvent(runId, "tool-denied", `${call.name}: the owner rejected this write`, { tool: call.name });
+        results.push(new ToolMessage({ content: REJECTED_TEXT, tool_call_id: id, name: call.name }));
+        continue;
+      }
       if (!found) {
         addEvent(runId, "tool-denied", `${call.name}: not available to this agent`, { tool: call.name });
         results.push(new ToolMessage({ content: `error: tool ${call.name} is not available to this agent`, tool_call_id: id, name: call.name }));
@@ -133,25 +159,66 @@ export const runAgent: AgentRunner = async ({ agent, task, runId, makeModel, dep
     return { messages: results };
   };
 
-  const route = (state: { messages: BaseMessage[] }): "tools" | typeof END => {
-    if (stop !== null) return END;
+  // The approve node has no side effects: a resumed graph restarts it from the top. It only collects
+  // the writes that need approval, asks once with all of them, and stores the owner's decisions.
+  const approveNode = (state: { messages: BaseMessage[] }) => {
     const last = state.messages.at(-1);
-    return AIMessage.isInstance(last) && (last.tool_calls?.length ?? 0) > 0 ? "tools" : END;
+    const calls = AIMessage.isInstance(last) ? (last.tool_calls ?? []) : [];
+    const pending: PendingCall[] = calls
+      .filter((c) => needsApproval(c.name))
+      .map((c, i) => ({ id: c.id ?? `call-${i}`, name: c.name, args: c.args as Record<string, unknown> }));
+    if (pending.length === 0) return { decisions: {} };
+    const decisions = interrupt({ calls: pending }) as Record<string, "approve" | "reject">;
+    return { decisions };
   };
 
-  const graph = new StateGraph(State)
-    .addNode("agent", agentNode)
-    .addNode("tools", toolsNode)
-    .addEdge(START, "agent")
-    .addConditionalEdges("agent", route, ["tools", END])
-    .addEdge("tools", "agent")
-    .compile();
+  const route = (state: { messages: BaseMessage[] }): "approve" | "tools" | typeof END => {
+    if (stop !== null) return END;
+    const last = state.messages.at(-1);
+    if (!(AIMessage.isInstance(last) && (last.tool_calls?.length ?? 0) > 0)) return END;
+    return strictActive ? "approve" : "tools";
+  };
+
+  const builder = new StateGraph(State).addNode("agent", agentNode).addNode("tools", toolsNode).addEdge(START, "agent");
+  // Only strict runs need a checkpointer (to pause and survive a restart); the others keep the plain graph.
+  const graph = strictActive
+    ? builder
+        .addNode("approve", approveNode)
+        .addConditionalEdges("agent", route, ["approve", "tools", END])
+        .addEdge("approve", "tools")
+        .addEdge("tools", "agent")
+        .compile({ checkpointer: getCheckpointer() })
+    : builder.addConditionalEdges("agent", route, ["tools", END]).addEdge("tools", "agent").compile();
 
   const system = `${agent.systemPrompt}\n\n${SAFETY_FRAME}\nToday is ${new Date().toISOString().slice(0, 10)}.`;
-  addEvent(runId, "prompt", truncate(redact(`${system}\n\nTask: ${task}`), 2000), { tools: [...byName.keys()] });
+  const config = { configurable: { thread_id: runId }, recursionLimit: RECURSION_LIMIT };
 
   try {
-    await graph.invoke({ messages: [new SystemMessage(system), new HumanMessage(task)] }, { recursionLimit: RECURSION_LIMIT });
+    let result: unknown;
+    if (resume) {
+      const values = Object.values(resume.decisions);
+      addEvent(runId, "stop", `resumed after the owner's decision (${values.filter((d) => d === "approve").length} approved, ${values.filter((d) => d === "reject").length} rejected)`);
+      result = await graph.invoke(new Command({ resume: resume.decisions }), config);
+    } else {
+      addEvent(runId, "prompt", truncate(redact(`${system}\n\nTask: ${task}`), 2000), { tools: [...byName.keys()] });
+      result = await graph.invoke({ messages: [new SystemMessage(system), new HumanMessage(task)] }, config);
+    }
+    if (isInterrupted(result)) {
+      const payload = (result as unknown as { __interrupt__: Array<{ value: { calls: PendingCall[] } }> }).__interrupt__[0]?.value;
+      const calls = payload?.calls ?? [];
+      for (const c of calls) {
+        let base: string | null = null;
+        try {
+          const title = typeof c.args["title"] === "string" ? c.args["title"] : "";
+          base = (await vaultGetNote(validateId(slugify(title)))).updatedAt;
+        } catch {
+          base = null; // the note does not exist (yet), or the title is not a valid id
+        }
+        createApproval({ id: randomUUID(), runId, toolCallId: c.id, tool: c.name, args: c.args, baseUpdatedAt: base });
+      }
+      addEvent(runId, "stop", `waiting for approval of ${calls.length} write${calls.length === 1 ? "" : "s"}`);
+      return { status: "waiting-approval", tokensUsed: used, error: null, finalText };
+    }
   } catch (err) {
     if (err instanceof GraphRecursionError) {
       addEvent(runId, "stop", "step limit reached");

@@ -38,7 +38,7 @@ Scope: a single-user, self-hosted instance (loopback by default, optionally expo
 | T1 | A website the owner visits calls `localhost:3001` and reads or writes notes | loopback bind, no CORS, Host check (anti DNS rebinding), Origin check | built | `access.test.ts` |
 | T2 | A LAN device reaches the API | default bind 127.0.0.1; non-local bind refused without `VIGIL_TOKEN` | built | `access.test.ts` |
 | T3 | Token guessing | constant-time compare; login rate limit (5 failures/min/IP, then 429) | token built; login planned (WP12) | `login.test.ts` |
-| T4 | Prompt injection in a note makes an agent do something harmful | agent has only granted tools; no shell; writes snapshotted, logged, undoable; strict mode for risky agents; untrusted-data framing in the system prompt | built (strict planned) | `agents.test.ts` |
+| T4 | Prompt injection in a note makes an agent do something harmful | agent has only granted tools; no shell; writes snapshotted, logged, undoable; strict mode for risky agents; untrusted-data framing in the system prompt | built (incl. strict mode) | `agents.test.ts` |
 | T5 | Injected agent leaks note text through a URL | `web_fetch` needs a per-agent host allowlist; empty list refuses everything; instance-wide web switch; approvals on by default for new agents; the UI warns when read + fetch run without approvals; full URL logged | planned (WP10, WP8, WP3-T5) | `safe-fetch.test.ts`, `permissions.test.ts` |
 | T6 | SSRF to localhost, LAN, cloud metadata | address block list incl. `169.254.169.254` and IPv4-mapped IPv6; resolve-validate-pin; per-hop redirect checks; ports 80/443 only | planned (WP10) | `safe-fetch.test.ts` |
 | T7 | Key leaks into logs, events, errors or API responses | env only; `redact` on events and errors; `/api/llm/status` never returns the key | built (status planned) | `agents.test.ts`, status test |
@@ -50,7 +50,7 @@ Scope: a single-user, self-hosted instance (loopback by default, optionally expo
 | T13 | Login CSRF / cookie theft | `HttpOnly`, `SameSite=Strict`, `Secure` over HTTPS; Origin check on every request | planned (WP12) | `login.test.ts` |
 | T14 | Duplicate side effects (double run, double write) | persist-before-run for cron and heartbeat; approval node holds no side effects; run lock | built/planned | `scheduler.test.ts`, `agents.test.ts` |
 | T15 | Container escape or root in the container | non-root `node` user; no extra capabilities documented; vault is a mounted volume | planned (WP12) | manual |
-| T17 | A stale approval overwrites a newer human edit | approval stores the note's `updatedAt`; approving after a change answers `409 approval-stale`; apply-anyway needs `force`, snapshot first | planned (WP8) | `agents.test.ts` |
+| T17 | A stale approval overwrites a newer human edit | approval stores the note's `updatedAt`; approving after a change answers `409 approval-stale`; apply-anyway needs `force`, snapshot first | built (WP8) | `approvals.test.ts` |
 | T18 | Event stream leaks data or exhausts connections | events carry ids, statuses and counts only (run-event: run id, seq and kind, never text), never bodies, prompts or keys; 20-stream cap; same `checkAccess` | built (WP4-T9) | `events.test.ts` |
 | T16 | Malicious dependency | exact pins for the LangChain family and agent-adjacent libraries; lockfile committed; `pnpm install --frozen-lockfile` in CI | partly built | CI |
 

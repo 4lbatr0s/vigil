@@ -54,7 +54,7 @@ async function req(method: string, p: string, body?: unknown): Promise<{ status:
 
 describe("agents and runs api", () => {
   it("defines an agent, runs it, shows the log, and undoes it", async () => {
-    const put = await req("PUT", "/api/agents/digest", { name: "digest", systemPrompt: "Write a digest.", tools: ["write_notes"], tokenBudget: 500 });
+    const put = await req("PUT", "/api/agents/digest", { name: "digest", systemPrompt: "Write a digest.", tools: ["write_notes"], tokenBudget: 500, strict: false });
     expect(put.status).toBe(200);
     expect((await req("GET", "/api/agents")).json.data).toHaveLength(1);
     expect((await req("GET", "/api/agents/digest")).json.data).toMatchObject({ trigger: { kind: "manual" }, tokenBudget: 500 });

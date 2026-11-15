@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { Run } from "@vigil/shared";
+import type { Agent, Run } from "@vigil/shared";
 import { runAgent, type AgentRunner } from "./agent-runtime";
 import { AppError } from "./errors";
 import { effectiveAgent } from "./permissions";
@@ -7,15 +7,18 @@ import { reindexNote, removeNote } from "./index-db";
 import { withNoteLock } from "./lock";
 import { modelFactoryFromEnv, redact, type ModelFactory } from "./llm";
 import {
+  approvalsForRun,
   createRun,
   finishRun,
   getAgent,
   getRun,
   hasRunning,
   listChildRuns,
+  listWaitingRunIds,
   listSnapshots,
   listSnapshotsInOrder,
   markUndone,
+  setRunStatus,
   readSnapshotFile,
 } from "./state-db";
 import { deleteNote, getNote, restoreNoteFile } from "./vault";
@@ -46,23 +49,63 @@ export function startRun(agentName: string, task?: string, trigger: Run["trigger
     throw new AppError("agent-busy", `Agent ${agentName} already has a run in progress`, 409);
   }
   const run = createRun(randomUUID(), agent.name, agent.tokenBudget, trigger);
+  launch(run.id, agent, task ?? agent.defaultTask);
+  return run;
+}
+
+/** Runs the agent in the background. A run that stops at `waiting-approval` is not finished: it waits for the owner. */
+function launch(runId: string, agent: Agent, task: string, resume?: { decisions: Record<string, "approve" | "reject"> }): void {
   const work = (async () => {
     try {
-      const outcome = await deps.runner({
-        agent,
-        task: task ?? agent.defaultTask,
-        runId: run.id,
-        makeModel: deps.makeModel,
-      });
-      finishRun(run.id, outcome.status, outcome.tokensUsed, outcome.error);
+      const outcome = await deps.runner({ agent, task, runId, makeModel: deps.makeModel, ...(resume ? { resume } : {}) });
+      if (outcome.status === "waiting-approval") setRunStatus(runId, "waiting-approval");
+      else finishRun(runId, outcome.status, outcome.tokensUsed, outcome.error);
     } catch (err) {
       // The runner reports its own failures; this catches a bug in the runner itself.
-      finishRun(run.id, "failed", 0, redact(err instanceof Error ? err.message : "run failed"));
+      finishRun(runId, "failed", 0, redact(err instanceof Error ? err.message : "run failed"));
     }
   })();
   inFlight.add(work);
   void work.finally(() => inFlight.delete(work));
-  return run;
+}
+
+/**
+ * Continue a run that waits for approval once every one of its approvals is decided: the decisions
+ * go back into the paused graph. Throws 409 when the run is not waiting or something is still pending.
+ */
+export function resumeRun(runId: string): Run {
+  const run = getRun(runId);
+  if (!run) throw new AppError("run-not-found", `Run not found: ${runId}`, 404);
+  if (run.status !== "waiting-approval") throw new AppError("run-not-waiting", "This run is not waiting for approval", 409);
+  const approvals = approvalsForRun(runId);
+  if (approvals.length === 0 || approvals.some((a) => a.status === "pending")) {
+    throw new AppError("approvals-pending", "Some writes of this run are still waiting for a decision", 409);
+  }
+  const decisions: Record<string, "approve" | "reject"> = {};
+  for (const a of approvals) decisions[a.toolCallId] = a.status === "approved" ? "approve" : "reject";
+  const stored = getAgent(run.agent);
+  if (!stored) {
+    finishRun(runId, "failed", run.tokensUsed, `agent ${run.agent} no longer exists`);
+    return getRun(runId) as Run;
+  }
+  // The budget the run started with stays; tools and limits follow the owner's settings as of now.
+  const agent = { ...effectiveAgent(stored), tokenBudget: run.tokenBudget };
+  setRunStatus(runId, "running");
+  launch(runId, agent, agent.defaultTask, { decisions });
+  return getRun(runId) as Run;
+}
+
+/** At start: resume runs whose approvals were all decided just before a restart or crash. Runs still waiting stay waiting. */
+export function resumeDecidedRuns(): number {
+  let resumed = 0;
+  for (const id of listWaitingRunIds()) {
+    const approvals = approvalsForRun(id);
+    if (approvals.length > 0 && approvals.every((a) => a.status !== "pending")) {
+      resumeRun(id);
+      resumed += 1;
+    }
+  }
+  return resumed;
 }
 
 /**
