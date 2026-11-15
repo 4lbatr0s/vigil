@@ -149,4 +149,14 @@ describe("agents and runs api", () => {
     expect(res.json.data).toMatchObject({ cap: null, level: "ok" });
     expect(typeof res.json.data.tokens).toBe("number");
   });
+
+  it("GET /api/llm/status hides the key and only probes on request", async () => {
+    process.env.VIGIL_LLM_API_KEY = "sk-never-leak-this-key-9876";
+    process.env.VIGIL_LLM_PROVIDER = "ollama";
+    process.env.VIGIL_LLM_BASE_URL = "http://127.0.0.1:1";
+    const res = await req("GET", "/api/llm/status");
+    expect(res.json.data).toMatchObject({ provider: "ollama", hasKey: true, reachable: null });
+    expect(JSON.stringify(res.json)).not.toContain("sk-never-leak-this-key-9876");
+    expect((await req("GET", "/api/llm/status?probe=1")).json.data.reachable).toBe(false);
+  });
 });
