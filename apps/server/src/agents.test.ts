@@ -8,10 +8,11 @@ import { AgentSchema, type Agent } from "@vigil/shared";
 import { runAgent } from "./agent-runtime";
 import { truncate, MAX_TOOL_OUTPUT } from "./agent-tools";
 import { closeDb, getNote as indexGet, reindexNote } from "./index-db";
+import { withNoteLock } from "./lock";
 import { modelFactoryFromEnv, redact, type ModelFactory } from "./llm";
 import { setRunDeps, startRun, undoRun, waitForRuns } from "./runs";
-import { closeState, createRun, getRun, listEvents, listSnapshots, putAgent } from "./state-db";
-import { createNote, getNote, updateNote } from "./vault";
+import { closeState, createRun, finishRun, getRun, listEvents, listSnapshots, putAgent, recordSnapshot } from "./state-db";
+import { createNote, getNote, readNoteFile, updateNote } from "./vault";
 
 let root = "";
 const saved = { ...process.env };
@@ -209,6 +210,54 @@ describe("undo", () => {
     putAgent(agent());
     createRun("live", "morning-digest", 100);
     await expect(undoRun("live")).rejects.toMatchObject({ code: "run-active" });
+  });
+
+  it("two concurrent undos of one run: one succeeds, the other answers already-undone", async () => {
+    await writeAs("a4", "Fresh", "created once");
+    const runId = (await import("./state-db")).listRuns("a4")[0]!.id;
+    const settled = await Promise.allSettled([undoRun(runId), undoRun(runId)]);
+    const fulfilled = settled.filter((s) => s.status === "fulfilled");
+    const rejected = settled.filter((s) => s.status === "rejected");
+    expect(fulfilled).toHaveLength(1);
+    expect(rejected).toHaveLength(1);
+    expect(rejected[0]?.reason).toMatchObject({ code: "already-undone", status: 409 });
+    await expect(getNote("fresh")).rejects.toMatchObject({ code: "note-not-found" });
+    expect(indexGet("fresh")).toBeNull();
+  });
+
+  it("leaves a note alone when its snapshot has no recorded write time", async () => {
+    await seedNote("Plan", "original");
+    const created = createRun("a5", "morning-digest", 100);
+    const raw = await readNoteFile("plan");
+    expect(raw).not.toBeNull();
+    await recordSnapshot(created.id, "plan", raw!);
+    // No `setWrittenUpdatedAt`: the agent never finished writing this note.
+    await updateNote("plan", { body: "human edit" });
+    // A run row starts `running` and undo refuses it, so close the run before undoing.
+    finishRun(created.id, "succeeded", 0, null);
+    const undone = await undoRun(created.id);
+    expect(undone.undone).toBe(true);
+    expect((await getNote("plan")).body).toBe("human edit");
+    expect(undone.touched).toContain("plan");
+  });
+
+  it("an API save and an undo never interleave", async () => {
+    await seedNote("Plan", "original");
+    await writeAs("a6", "Digest", "created by agent");
+    const runId = (await import("./state-db")).listRuns("a6")[0]!.id;
+    const log: string[] = [];
+    // The PUT-like save runs under the note lock, like the real notes API does.
+    const save = withNoteLock(async () => {
+      log.push("save-start");
+      await updateNote("plan", { body: "human edit" });
+      log.push("save-end");
+    });
+    const undo = undoRun(runId).then(() => log.push("undo-end"));
+    await Promise.all([save, undo]);
+    // The undo waited for the lock: the whole save happened before any undo step ran.
+    expect(log).toEqual(["save-start", "save-end", "undo-end"]);
+    expect((await getNote("plan")).body).toBe("human edit");
+    await expect(getNote("digest")).rejects.toMatchObject({ code: "note-not-found" });
   });
 });
 
