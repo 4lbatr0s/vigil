@@ -121,6 +121,18 @@ describe("api client", () => {
       ]);
     });
 
+    it("encodes path segments so an id cannot climb to another route", async () => {
+      const spy = stubFetch({ data: {} });
+      await runAgent("../runs/r1/undo?");
+      await getRun("a/b");
+      await getNote("../x");
+      expect(calls(spy).map(([url]) => url)).toEqual([
+        "/api/agents/..%2Fruns%2Fr1%2Fundo%3F/run",
+        "/api/runs/a%2Fb",
+        "/api/notes/..%2Fx",
+      ]);
+    });
+
     it("throws an ApiError with the code and a plain detail", async () => {
       stubFetch({ error: { code: "undo-conflict", message: "Edited after the agent wrote it" } });
       const err = await undoRun("r1").catch((e: unknown) => e);

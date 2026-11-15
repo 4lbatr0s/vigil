@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { page } from "$app/state";
-  import type { Agent, PermissionSettings, Run } from "@vigil/shared";
+  import { AgentNameSchema, type Agent, type PermissionSettings, type Run } from "@vigil/shared";
   import { ApiError, getAgent, getPermissions, getSchedule, listRuns, putAgent, runAgent, type Schedule } from "$lib/api";
   import { agentToForm, describeGrants, formToAgent, riskyCombination, type AgentForm } from "$lib/agent-form";
   import { formatStamp } from "$lib/format";
@@ -28,6 +28,10 @@
   const dirty = $derived(agent !== null && form !== null && JSON.stringify(agentToForm(agent)) !== JSON.stringify(form));
 
   async function load(): Promise<void> {
+    if (!AgentNameSchema.safeParse(name).success) {
+      loadError = "That is not a valid agent name.";
+      return;
+    }
     try {
       [agent, settings] = await Promise.all([getAgent(name), getPermissions()]);
       form = agentToForm(agent);
@@ -47,7 +51,8 @@
 
   onMount(() => {
     void load();
-    return visiblePoll(refreshRuns, 3000);
+    // An invalid name never reaches the API, not even through the run list.
+    return AgentNameSchema.safeParse(name).success ? visiblePoll(refreshRuns, 3000) : undefined;
   });
 
   async function save(overrides: Partial<AgentForm> = {}): Promise<boolean> {
