@@ -91,6 +91,11 @@
     ]);
     const Sigma = sigmaModule.default;
     const { DEFAULT_STYLES } = sigmaModule;
+    // The container's styles can arrive a frame after the script (dev server, slow disk): wait until it has a size.
+    for (let i = 0; i < 30 && (container.clientHeight === 0 || container.clientWidth === 0); i++) {
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    }
+    if (!container.isConnected) return; // the page was left while waiting
     teardown();
     amber = token("--amber");
     ink = token("--ink");

@@ -1115,11 +1115,11 @@ Cheaper models and hurried people tend to do these. Each one has already caused 
 - [x] Gate command green on a fresh clone (`pnpm install --frozen-lockfile && pnpm typecheck && pnpm test`). *Checked 2026-11-15 on a fresh clone: typecheck and all tests pass.*
 - [x] `git status` clean after the full test run; no changes under `data/` or `vault/`. *Clean; no data/ or vault/ created in the clone.*
 - [x] Docker image builds; run, health, 401 without token, 200 with token, restart keeps data (WP12-T4). *Checked 2026-11-15, output in the WP12 commit message.*
-- [ ] Morning Digest demo works end to end with a real model on a fresh volume, including undo. *Done on a real local model with undo (WP4), not yet on a fresh Docker volume.*
+- [x] Morning Digest demo works end to end with a real model on a fresh volume, including undo. *Done 2026-11-15 on a fresh Docker volume with Ollama on the host: run succeeded, digest written, undo removed it.*
 - [x] Strict mode demo: approval queue, restart while waiting, approve. *Done on a real local model, including a restart while waiting (WP8).*
 - [ ] Heartbeat demo: no run while idle; one run after an edit. *One run after an edit observed (WP6); the 'no run while idle after its own write' part is covered by tests, not observed live.*
 - [ ] Web fetch demo: allowed host works; loopback URL refused and logged. *Live fetch of an allowed host and refusals checked against the real network; the Research Scout agent was not run on a model.*
-- [ ] Graph opens on the demo vault; fallback list works without WebGL. *Graph checked in a browser; the list view and the no-WebGL fallback were not exercised.*
+- [x] Graph opens on the demo vault; fallback list works without WebGL. *Checked in a browser: graph draws and the list view toggle works. The automatic no-WebGL fallback was not forced.*
 - [ ] Keyboard-only pass over every page; contrast test passes; reduced-motion pass. *Contrast and reduced-motion rules are tested; a manual keyboard pass over every page is still to do.*
 - [x] `grep -rn "sk-\|api_key" apps packages --include=*.ts --include=*.svelte` shows no real secrets; `git log -p | grep -i "api_key=" ` shows none. *Only test fixtures match; none in history.*
 - [ ] README commands copy-paste correctly on a clean directory; every README claim exists in the code. *Docker commands verified; a clean-machine run is still to do.*
