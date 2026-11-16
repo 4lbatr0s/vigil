@@ -40,18 +40,35 @@ class BulletWidget extends WidgetType {
   }
 }
 
+class RuleWidget extends WidgetType {
+  override eq(): boolean {
+    return true;
+  }
+  override toDOM(): HTMLElement {
+    const el = document.createElement("span");
+    el.className = "cm-rule";
+    el.setAttribute("aria-hidden", "true");
+    return el;
+  }
+}
+
 const HIDE = Decoration.replace({});
+const RULE = Decoration.replace({ widget: new RuleWidget() });
+const CALLOUT = /^>\s*\[!([A-Za-z]+)\]/;
 const BULLET = Decoration.replace({ widget: new BulletWidget() });
 const WIKILINK = /\[\[([^\]\n]+)\]\]/g;
+const INLINE_TAG = /(^|[\s(])#([a-zA-Z][\w-]*(?:\/[\w-]+)*)/gm;
 
 export type Range2 = { from: number; to: number };
 
 /**
  * All live-preview decorations for `state`, limited to `range` when given (the visible part plus
  * margin). Markup marks are hidden except on lines that hold the selection, so the line being
- * edited shows its raw text. Pure: no view needed.
+ * edited shows its raw text. Pure: no view needed. When `title` is given, a first-line `# title` that
+ * repeats it is hidden (the page shows the title already) until the editor has focus with the cursor on that line
+ * (`focused` is false while it has not, so a freshly opened note, whose cursor sits at the start, shows no duplicate).
  */
-export function buildDecorations(state: EditorState, range?: Range2): DecorationSet {
+export function buildDecorations(state: EditorState, range?: Range2, title?: string, focused = true): DecorationSet {
   const doc = state.doc;
   const from = Math.max(0, range?.from ?? 0);
   const to = Math.min(doc.length, range?.to ?? doc.length);
@@ -127,8 +144,27 @@ export function buildDecorations(state: EditorState, range?: Range2): Decoration
           hide(close.from, last.to);
           return;
         }
-        case "Blockquote":
-          lineDeco(node.from, node.to, "cm-quote");
+        case "Blockquote": {
+          const callout = CALLOUT.exec(doc.lineAt(node.from).text);
+          if (callout) {
+            lineDeco(node.from, node.to, `cm-callout cm-callout-${(callout[1] as string).toLowerCase()}`);
+          } else {
+            lineDeco(node.from, node.to, "cm-quote");
+          }
+          return;
+        }
+        case "HorizontalRule":
+          if (!lineActive(node.from)) out.push(RULE.range(node.from, node.to));
+          return;
+        case "Table":
+          lineDeco(node.from, node.to, "cm-table");
+          return;
+        case "TableHeader":
+          lineDeco(node.from, node.to, "cm-table-head");
+          return;
+        case "TableDelimiter":
+          // The `| --- | --- |` row is a direct child of the table; the pipes inside rows are not.
+          if (node.node.parent?.name === "Table") lineDeco(node.from, node.to, "cm-table-rule");
           return;
         case "QuoteMark": {
           const line = doc.lineAt(node.from);
@@ -159,8 +195,27 @@ export function buildDecorations(state: EditorState, range?: Range2): Decoration
     },
   });
 
-  // Wikilinks: a text pass over the range, skipping anything inside code.
+  if (title !== undefined && title.trim() !== "") {
+    const first = doc.line(1);
+    const m = /^#\s+(.*?)\s*#*\s*$/.exec(first.text);
+    if (m && (m[1] as string).trim().toLowerCase() === title.trim().toLowerCase() && !(focused && lineActive(first.from)) && first.from >= from && first.from <= to) {
+      // Drop what was decided for that line and hide all of it instead.
+      for (let i = out.length - 1; i >= 0; i--) {
+        const d = out[i] as Range<Decoration>;
+        if (d.from >= first.from && d.to <= first.to) out.splice(i, 1);
+      }
+      if (first.to > first.from) out.push(HIDE.range(first.from, first.to));
+    }
+  }
+
+  // Wikilinks and #tags: a text pass over the range, skipping anything inside code.
   const text = doc.sliceString(from, to);
+  for (const m of text.matchAll(INLINE_TAG)) {
+    const a = from + (m.index ?? 0) + (m[1] ?? "").length;
+    const b = a + (m[2] ?? "").length + 1;
+    if (codeRanges.some((c) => a < c.to && b > c.from)) continue;
+    out.push(Decoration.mark({ class: "cm-tag" }).range(a, b));
+  }
   for (const m of text.matchAll(WIKILINK)) {
     const a = from + (m.index ?? 0);
     const b = a + m[0].length;
@@ -212,16 +267,21 @@ export function linkUrlAt(state: EditorState, pos: number): string | null {
   return null;
 }
 
-class LivePreviewPlugin {
-  decorations: DecorationSet;
-  constructor(view: EditorView) {
-    this.decorations = buildDecorations(view.state, view.viewport);
-  }
-  update(update: ViewUpdate): void {
-    if (update.docChanged || update.selectionSet || update.viewportChanged) {
-      this.decorations = buildDecorations(update.state, update.view.viewport);
-    }
-  }
+function pluginFor(getTitle: () => string | undefined) {
+  return ViewPlugin.fromClass(
+    class {
+      decorations: DecorationSet;
+      constructor(view: EditorView) {
+        this.decorations = buildDecorations(view.state, view.viewport, getTitle(), view.hasFocus);
+      }
+      update(update: ViewUpdate): void {
+        if (update.docChanged || update.selectionSet || update.viewportChanged || update.focusChanged) {
+          this.decorations = buildDecorations(update.state, update.view.viewport, getTitle(), update.view.hasFocus);
+        }
+      }
+    },
+    { decorations: (v) => v.decorations },
+  );
 }
 
 const theme = EditorView.baseTheme({
@@ -235,6 +295,14 @@ const theme = EditorView.baseTheme({
   ".cm-code": { fontFamily: "var(--font-mono)", fontSize: "0.9em", backgroundColor: "var(--surface)" },
   ".cm-codeblock": { fontFamily: "var(--font-mono)", fontSize: "0.9em", backgroundColor: "var(--surface)" },
   ".cm-quote": { borderLeft: "2px solid var(--hairline)", paddingLeft: "var(--space-3)", color: "var(--ink-muted)" },
+  ".cm-tag": { color: "var(--ink-muted)", fontFamily: "var(--font-chrome)", fontSize: "0.85em", backgroundColor: "var(--surface)", borderRadius: "var(--radius)", padding: "0 3px" },
+  ".cm-callout": { borderLeft: "3px solid var(--ink-muted)", paddingLeft: "var(--space-3)", backgroundColor: "var(--surface)" },
+  ".cm-callout-warning, .cm-callout-danger, .cm-callout-caution": { borderLeftColor: "var(--err)" },
+  ".cm-callout-tip, .cm-callout-success": { borderLeftColor: "var(--ok)" },
+  ".cm-rule": { display: "inline-block", width: "100%", height: "0", verticalAlign: "middle", borderTop: "1px solid var(--hairline)" },
+  ".cm-table": { fontFamily: "var(--font-mono)", fontSize: "0.9em", backgroundColor: "var(--surface)", whiteSpace: "pre" },
+  ".cm-table-head": { fontWeight: "600" },
+  ".cm-table-rule": { color: "var(--ink-muted)" },
   ".cm-link": { textDecoration: "underline", textUnderlineOffset: "2px" },
   ".cm-wikilink": { textDecoration: "underline dotted", textUnderlineOffset: "3px", cursor: "pointer" },
   ".cm-bullet": { color: "var(--ink-muted)", display: "inline-block", width: "1.2em" },
@@ -246,9 +314,9 @@ const theme = EditorView.baseTheme({
  * The live-preview extension. Cmd/Ctrl+click opens a wikilink (through `onOpenWikilink`) or a
  * safe link in a new tab; a plain click only places the cursor. Clicking a task checkbox flips it.
  */
-export function livePreview(options: { onOpenWikilink?: (title: string) => void } = {}): Extension {
+export function livePreview(options: { onOpenWikilink?: (title: string) => void; getTitle?: () => string | undefined } = {}): Extension {
   return [
-    ViewPlugin.fromClass(LivePreviewPlugin, { decorations: (v) => v.decorations }),
+    pluginFor(() => options.getTitle?.()),
     theme,
     EditorView.domEventHandlers({
       mousedown(event, view) {

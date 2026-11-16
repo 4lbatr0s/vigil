@@ -3,6 +3,7 @@ import { syntaxTree } from "@codemirror/language";
 import type { EditorState, Extension } from "@codemirror/state";
 import type { EditorView } from "@codemirror/view";
 import { rank } from "../fuzzy";
+import { completeSlash } from "./slash";
 
 const CODE = new Set(["FencedCode", "CodeBlock", "InlineCode"]);
 
@@ -44,7 +45,7 @@ export function completeWikilink(context: CompletionContext, titles: string[]): 
   return { from, options, filter: false };
 }
 
-/** The autocompletion extension, reading the current titles each time it opens. */
+/** The autocompletion extension: `[[` offers note titles (read each time it opens), `/` at a line start offers blocks. */
 export function wikilinkCompletion(getTitles: () => string[]): Extension {
-  return autocompletion({ override: [(context) => completeWikilink(context, getTitles())], icons: false, defaultKeymap: true });
+  return autocompletion({ override: [(context) => completeWikilink(context, getTitles()), completeSlash], icons: false, defaultKeymap: true });
 }

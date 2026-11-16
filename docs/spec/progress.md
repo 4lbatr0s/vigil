@@ -120,7 +120,7 @@ Legend: `[x]` done, `[ ]` not done. Add a short note after a task only for a dev
 
 - [x] UI-1: Shell, tokens, responsive (labelled nav, icon rail, drawer, slide-over list, search field, empty states). *Done 2026-11-17: checked at 1568, 900 and 390 px (media queries evaluated in the page, since the browser window cannot be resized) in dark and light; not checked on a real phone.*
 - [x] UI-2: Note list people expect (search box, snippets, tags, pins, sort). *Done 2026-11-17: pins live in state.db (migration 7), not in note files, so a pin never changes author or mtime; index schema 4 adds snippet and all tags; nested tag tree not built (chips show full paths).*
-- [ ] UI-3: Writing surface (inline title, formatting keys, selection toolbar, slash menu, tables, callouts, images)
+- [x] UI-3: Writing surface (inline title, formatting keys, selection toolbar, slash menu, tables, callouts). *Done 2026-11-17: tables are styled mono rows (no grid widget); image paste and rendering, and focus mode, are not built: images need an attachments route and a threat-model entry first.*
 - [ ] UI-4: Agents inside the note (provenance bar, activity panel, review changes, ask an agent)
 - [ ] UI-5: Today view and onboarding
 - [ ] UI-6: Polish, benchmark rubric, README screenshots and demo

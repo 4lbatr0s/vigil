@@ -138,3 +138,47 @@ describe("click helpers", () => {
     expect(isSafeUrl("data:text/html,x")).toBe(false);
   });
 });
+
+describe("blocks added in UI v2", () => {
+  const classes = (s: EditorState) => items(s).map((i) => i.cls).filter(Boolean) as string[];
+  it("marks callouts by type and plain quotes as quotes", () => {
+    const s = state("> [!warning] Careful\n> body\n\n> just a quote", 0);
+    expect(classes(s).filter((c) => c.startsWith("cm-callout")).length).toBeGreaterThan(0);
+    expect(classes(s).some((c) => c.includes("cm-callout-warning"))).toBe(true);
+    expect(classes(s)).toContain("cm-quote");
+  });
+  it("styles table rows and replaces a divider away from the cursor", () => {
+    const doc = "intro\n\n| A | B |\n| --- | --- |\n| 1 | 2 |\n\n---\n\nend";
+    const s = state(doc, 0);
+    const c = classes(s);
+    expect(c).toContain("cm-table");
+    expect(c).toContain("cm-table-head");
+    expect(c).toContain("cm-table-rule");
+    expect(replaced(s)).toContain("---"); // the divider, not the table rule row, which only gets a class
+    expect(replaced(state(doc, doc.indexOf("---\n\nend")))).not.toContain("---"); // the cursor line stays raw
+  });
+  it("hides a first line heading that repeats the title, but only until the cursor is on it", () => {
+    const doc = "# Budget\n\nBody text";
+    const hidden = (cursor: number, title?: string): string[] => {
+      const out: string[] = [];
+      buildDecorations(state(doc, cursor), undefined, title).between(0, doc.length, (a, b, v) => {
+        if ((v as unknown as { point: boolean }).point && b > a) out.push(doc.slice(a, b));
+      });
+      return out;
+    };
+    expect(hidden(doc.length)).toEqual(["# "]); // no title given: only the mark goes
+    expect(hidden(doc.length, "budget")).toEqual(["# Budget"]); // same title, any case: the whole line goes
+    expect(hidden(3, "Budget")).not.toContain("# Budget"); // the cursor is on it: raw text
+    expect(hidden(doc.length, "Something else")).toEqual(["# "]); // a different heading stays
+    const unfocused: string[] = [];
+    buildDecorations(state(doc, 0), undefined, "Budget", false).between(0, doc.length, (a, b, v) => {
+      if ((v as unknown as { point: boolean }).point && b > a) unfocused.push(doc.slice(a, b));
+    });
+    expect(unfocused).toEqual(["# Budget"]); // cursor at the start but no focus: still hidden
+  });
+  it("styles inline #tags but not inside code", () => {
+    const doc = "Plan #work/launch and `#code`\n\n```\n#fenced\n```";
+    const tagged = items(state(doc, doc.length)).filter((i) => i.cls === "cm-tag").map((i) => doc.slice(i.from, i.to));
+    expect(tagged).toEqual(["#work/launch"]);
+  });
+});

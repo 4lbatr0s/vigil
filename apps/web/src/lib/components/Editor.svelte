@@ -1,7 +1,7 @@
 <script lang="ts">
   import { untrack } from "svelte";
-  import { EditorState } from "@codemirror/state";
-  import { EditorView } from "@codemirror/view";
+  import { EditorState, Prec } from "@codemirror/state";
+  import { EditorView, keymap } from "@codemirror/view";
   import { minimalSetup } from "codemirror";
   import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
   import { languages } from "@codemirror/language-data";
@@ -9,6 +9,8 @@
   import { tags } from "@lezer/highlight";
   import { livePreview } from "$lib/editor/livePreview";
   import { wikilinkCompletion } from "$lib/editor/wikilinkComplete";
+  import { boldCommand, codeCommand, headingCommand, indentCommand, italicCommand, lineCommand, linkCommand, outdentCommand, strikeCommand } from "$lib/editor/format";
+  import SelectionToolbar from "$lib/components/SelectionToolbar.svelte";
 
   let {
     value = "",
@@ -16,6 +18,7 @@
     onDocChange,
     onOpenWikilink,
     getTitles,
+    getTitle,
   }: {
     value?: string;
     noteId?: string;
@@ -24,10 +27,52 @@
     onOpenWikilink?: (title: string) => void;
     /** Note titles for `[[` completion, read each time the list opens. */
     getTitles?: () => string[];
+    /** The note's title: a first-line `# Title` that repeats it is hidden, the page shows it already. */
+    getTitle?: () => string | undefined;
   } = $props();
 
   let host = $state<HTMLDivElement | undefined>(undefined);
   let view = $state.raw<EditorView | undefined>(undefined);
+  let wrap = $state<HTMLDivElement | undefined>(undefined);
+  /** Where the floating format toolbar sits while text is selected, relative to the editor. */
+  let bar = $state<{ left: number; top: number } | null>(null);
+
+  function placeBar(v: EditorView): void {
+    const sel = v.state.selection.main;
+    if (sel.empty || !v.hasFocus || !wrap) {
+      bar = null;
+      return;
+    }
+    const at = v.coordsAtPos(sel.from);
+    if (!at) {
+      bar = null;
+      return;
+    }
+    const box = wrap.getBoundingClientRect();
+    const width = 8 * 30 + 7 * 2 + 10; // eight buttons, gaps and padding
+    const left = Math.min(Math.max(0, at.left - box.left), Math.max(0, box.width - width));
+    const above = at.top - box.top - 44;
+    bar = { left, top: above >= 0 ? above : at.bottom - box.top + 8 };
+  }
+
+  // Keys: Mod is Cmd on a Mac and Ctrl elsewhere. Tab only acts inside a list, so it never traps keyboard focus.
+  const formatKeys = Prec.high(
+    keymap.of([
+      { key: "Mod-b", run: boldCommand },
+      { key: "Mod-i", run: italicCommand },
+      { key: "Mod-e", run: codeCommand },
+      { key: "Mod-Shift-x", run: strikeCommand },
+      { key: "Mod-Shift-k", run: linkCommand },
+      { key: "Mod-Alt-1", run: headingCommand(1) },
+      { key: "Mod-Alt-2", run: headingCommand(2) },
+      { key: "Mod-Alt-3", run: headingCommand(3) },
+      { key: "Mod-Shift-8", run: lineCommand("bullet") },
+      { key: "Mod-Shift-7", run: lineCommand("number") },
+      { key: "Mod-Shift-9", run: lineCommand("task") },
+      { key: "Tab", run: indentCommand },
+      { key: "Shift-Tab", run: outdentCommand },
+    ]),
+  );
 
   // Code colors come from tokens too: ink for code, muted for comments and strings, bold for keywords.
   const highlight = HighlightStyle.define([
@@ -83,15 +128,17 @@
       state: EditorState.create({
         doc: initial,
         extensions: [
+          formatKeys,
           minimalSetup,
           syntaxHighlighting(highlight),
           markdown({ base: markdownLanguage, codeLanguages: languages }),
           wikilinkCompletion(() => getTitles?.() ?? []),
-          livePreview({ onOpenWikilink: (title) => onOpenWikilink?.(title) }),
+          livePreview({ onOpenWikilink: (title) => onOpenWikilink?.(title), getTitle: () => getTitle?.() }),
           EditorView.lineWrapping,
           theme,
           EditorView.updateListener.of((update) => {
             if (update.docChanged) onDocChange?.(update.state.doc.toString());
+            if (update.selectionSet || update.docChanged || update.focusChanged) placeBar(update.view);
           }),
         ],
       }),
@@ -102,13 +149,24 @@
     return () => {
       instance.destroy();
       if (view === instance) view = undefined;
+      bar = null;
     };
   });
 </script>
 
-<div class="editor" bind:this={host}></div>
+<div class="wrap" bind:this={wrap}>
+  <div class="editor" bind:this={host}></div>
+  {#if bar && view}
+    <SelectionToolbar {view} left={bar.left} top={bar.top} />
+  {/if}
+</div>
 
 <style>
+  .wrap {
+    position: relative;
+    height: 100%;
+  }
+
   .editor {
     height: 100%;
     overflow: hidden;

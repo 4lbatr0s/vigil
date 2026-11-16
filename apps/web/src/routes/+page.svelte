@@ -23,6 +23,27 @@
   let loadError = $state("");
   let flicker = $state(new Set<string>());
   let pins = $state<string[]>([]);
+  // The title field: edited in place, saved on Enter or when it loses focus (Escape puts the old title back).
+  let titleValue = $state("");
+  let titleFocused = $state(false);
+  $effect(() => {
+    titleValue = draft?.title ?? "";
+  });
+  const words = $derived.by(() => {
+    const text = draft?.body.trim() ?? "";
+    return text === "" ? 0 : text.split(/\s+/).length;
+  });
+
+  async function commitTitle(): Promise<void> {
+    if (!draft || !selectedId) return;
+    const next = titleValue.trim();
+    if (next === "" || next === draft.title) {
+      titleValue = draft.title;
+      return;
+    }
+    draft.title = next;
+    await persist(selectedId, draft.body);
+  }
   /** Below 1024px the list is a slide-over (ADR-0016); this says whether it is open. */
   let listOpen = $state(false);
 
@@ -236,12 +257,31 @@
     {:else}
       <header class="head">
         <button type="button" class="act list-toggle" aria-label="Show the notes list" onclick={() => (listOpen = true)}><PanelLeft size={16} strokeWidth={1.5} /> Notes</button>
-        <h1 class="title">{draft.title}</h1>
+        <input
+          class="title"
+          type="text"
+          aria-label="Note title"
+          aria-describedby={titleFocused ? "title-hint" : undefined}
+          bind:value={titleValue}
+          onfocus={() => (titleFocused = true)}
+          onblur={() => ((titleFocused = false), void commitTitle())}
+          onkeydown={(e) => {
+            if (e.key === "Enter") e.currentTarget.blur();
+            else if (e.key === "Escape") {
+              titleValue = draft?.title ?? "";
+              e.currentTarget.blur();
+            }
+          }}
+        />
         <div class="actions">
           <RenameNote noteId={selectedId ?? ""} title={draft.title} onrenamed={onRenamed} />
           <DeleteNote noteId={selectedId ?? ""} title={draft.title} ondeleted={onDeleted} />
         </div>
       </header>
+
+      {#if titleFocused}
+        <p class="title-hint" id="title-hint">The file name stays the same. Use Rename to change it.</p>
+      {/if}
 
       {#if pendingCreate}
         <div class="prompt" role="alertdialog" aria-label="Create note">
@@ -255,7 +295,7 @@
         <section class="pane editor-pane">
           <!-- The editor (CodeMirror) is the heavy part: load it after the shell and list. -->
           {#await import("$lib/components/Editor.svelte") then { default: Editor }}
-            <Editor value={draft.body} noteId={selectedId ?? ""} onDocChange={onDocChange} onOpenWikilink={(t) => void openWikilink(t)} getTitles={() => notes.map((n) => n.title)} />
+            <Editor value={draft.body} noteId={selectedId ?? ""} onDocChange={onDocChange} onOpenWikilink={(t) => void openWikilink(t)} getTitles={() => notes.map((n) => n.title)} getTitle={() => draft?.title} />
           {/await}
         </section>
       </div>
@@ -264,7 +304,7 @@
 
       <footer class="status">
         <span class="path">{selectedId}.md</span>
-        <span class="state">{status}</span>
+        <span class="state">{words} {words === 1 ? "word" : "words"}{status ? ` · ${status}` : ""}</span>
       </footer>
     {/if}
   </main>
@@ -373,7 +413,7 @@
       order: 1;
       margin-left: auto;
     }
-    .title {
+    .head .title {
       order: 2;
       flex-basis: 100%;
     }
@@ -412,11 +452,34 @@
   }
 
   .title {
+    flex: 1;
+    min-width: 0;
+    padding: var(--space-1) var(--space-2);
+    margin: 0 calc(-1 * var(--space-2));
+    border: 1px solid transparent;
+    border-radius: var(--radius);
+    background: none;
     font-family: var(--font-serif);
     font-size: var(--text-h2);
     font-weight: 600;
     line-height: 1.2;
     color: var(--ink);
+  }
+
+  .title:hover {
+    background: var(--surface-hover);
+  }
+
+  .title:focus {
+    background: var(--surface);
+    border-color: var(--hairline);
+  }
+
+  .title-hint {
+    padding: var(--space-1) var(--space-6);
+    font-size: var(--text-label);
+    color: var(--ink-muted);
+    border-bottom: 1px solid var(--hairline);
   }
 
   .panes {
