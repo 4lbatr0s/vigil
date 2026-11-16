@@ -251,7 +251,8 @@
   }
 
   .find:focus-within {
-    border-color: var(--ink-muted);
+    outline: 2px solid var(--ink);
+    outline-offset: 2px;
   }
 
   .find-input {

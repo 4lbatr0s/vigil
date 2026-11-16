@@ -251,6 +251,8 @@
   }
 
   .content {
+    /* Always the third row, even when the banner renders nothing, so it gets the 1fr and not an auto row. */
+    grid-row: 3;
     position: relative;
     min-height: 0;
     min-width: 0;

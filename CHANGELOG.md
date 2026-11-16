@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased: UI v2 (ADR-0016)
+
+A note app first, with agents inside it.
+
+- Responsive layout: labelled navigation on wide screens, icon rail in the middle, drawer and slide-over list on narrow screens; the top strip is a search field.
+- Note list: filter box with full-text hits, snippets, relative times, tag chips (frontmatter and inline `#tags`), pins (stored by the server, outside the note files) and a sort menu.
+- Writing: formatting shortcuts, floating selection toolbar, `/` menu for blocks, tables, callouts, dividers, tag pills, inline-editable title, word count.
+- Agents in the note: provenance bar with undo, agent activity per note, pending approvals shown on the note, and Ask an agent (Cmd/Ctrl J) which opens a chat with the selection filled in.
+- Today view of what agents did since you last looked, and Appearance settings (theme, text size).
+- Chat: answers stream token by token; long chats send only recent turns to the model.
+- Fixes: delete confirmation keeps keyboard focus; the graph page no longer renders with zero height when there is no banner.
+
 ## 1.0.0
 
 First release. Built in milestones; each one is a working product on its own.
