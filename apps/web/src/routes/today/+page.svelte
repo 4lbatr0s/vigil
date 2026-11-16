@@ -19,6 +19,8 @@
   let asking = $state<string | null>(null);
 
   const items = $derived(sinceVisit(runs, since));
+  const hour = new Date().getHours();
+  const greeting = hour < 5 ? "Still up?" : hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
 
   async function load(): Promise<void> {
     try {
@@ -64,7 +66,7 @@
 <div class="page">
   <header class="head">
     <div>
-      <h1>Today</h1>
+      <h1>{greeting}</h1>
       <p class="lede">What your agents did{since ? " since you last looked" : " in the last day"}.</p>
     </div>
     {#if items.length > 0}<button type="button" class="btn" onclick={seen}>Mark all as seen</button>{/if}
@@ -98,8 +100,8 @@
       <h2 id="ran">Since your last visit</h2>
       {#if items.length === 0}
         <div class="empty">
-          <p>Nothing new.</p>
-          <p class="muted">Your agents have not run since you last looked. <a href="/agents">See your agents</a>.</p>
+          <p>All quiet.</p>
+          <p class="muted">Your agents have not done anything since you last looked. <a href="/agents">See your agents</a>.</p>
         </div>
       {:else}
         <ul class="cards">

@@ -278,15 +278,15 @@
       <div class="empty-state">
         <button type="button" class="act list-toggle" onclick={() => (listOpen = true)}><PanelLeft size={16} strokeWidth={1.5} /> Notes</button>
         {#if notes.length === 0}
-          <h2>Your vault is empty.</h2>
+          <h2>A blank page, ready when you are.</h2>
           <p>Write your first note, or let an agent start one for you.</p>
           <div class="cta">
             <button type="button" class="act primary" onclick={() => document.getElementById("new-note-title")?.focus()}>Create a note</button>
             <a class="act" href="/agents">Add an agent</a>
           </div>
         {:else}
-          <h2>No note selected.</h2>
-          <p>Choose one from the list, or press ⌘K to search.</p>
+          <h2>Pick a note to keep going.</h2>
+          <p>Choose one from the list, or press ⌘K to find it.</p>
         {/if}
       </div>
     {:else}

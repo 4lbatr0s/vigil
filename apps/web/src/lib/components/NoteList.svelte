@@ -202,7 +202,7 @@
       </div>
     {:else}
       {#if notes.length === 0}
-        <p class="empty">No notes yet.</p>
+        <p class="empty">Nothing here yet. Type a title below to start your first note.</p>
       {:else}
         <div class="empty">
           <p>No notes match.</p>

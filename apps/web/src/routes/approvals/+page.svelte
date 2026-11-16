@@ -78,7 +78,7 @@
     <p class="muted">Loading…</p>
   {:else if items.length === 0}
     <section class="empty">
-      <p class="empty-title">Nothing is waiting for you.</p>
+      <p class="empty-title">All caught up. Nothing is waiting for you.</p>
       <p class="muted">Agents in approval mode will appear here before they write.</p>
     </section>
   {:else}

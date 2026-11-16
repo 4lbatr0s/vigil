@@ -128,7 +128,7 @@ Legend: `[x]` done, `[ ]` not done. Add a short note after a task only for a dev
 ## Warm UI (ADR-0018)
 
 - [x] Warm palette (charcoal with a brown undertone, warm off-white paper), 8px and 12px radii, warmer shadows. *Done 2026-11-17; contrast test green.*
-- [ ] Copy pass (kind, second person), inviting empty states with line illustrations, agent names with a lantern glyph, gentle motion polish.
+- [ ] Copy pass done for the main empty states and a time-of-day greeting on Today (2026-11-17); line illustrations, agent lantern glyphs and motion polish still to do.
 
 ## Study v1 (ADR-0017, plan in the owner's approved plan)
 
