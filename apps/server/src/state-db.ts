@@ -162,6 +162,14 @@ export const MIGRATIONS: readonly string[] = [
   CREATE INDEX reviews_at ON reviews(reviewed_at);
   CREATE INDEX reviews_note ON reviews(note_id);
   `,
+  `
+  -- migration 9: the full final answer of a run (run events are cut at 1000 characters). Used by the card
+  -- maker: its answer is the list of proposed cards.
+  CREATE TABLE run_results (
+    run_id TEXT PRIMARY KEY,
+    text TEXT NOT NULL
+  );
+  `,
 ];
 
 let current: { key: string; db: Database.Database } | null = null;
@@ -730,4 +738,15 @@ export function reviewCountsSince(since: string): { total: number; again: number
 /** Reviews per note, for the retention line on a note: [total, answered again]. */
 export function reviewCountsForNote(noteId: string): { total: number; again: number } {
   return open().prepare("SELECT COUNT(*) AS total, COALESCE(SUM(rating = 1), 0) AS again FROM reviews WHERE note_id = ?").get(noteId) as { total: number; again: number };
+}
+
+// ---- Run results (migration 9) ----
+
+export function setRunResult(runId: string, text: string): void {
+  open().prepare("INSERT INTO run_results (run_id, text) VALUES (?, ?) ON CONFLICT(run_id) DO UPDATE SET text = excluded.text").run(runId, text);
+}
+
+export function getRunResult(runId: string): string | null {
+  const row = open().prepare("SELECT text FROM run_results WHERE run_id = ?").get(runId) as { text: string } | undefined;
+  return row ? row.text : null;
 }

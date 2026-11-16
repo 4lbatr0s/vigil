@@ -3,8 +3,8 @@ import { AgentSchema } from "./index";
 import { TEMPLATES } from "./templates";
 
 describe("agent templates", () => {
-  it("ships the five v1 templates with unique ids", () => {
-    expect(TEMPLATES.map((t) => t.id)).toEqual(["morning-digest", "weekly-review", "inbox-triager", "backlink-gardener", "research-scout"]);
+  it("ships the v1 templates and the card maker with unique ids", () => {
+    expect(TEMPLATES.map((t) => t.id)).toEqual(["morning-digest", "weekly-review", "inbox-triager", "backlink-gardener", "research-scout", "card-maker"]);
     expect(new Set(TEMPLATES.map((t) => t.id)).size).toBe(TEMPLATES.length);
   });
 

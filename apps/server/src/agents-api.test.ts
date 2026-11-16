@@ -115,9 +115,9 @@ describe("agents and runs api", () => {
     expect((await req("GET", "/api/agents/nope/schedule")).status).toBe(404);
   });
 
-  it("lists five templates and creates an agent from one, switched off and unscheduled", async () => {
+  it("lists the templates and creates an agent from one, switched off and unscheduled", async () => {
     const list = await req("GET", "/api/agent-templates");
-    expect(list.json.data).toHaveLength(5);
+    expect(list.json.data).toHaveLength(6);
     const made = await req("POST", "/api/agents/from-template/morning-digest", {});
     expect(made.status).toBe(201);
     const template = list.json.data.find((t: { id: string }) => t.id === "morning-digest");

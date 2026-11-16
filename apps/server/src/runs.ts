@@ -20,6 +20,7 @@ import {
   listSnapshots,
   listSnapshotsInOrder,
   markUndone,
+  setRunResult,
   setRunStatus,
   readSnapshotFile,
 } from "./state-db";
@@ -57,6 +58,8 @@ export function startRun(agentName: string, task?: string, trigger: Run["trigger
 
 /** Records how a run ended: a run waiting for approval is not finished; a chat turn also leaves its reply in the thread. */
 function settle(runId: string, outcome: RunOutcome): void {
+  // Keep the whole answer before the run is announced as finished, so a client that sees "succeeded" can read it.
+  if (outcome.status === "succeeded" && outcome.finalText?.trim()) setRunResult(runId, redact(outcome.finalText.trim()));
   if (outcome.status === "waiting-approval") setRunStatus(runId, "waiting-approval");
   else finishRun(runId, outcome.status, outcome.tokensUsed, outcome.error);
   const thread = chatThreadForRun(runId);

@@ -26,6 +26,7 @@ import { planRename, renameNote } from "./rename";
 import { refreshSchedule } from "./scheduler";
 import { llmStatus } from "./llm-status";
 import { usage } from "./usage";
+import { getRunResult } from "./state-db";
 import { answerCard, dueCards, studyStats } from "./study";
 import { cardsForNote } from "./index-db";
 import { addPin, approvalsForRun, clearHeartbeat, decideApproval, getApproval, listApprovals, listChatThreads, getAgent, getHeartbeat, getRun, getSchedule, listAgents, listEvents, listPins, listRuns, putAgent, putSchedule, removePin } from "./state-db";
@@ -185,6 +186,32 @@ const routes: { method: string; pattern: RegExp; keys: string[]; handler: Handle
     keys: ["id"],
     handler: (_req, res, params) => {
       send(res, 200, { data: cardsForNote(params["id"] ?? "") });
+    },
+  },
+  {
+    method: "GET",
+    pattern: /^\/api\/runs\/([^/]+)\/result$/,
+    keys: ["id"],
+    handler: (_req, res, params) => {
+      const id = params["id"] ?? "";
+      if (!getRun(id)) throw new AppError("run-not-found", `Run not found: ${id}`, 404);
+      send(res, 200, { data: { text: getRunResult(id) } });
+    },
+  },
+  {
+    // The card maker reads the note and answers with card lines; the owner reviews them in the UI and saves
+    // the ones they keep. The agent has no write tool, so nothing reaches the note unreviewed (ADR-0017).
+    method: "POST",
+    pattern: /^\/api\/notes\/([^/]+)\/card-proposals$/,
+    keys: ["id"],
+    handler: (_req, res, params) => {
+      const id = params["id"] ?? "";
+      if (indexGetNote(id) === null) throw new AppError("note-not-found", `Note not found: ${id}`, 404);
+      const agent = getAgent("card-maker");
+      if (!agent) throw new AppError("agent-not-found", "Add the Card maker agent first (Agents, then the Card maker template).", 404);
+      if (!agent.enabled) throw new AppError("agent-disabled", "The Card maker agent is switched off. Turn it on from the Agents page.", 409);
+      const run = startRun("card-maker", `Make study cards from the note with id ${id}.`, "manual");
+      send(res, 202, { data: run });
     },
   },
   {
