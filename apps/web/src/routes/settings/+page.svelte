@@ -2,6 +2,7 @@
   import { onMount } from "svelte";
   import { goto } from "$app/navigation";
   import { ApiError, getLlmStatus, getPermissions, getSession, getUsage, logout, putPermissions, type LlmStatus, type Session, type Usage } from "$lib/api";
+  import { applyAppearance, loadAppearance, saveAppearance, type Appearance } from "$lib/appearance";
   import { fieldOfError, formToSettings, messageOfError, settingsToForm, type SettingsField, type SettingsForm } from "$lib/settings-form";
 
   let form = $state<SettingsForm | null>(null);
@@ -14,6 +15,13 @@
   let notice = $state("");
   let busy = $state(false);
   let probing = $state(false);
+  // Appearance lives in this browser only (it is not a server setting).
+  let look = $state<Appearance>({ theme: "system", size: "medium" });
+  function changeLook(next: Appearance): void {
+    look = next;
+    saveAppearance(next);
+    applyAppearance(next);
+  }
 
   const dirty = $derived(form !== null && saved !== null && JSON.stringify(form) !== JSON.stringify(saved));
 
@@ -25,6 +33,7 @@
   ] as const;
 
   onMount(() => {
+    look = loadAppearance();
     void (async () => {
       try {
         const [settings, status, use] = await Promise.all([getPermissions(), getLlmStatus(), getUsage()]);
@@ -84,6 +93,29 @@
 <main class="page">
   <h1>Settings</h1>
   {#if loadError}<p class="error" role="alert">{loadError}</p>{/if}
+
+  <section aria-labelledby="look">
+    <h2 id="look">Appearance</h2>
+    <p class="muted">Kept in this browser only.</p>
+    <div class="look">
+      <label class="look-field">
+        <span>Theme</span>
+        <select value={look.theme} onchange={(e) => changeLook({ ...look, theme: e.currentTarget.value === "light" || e.currentTarget.value === "dark" ? e.currentTarget.value : "system" })}>
+          <option value="system">Same as the system</option>
+          <option value="dark">Dark</option>
+          <option value="light">Light</option>
+        </select>
+      </label>
+      <label class="look-field">
+        <span>Note text size</span>
+        <select value={look.size} onchange={(e) => changeLook({ ...look, size: e.currentTarget.value === "small" || e.currentTarget.value === "large" ? e.currentTarget.value : "medium" })}>
+          <option value="small">Small</option>
+          <option value="medium">Medium</option>
+          <option value="large">Large</option>
+        </select>
+      </label>
+    </div>
+  </section>
 
   {#if form}
     <section aria-labelledby="perm">
@@ -184,6 +216,31 @@ VIGIL_MONTHLY_TOKEN_CAP=...  # optional warning level</pre>
     font-weight: 600;
     margin-bottom: var(--space-4);
   }
+  .look {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-4);
+    margin-top: var(--space-3);
+  }
+
+  .look-field {
+    display: grid;
+    gap: var(--space-1);
+    font-size: var(--text-label);
+    color: var(--ink-muted);
+  }
+
+  .look-field select {
+    min-width: 200px;
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius);
+    background: var(--surface);
+    font: inherit;
+    font-size: var(--text-ui);
+    color: var(--ink);
+  }
+
   h2 {
     font-size: var(--text-ui);
     font-weight: 600;

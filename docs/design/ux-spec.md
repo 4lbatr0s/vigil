@@ -112,6 +112,10 @@ The rail (left, 56px wide, hairline right): icon buttons stacked from the top: N
 | `409 note-conflict` | "conflict" in `--err` | an inline panel replaces the provenance bar: "This note changed on disk after you opened it." with two buttons: "Load the new version" (discards the draft after copying it to the clipboard and saying "Your text was copied.") and "Keep mine and overwrite" (reloads `updatedAt`, then saves again). Never auto-resolve. |
 | `404 note-not-found` while saving | "note was deleted" | offer "Recreate it" (creates the note from the draft) |
 
+### 3b. Today (`/today`, ADR-0016)
+
+What agents did since the owner last marked it seen (the last 24 hours the first time; the mark is kept in this browser). The navigation shows a count badge for runs since then. Sections: "Needs you" (pending approvals, each with a Review link) and "Since your last visit": one raised card per run (not chat turns) with the agent, a status dot and word, the time, the notes it changed as links, an error line when it failed, "View run" and "Undo this run" (inline confirm). "Mark all as seen" clears the list and the badge. Empty: "Nothing new." with a link to the agents. Settings has an Appearance section (theme: system, dark or light; note text size: small 16, medium 17, large 19), kept in this browser only.
+
 ## 4. Agents screen (`/agents`)
 
 ### Layout

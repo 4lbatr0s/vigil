@@ -8,6 +8,7 @@
   import { goto } from "$app/navigation";
   import { page } from "$app/state";
   import { onUnauthorized } from "$lib/api";
+  import { applyAppearance, loadAppearance } from "$lib/appearance";
   import Shell from "$lib/components/Shell.svelte";
 
   let { children } = $props();
@@ -16,6 +17,7 @@
 
   // Any 401 from the API sends the visitor to the login page, then back to where they were.
   onMount(() => {
+    applyAppearance(loadAppearance());
     onUnauthorized(() => {
       if (page.url.pathname.startsWith("/login")) return;
       const here = `${page.url.pathname}${page.url.search}`;

@@ -7,6 +7,7 @@
   import ShieldCheck from "@lucide/svelte/icons/shield-check";
   import MessageSquare from "@lucide/svelte/icons/message-square";
   import Network from "@lucide/svelte/icons/network";
+  import Sunrise from "@lucide/svelte/icons/sunrise";
   import Menu from "@lucide/svelte/icons/menu";
   import Search from "@lucide/svelte/icons/search";
   import { pendingCount, trackPending } from "$lib/approvals-state";
@@ -14,6 +15,7 @@
   import Banner from "$lib/components/Banner.svelte";
   import { onMount } from "svelte";
   import { startLive } from "$lib/live";
+  import { trackUnseen, unseenCount } from "$lib/today";
 
   let { children }: { children: Snippet } = $props();
   let paletteOpen = $state(false);
@@ -31,9 +33,11 @@
   onMount(() => {
     const stopLive = startLive();
     const stopPending = trackPending();
+    const stopUnseen = trackUnseen();
     return () => {
       stopLive();
       stopPending();
+      stopUnseen();
     };
   });
 
@@ -48,6 +52,7 @@
 
   const items = [
     { href: "/", label: "Notes", icon: NotebookText, match: (p: string) => p === "/" },
+    { href: "/today", label: "Today", icon: Sunrise, match: (p: string) => p.startsWith("/today") },
     { href: "/agents", label: "Agents", icon: Bot, match: (p: string) => p.startsWith("/agents") || p.startsWith("/runs") },
     { href: "/chat", label: "Chat", icon: MessageSquare, match: (p: string) => p.startsWith("/chat") },
     { href: "/graph", label: "Graph", icon: Network, match: (p: string) => p.startsWith("/graph") },
@@ -80,6 +85,8 @@
         <span class="text">{item.label}</span>
         {#if item.href === "/approvals" && $pendingCount > 0}
           <span class="badge" aria-label={`${$pendingCount} waiting`}>{$pendingCount}</span>
+        {:else if item.href === "/today" && $unseenCount > 0}
+          <span class="badge" aria-label={`${$unseenCount} new`}>{$unseenCount > 99 ? "99+" : $unseenCount}</span>
         {/if}
       </a>
     {/each}

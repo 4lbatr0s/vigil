@@ -122,7 +122,7 @@ Legend: `[x]` done, `[ ]` not done. Add a short note after a task only for a dev
 - [x] UI-2: Note list people expect (search box, snippets, tags, pins, sort). *Done 2026-11-17: pins live in state.db (migration 7), not in note files, so a pin never changes author or mtime; index schema 4 adds snippet and all tags; nested tag tree not built (chips show full paths).*
 - [x] UI-3: Writing surface (inline title, formatting keys, selection toolbar, slash menu, tables, callouts). *Done 2026-11-17: tables are styled mono rows (no grid widget); image paste and rendering, and focus mode, are not built: images need an attachments route and a threat-model entry first.*
 - [x] UI-4: Agents inside the note (provenance bar, activity panel, ask an agent). *Done 2026-11-17: review of a landed change reuses the run viewer and the approvals page (links from the bar); an inline per-hunk accept or revert inside the editor is not built.*
-- [ ] UI-5: Today view and onboarding
+- [x] UI-5: Today view and onboarding. *Done 2026-11-17: /today with a nav badge, empty-vault state (write a note or add an agent), Appearance settings. The demo-vault button and a self-completing checklist are not built; Today is a nav entry, not the landing page, so opening the app is never a redirect.*
 - [ ] UI-6: Polish, benchmark rubric, README screenshots and demo
 
 ## WP13: after v1 (ordered backlog, do not start before the release)
