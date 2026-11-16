@@ -7,6 +7,7 @@ import { redact, type ModelFactory } from "./llm";
 import { randomUUID } from "node:crypto";
 import { effectiveAgent } from "./permissions";
 import { getCheckpointer } from "./checkpoints";
+import { trimHistory } from "./history";
 import { addEvent, createApproval, createRun, finishRun, getAgent, getRun, hasRunning, setTokensUsed } from "./state-db";
 import { getNote as vaultGetNote, slugify, validateId } from "./vault";
 
@@ -122,10 +123,11 @@ export const runAgent: AgentRunner = async ({ agent, task, runId, makeModel, dep
       stop = "failed";
       return {};
     }
+    const sent = trimHistory(state.messages);
     const model = makeModel(tools, { model: agent.model, maxTokens: remaining });
     // Wait for the model, but let a cancel win at once instead of after the (possibly long) call.
     const reply = await Promise.race([
-      model.invoke(state.messages),
+      model.invoke(sent),
       new Promise<never>((_, reject) => signal?.addEventListener("abort", () => reject(new CancelledError()), { once: true })),
     ]).catch((err: unknown) => {
       if (err instanceof CancelledError) return null;
@@ -144,7 +146,7 @@ export const runAgent: AgentRunner = async ({ agent, task, runId, makeModel, dep
       reply.tool_calls = reply.tool_calls.map((c) => ({ ...c, id: `vg-${randomUUID()}` }));
     }
     finalText = messageText(reply);
-    const tokens = reply.usage_metadata?.total_tokens ?? estimateTokens(state.messages, reply);
+    const tokens = reply.usage_metadata?.total_tokens ?? estimateTokens(sent, reply);
     used += tokens;
     setTokensUsed(runId, used);
     addEvent(runId, "model", truncate(redact(messageText(reply)), 1000), {

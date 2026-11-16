@@ -48,5 +48,5 @@ Answer:
 
 ### 2026-11-15 WP9: chat history is not trimmed
 Every turn re-sends the whole conversation (kept in the checkpoint), and each turn has its own budget, so a very long chat will hit `budget-exceeded` on its own. Summarising or trimming old messages is a post-v1 item.
-Answer:
+Answer: 2026-11-16: trimmed. `history.ts` sends the system message plus the newest whole turns that fit 48,000 characters (about 12k tokens), starts at a user message so no tool result is orphaned, and never drops the current turn. The full conversation stays in the checkpoint and the stored chat. Summarising older turns is still not done.
 

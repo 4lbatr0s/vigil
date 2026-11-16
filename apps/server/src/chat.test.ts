@@ -109,6 +109,22 @@ describe("chat turns", () => {
     expect(second.filter((x) => HumanMessage.isInstance(x))).toHaveLength(2);
   });
 
+  it("a long conversation sends only the newest turns to the model, while the stored chat stays whole", async () => {
+    const m = scripted([say("one"), say("two"), say("three"), say("four")]);
+    setRunDeps({ makeModel: m.make });
+    const id = await newChat();
+    for (const w of ["first", "second", "third"]) {
+      expect((await turn(id, `${w} ${"a".repeat(19_000)}`)).status).toBe(200);
+    }
+    expect((await turn(id, "fourth, short")).status).toBe(200);
+    const sent = (m.inputs[3] ?? []).map((x) => String(x.content));
+    expect(sent.some((t) => t.startsWith("first"))).toBe(false);
+    expect(sent.some((t) => t.startsWith("third"))).toBe(true);
+    expect(sent.at(-1)).toBe("fourth, short");
+    expect((m.inputs[3] ?? []).filter((x) => SystemMessage.isInstance(x))).toHaveLength(1);
+    expect(listChatMessages(id)).toHaveLength(8);
+  });
+
   it("a server restart between turns keeps the context", async () => {
     const m = scripted([say("noted"), say("you said blue")]);
     setRunDeps({ makeModel: m.make });

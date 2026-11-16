@@ -142,7 +142,7 @@ To verify by hand (not yet done):
 
 Known gaps (from `docs/spec/open-questions.md`):
 - [ ] True per-token chat streaming (needs `stream()` on the model adapters).
-- [ ] Trim or summarise long chat history (each turn re-sends the whole conversation).
+- [x] Trim long chat history. *Done 2026-11-16: each model call gets the system message plus the newest whole turns within 48,000 characters (`history.ts`); the stored conversation stays whole. Summarising older turns is not done.*
 - [ ] Trim the editor chunk (about 240 KB gzip, loads lazily after the shell).
 - [ ] Logout only clears the browser cookie; add a server-side session epoch if copied cookies matter.
 - [ ] A botnet with 25+ addresses can make the owner wait at login while an attack lasts.
