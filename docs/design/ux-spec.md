@@ -116,6 +116,10 @@ The rail (left, 56px wide, hairline right): icon buttons stacked from the top: N
 
 What agents did since the owner last marked it seen (the last 24 hours the first time; the mark is kept in this browser). The navigation shows a count badge for runs since then. Sections: "Needs you" (pending approvals, each with a Review link) and "Since your last visit": one raised card per run (not chat turns) with the agent, a status dot and word, the time, the notes it changed as links, an error line when it failed, "View run" and "Undo this run" (inline confirm). "Mark all as seen" clears the list and the badge. Empty: "Nothing new." with a link to the agents. Settings has an Appearance section (theme: system, dark or light; note text size: small 16, medium 17, large 19), kept in this browser only.
 
+### 3c. Study (`/study`, ADR-0017)
+
+One card at a time in a raised card. Front first (question, or the sentence with `[…]` for a blank); by default a box asks you to say the answer in your own words first (retrieval before reveal; the toggle "Type my answer first" turns it off). Enter (or Space without the box) shows the answer and what you wrote; then keys 1 to 4 answer: Again, Hard, Good, Easy (each also a button with a hint). A card answered Again comes back once at the end of the sitting. The progress line says how many are left; the end screen is calm ("That's it for now.", what felt solid, "come back tomorrow") with no streaks or scores. An empty deck explains how to write cards (`Question :: Answer`, `{{hidden}}`). `/study?note=<id>` studies one note. The navigation badge counts cards due plus up to 10 new ones; a note's status line shows "N cards, M to study" as a link.
+
 ## 4. Agents screen (`/agents`)
 
 ### Layout

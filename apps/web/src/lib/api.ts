@@ -77,6 +77,21 @@ export const listPins = () => request<string[]>("/api/pins");
 export const pinNote = (id: string) => request<string[]>(`/api/pins/${seg(id)}`, { method: "PUT" });
 export const unpinNote = (id: string) => request<string[]>(`/api/pins/${seg(id)}`, { method: "DELETE" });
 
+// ---- Study (ADR-0017) ----
+
+export type StudyCard = { id: string; noteId: string; kind: "qa" | "cloze"; front: string; back: string; line: number; isNew: boolean; due: string | null };
+export type StudyStats = { total: number; due: number; new: number; reviewedToday: number; againToday: number };
+export type Answer = "again" | "hard" | "good" | "easy";
+export const getDueCards = (opts: { note?: string; limit?: number } = {}) => {
+  const q = new URLSearchParams();
+  if (opts.note) q.set("note", opts.note);
+  if (opts.limit) q.set("limit", String(opts.limit));
+  return request<StudyCard[]>(`/api/study/due${q.size ? `?${q}` : ""}`);
+};
+export const getStudyStats = (note?: string) => request<StudyStats>(`/api/study/stats${note ? `?note=${encodeURIComponent(note)}` : ""}`);
+export const answerStudyCard = (cardId: string, answer: Answer) => request<{ due: string }>("/api/study/review", json("POST", { cardId, answer }));
+export const getNoteCards = (id: string) => request<StudyCard[]>(`/api/notes/${seg(id)}/cards`);
+
 // ---- Agents and runs ----
 
 export type Schedule = {

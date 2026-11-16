@@ -133,7 +133,7 @@ Legend: `[x]` done, `[ ]` not done. Add a short note after a task only for a dev
 ## Study v1 (ADR-0017, plan in the owner's approved plan)
 
 - [x] Cards core. Done 2026-11-17: `extractCards` (packages/shared), `srs.ts` wrapper over ts-fsrs 6.0.0 (pinned) with tests on a fixed clock. Also done: index cards table (schema 5), state migration 8 (card_state, reviews), study.ts and the API (`GET /api/study/due|stats`, `POST /api/study/review`, `GET /api/notes/:id/cards`). `runs.result` is left for the Card maker task (a later migration).
-- [ ] Study page and note integration (due counts on the note, Today and the navigation)
+- [x] Study page and note integration. *Done 2026-11-17: /study with a keyboard-only flow, nav badge, card count on the note. Not done: a Study card on the Today view; checked in the browser at one width only, not on a phone.*
 - [ ] Card maker agent with the review panel
 - [ ] Tutor, explain-it-back and quiz builder templates
 - [ ] Insight (per-note retention) and the study planner

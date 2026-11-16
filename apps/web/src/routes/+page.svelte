@@ -3,7 +3,7 @@
   import { replaceState } from "$app/navigation";
   import { page } from "$app/state";
   import { slugify, type Note, type NoteSummary } from "@vigil/shared";
-  import { getNote, listApprovals, listNotes, listPins, listRuns, pinNote, putNote, unpinNote, type ApprovalItem } from "$lib/api";
+  import { getNote, getStudyStats, listApprovals, listNotes, listPins, listRuns, pinNote, putNote, unpinNote, type ApprovalItem, type StudyStats } from "$lib/api";
   import { newAgentNotes } from "$lib/notes-poll";
   import { refreshOnLive } from "$lib/live";
   import NoteList from "$lib/components/NoteList.svelte";
@@ -31,6 +31,7 @@
   // What agents did to this note, and what they are waiting to do (ProvenanceBar and NoteActivity).
   let runs = $state<Run[]>([]);
   let pending = $state<ApprovalItem[]>([]);
+  let cardStats = $state<StudyStats | null>(null);
   let askOpen = $state(false);
   let askSelection = $state<string | null>(null);
   const current = $derived(notes.find((n) => n.id === selectedId));
@@ -40,7 +41,8 @@
 
   async function loadActivity(): Promise<void> {
     try {
-      [runs, pending] = await Promise.all([listRuns({ limit: 100 }), listApprovals("pending")]);
+      const id = selectedId;
+      [runs, pending, cardStats] = await Promise.all([listRuns({ limit: 100 }), listApprovals("pending"), id ? getStudyStats(id) : Promise.resolve(null)]);
     } catch {
       // The panels keep what they had; the next poll tries again.
     }
@@ -341,7 +343,8 @@
       <Backlinks noteId={selectedId ?? ""} signature={notes.map((n) => n.updatedAt).join("|")} />
 
       <footer class="status">
-        <span class="path">{selectedId}.md</span>
+        <span class="path">{selectedId}.md{#if cardStats && cardStats.total > 0}
+            · <a class="cards-link" href={`/study?note=${encodeURIComponent(selectedId ?? "")}`}>{cardStats.total} {cardStats.total === 1 ? "card" : "cards"}{cardStats.due + cardStats.new > 0 ? `, ${cardStats.due + cardStats.new} to study` : ""}</a>{/if}</span>
         <span class="state">{words} {words === 1 ? "word" : "words"}{status ? ` · ${status}` : ""}</span>
       </footer>
     {/if}
@@ -569,6 +572,11 @@
     font-family: var(--font-mono);
     font-size: var(--text-label);
     color: var(--ink-muted);
+  }
+
+  .cards-link {
+    color: var(--ink);
+    text-underline-offset: 2px;
   }
 
   .empty {
