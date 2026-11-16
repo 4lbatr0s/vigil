@@ -26,6 +26,8 @@ import { planRename, renameNote } from "./rename";
 import { refreshSchedule } from "./scheduler";
 import { llmStatus } from "./llm-status";
 import { usage } from "./usage";
+import { answerCard, dueCards, studyStats } from "./study";
+import { cardsForNote } from "./index-db";
 import { addPin, approvalsForRun, clearHeartbeat, decideApproval, getApproval, listApprovals, listChatThreads, getAgent, getHeartbeat, getRun, getSchedule, listAgents, listEvents, listPins, listRuns, putAgent, putSchedule, removePin } from "./state-db";
 import { createNote, deleteNote, getNote as vaultGetNote, slugify, updateNote, validateId } from "./vault";
 
@@ -146,6 +148,43 @@ const routes: { method: string; pattern: RegExp; keys: string[]; handler: Handle
         removePin(id);
       });
       send(res, 200, { data: { id } });
+    },
+  },
+  {
+    method: "GET",
+    pattern: /^\/api\/study\/due$/,
+    keys: [],
+    handler: (_req, res, _params, url) => {
+      const limit = Number(url.searchParams.get("limit") ?? "50");
+      const noteId = url.searchParams.get("note") ?? undefined;
+      send(res, 200, { data: dueCards(new Date(), { limit: Number.isFinite(limit) && limit > 0 ? Math.min(limit, 200) : 50, ...(noteId ? { noteId } : {}) }) });
+    },
+  },
+  {
+    method: "GET",
+    pattern: /^\/api\/study\/stats$/,
+    keys: [],
+    handler: (_req, res, _params, url) => {
+      send(res, 200, { data: studyStats(new Date(), url.searchParams.get("note") ?? undefined) });
+    },
+  },
+  {
+    method: "POST",
+    pattern: /^\/api\/study\/review$/,
+    keys: [],
+    handler: async (req, res) => {
+      const parsed = z.object({ cardId: z.string().min(1).max(64), answer: z.string().max(16) }).safeParse(await readJsonBody(req));
+      if (!parsed.success) throw new AppError("invalid-body", "Body must be { cardId: string, answer: again | hard | good | easy }", 400);
+      const out = answerCard(parsed.data.cardId, parsed.data.answer, new Date());
+      send(res, 200, { data: { due: out.due } });
+    },
+  },
+  {
+    method: "GET",
+    pattern: /^\/api\/notes\/([^/]+)\/cards$/,
+    keys: ["id"],
+    handler: (_req, res, params) => {
+      send(res, 200, { data: cardsForNote(params["id"] ?? "") });
     },
   },
   {

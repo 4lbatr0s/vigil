@@ -4,7 +4,7 @@ import { createHash } from "node:crypto";
 import { existsSync, mkdirSync } from "node:fs";
 import path from "node:path";
 import Database from "better-sqlite3";
-import { allTags, snippetOf, type Note, type NoteSummary } from "@vigil/shared";
+import { allTags, extractCards, snippetOf, type Card, type Note, type NoteSummary } from "@vigil/shared";
 import { REPO_ROOT, listNotes as vaultListNotes, slugify } from "./vault";
 
 export type NoteRow = Note;
@@ -19,12 +19,12 @@ export function dbPath(): string {
  * Bump when a table changes. The index is disposable (ADR-0001), so a different version drops every
  * table and the server rebuilds from the vault on start (`isEmpty` then `rebuildAll`).
  */
-const SCHEMA_VERSION = 4;
+const SCHEMA_VERSION = 5;
 
 function migrate(db: Database.Database): void {
   const version = db.pragma("user_version", { simple: true }) as number;
   if (version !== SCHEMA_VERSION) {
-    db.exec("DROP TABLE IF EXISTS notes; DROP TABLE IF EXISTS notes_body; DROP TABLE IF EXISTS links; DROP TABLE IF EXISTS notes_fts;");
+    db.exec("DROP TABLE IF EXISTS notes; DROP TABLE IF EXISTS notes_body; DROP TABLE IF EXISTS links; DROP TABLE IF EXISTS notes_fts; DROP TABLE IF EXISTS cards;");
   }
   db.exec(`
     CREATE TABLE IF NOT EXISTS notes (
@@ -47,6 +47,17 @@ function migrate(db: Database.Database): void {
       src TEXT,
       dst TEXT
     );
+    -- Study cards written in the notes (ADR-0017). The scheduling state is durable and lives in state.db.
+    CREATE TABLE IF NOT EXISTS cards (
+      id TEXT NOT NULL,
+      note_id TEXT NOT NULL,
+      kind TEXT NOT NULL,
+      front TEXT NOT NULL,
+      back TEXT NOT NULL,
+      line INTEGER NOT NULL,
+      PRIMARY KEY (note_id, id)
+    );
+    CREATE INDEX IF NOT EXISTS cards_id ON cards(id);
     CREATE INDEX IF NOT EXISTS links_src ON links(src);
     CREATE INDEX IF NOT EXISTS links_dst ON links(dst);
   `);
@@ -136,6 +147,9 @@ export function reindexNote(note: Note): void {
       note.body,
     );
   }
+  db.prepare("DELETE FROM cards WHERE note_id = ?").run(note.id);
+  const addCard = db.prepare("INSERT OR IGNORE INTO cards (id, note_id, kind, front, back, line) VALUES (?, ?, ?, ?, ?, ?)");
+  for (const c of extractCards(note.body)) addCard.run(c.id, note.id, c.kind, c.front, c.back, c.line);
   db.prepare("DELETE FROM links WHERE src = ?").run(note.id);
   const insert = db.prepare("INSERT INTO links (src, dst) VALUES (?, ?)");
   for (const dst of extractLinks(note.body)) {
@@ -153,6 +167,7 @@ export function removeNote(id: string): void {
   if (fts) db.prepare("DELETE FROM notes_fts WHERE id = ?").run(id);
   // Links FROM this note go; links TO it stay, as dangling links, because other notes still say them.
   db.prepare("DELETE FROM links WHERE src = ?").run(id);
+  db.prepare("DELETE FROM cards WHERE note_id = ?").run(id);
   if (row) publish({ type: "note", id, change: "deleted", author: row.author === "agent" ? "agent" : "human" });
 }
 
@@ -161,6 +176,7 @@ export async function rebuildAll(): Promise<number> {
   db.prepare("DELETE FROM notes").run();
   db.prepare("DELETE FROM notes_body").run();
   db.prepare("DELETE FROM links").run();
+  db.prepare("DELETE FROM cards").run();
   if (fts) db.prepare("DELETE FROM notes_fts").run();
   const notes = await vaultListNotes();
   for (const note of notes) reindexNote(note);
@@ -271,4 +287,18 @@ export function searchNotes(query: string): SearchHit[] {
 
 export function isFtsAvailable(): boolean {
   return open().fts;
+}
+
+export type IndexedCard = Card & { noteId: string };
+
+type CardRow = { id: string; note_id: string; kind: string; front: string; back: string; line: number };
+const toCard = (r: CardRow): IndexedCard => ({ id: r.id, noteId: r.note_id, kind: r.kind === "cloze" ? "cloze" : "qa", front: r.front, back: r.back, line: r.line });
+
+/** Every card in the vault, in note then line order. */
+export function listCards(): IndexedCard[] {
+  return (open().db.prepare("SELECT id, note_id, kind, front, back, line FROM cards ORDER BY note_id, line").all() as CardRow[]).map(toCard);
+}
+
+export function cardsForNote(noteId: string): IndexedCard[] {
+  return (open().db.prepare("SELECT id, note_id, kind, front, back, line FROM cards WHERE note_id = ? ORDER BY line").all(noteId) as CardRow[]).map(toCard);
 }

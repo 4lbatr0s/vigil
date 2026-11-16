@@ -1,4 +1,5 @@
 import { existsSync, mkdirSync } from "node:fs";
+import type { CardState } from "./srs";
 import { readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import Database from "better-sqlite3";
@@ -140,6 +141,26 @@ export const MIGRATIONS: readonly string[] = [
     note_id TEXT PRIMARY KEY,
     pinned_at TEXT NOT NULL
   );
+  `,
+  `
+  -- migration 8: study cards (ADR-0017). The cards themselves are text in the notes; this is only what the
+  -- scheduler remembers about each one, plus a log of every review.
+  CREATE TABLE card_state (
+    card_id TEXT PRIMARY KEY,
+    due TEXT NOT NULL,
+    state TEXT NOT NULL            -- JSON: the scheduler's memory state (srs.ts CardState)
+  );
+  CREATE INDEX card_state_due ON card_state(due);
+  CREATE TABLE reviews (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    card_id TEXT NOT NULL,
+    note_id TEXT NOT NULL,
+    rating INTEGER NOT NULL,       -- 1 again, 2 hard, 3 good, 4 easy
+    elapsed_days REAL NOT NULL,
+    reviewed_at TEXT NOT NULL
+  );
+  CREATE INDEX reviews_at ON reviews(reviewed_at);
+  CREATE INDEX reviews_note ON reviews(note_id);
   `,
 ];
 
@@ -676,4 +697,37 @@ export function removePin(noteId: string): void {
 export function movePin(from: string, to: string): void {
   if (from === to) return;
   open().prepare("UPDATE OR REPLACE pins SET note_id = ? WHERE note_id = ?").run(to, from);
+}
+
+// ---- Study cards (migration 8) ----
+
+export function getCardState(cardId: string): CardState | null {
+  const row = open().prepare("SELECT state FROM card_state WHERE card_id = ?").get(cardId) as { state: string } | undefined;
+  return row ? (JSON.parse(row.state) as CardState) : null;
+}
+
+/** Scheduling state for many cards at once, keyed by card id. */
+export function allCardStates(): Map<string, CardState> {
+  const rows = open().prepare("SELECT card_id, state FROM card_state").all() as { card_id: string; state: string }[];
+  return new Map(rows.map((r) => [r.card_id, JSON.parse(r.state) as CardState]));
+}
+
+/** Saves the new state and logs the review in one step, so the two can never disagree. */
+export function saveReview(cardId: string, noteId: string, next: CardState, log: { rating: number; elapsedDays: number }, at: Date): void {
+  const db = open();
+  db.transaction(() => {
+    db.prepare("INSERT INTO card_state (card_id, due, state) VALUES (?, ?, ?) ON CONFLICT(card_id) DO UPDATE SET due = excluded.due, state = excluded.state").run(cardId, next.due, JSON.stringify(next));
+    db.prepare("INSERT INTO reviews (card_id, note_id, rating, elapsed_days, reviewed_at) VALUES (?, ?, ?, ?, ?)").run(cardId, noteId, log.rating, log.elapsedDays, at.toISOString());
+  })();
+}
+
+/** How many reviews were logged at or after `since` (ISO), and how many of them were answered "again". */
+export function reviewCountsSince(since: string): { total: number; again: number } {
+  const row = open().prepare("SELECT COUNT(*) AS total, COALESCE(SUM(rating = 1), 0) AS again FROM reviews WHERE reviewed_at >= ?").get(since) as { total: number; again: number };
+  return row;
+}
+
+/** Reviews per note, for the retention line on a note: [total, answered again]. */
+export function reviewCountsForNote(noteId: string): { total: number; again: number } {
+  return open().prepare("SELECT COUNT(*) AS total, COALESCE(SUM(rating = 1), 0) AS again FROM reviews WHERE note_id = ?").get(noteId) as { total: number; again: number };
 }
