@@ -10,7 +10,7 @@ The owner wants learners first. Research ranks practice testing and spaced pract
 - **Cards live in the notes as markdown.** Two inline forms, conventionally under a `## Cards` heading: `Question :: Answer` on one line, and `{{hidden text}}` cloze inside a sentence. Code blocks are ignored. Card id is a hash of the normalised front text; editing the text makes a new card.
 - **Scheduling state is durable and lives in `state.db`** (migration 8: `card_state`, `reviews`; the full final answer of a run, `runs.result`, comes with the Card maker in a later migration). The card list is part of the disposable index (schema 5).
 - **Scheduler: FSRS via the `ts-fsrs` package**, pinned to an exact version and wrapped in `srs.ts` with an injected clock. The installed typings are checked before coding. If the package disappoints, a small SM-2 implementation replaces it.
-- **The Card maker agent has no write tool.** Its answer is parsed into proposed cards; the owner accepts, edits or rejects each, and the accepted cards are appended by the owner's own save. Nothing unreviewed enters the deck.
+- **The Card maker agent has no tools at all.** The note text is placed in its task, so it cannot write, read other notes or fetch anything, and a weak model has no tool call to get wrong. Its answer is parsed into proposed cards; the owner accepts, edits or rejects each, and the accepted cards are appended by the owner's own save. Nothing unreviewed enters the deck.
 - **Agents do the chores, the learner does the thinking:** tutor-style agents ask first, hint second and answer last, and say when an answer is not from the notes.
 - No product copy claims "10x" gains. Claims are limited to what the cited research supports.
 

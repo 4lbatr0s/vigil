@@ -210,7 +210,10 @@ const routes: { method: string; pattern: RegExp; keys: string[]; handler: Handle
       const agent = getAgent("card-maker");
       if (!agent) throw new AppError("agent-not-found", "Add the Card maker agent first (Agents, then the Card maker template).", 404);
       if (!agent.enabled) throw new AppError("agent-disabled", "The Card maker agent is switched off. Turn it on from the Agents page.", 409);
-      const run = startRun("card-maker", `Make study cards from the note with id ${id}.`, "manual");
+      // The note travels in the task, so the agent needs no tool at all (and a weak model has no tool call to get wrong).
+      const note = indexGetNote(id);
+      const text = (note?.body ?? "").slice(0, 20_000);
+      const run = startRun("card-maker", `Make study cards from this note (id ${id}, title "${note?.title ?? id}").\n\nNOTE START\n${text}\nNOTE END`, "manual");
       send(res, 202, { data: run });
     },
   },

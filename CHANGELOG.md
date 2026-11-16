@@ -9,6 +9,7 @@ A note app first, with agents inside it.
 - Writing: formatting shortcuts, floating selection toolbar, `/` menu for blocks, tables, callouts, dividers, tag pills, inline-editable title, word count.
 - Agents in the note: provenance bar with undo, agent activity per note, pending approvals shown on the note, and Ask an agent (Cmd/Ctrl J) which opens a chat with the selection filled in.
 - Today view of what agents did since you last looked, and Appearance settings (theme, text size).
+- Study: write `Question :: Answer` or `{{hidden}}` cards in any note; a Study page with spaced review (FSRS), reveal-then-rate keys, and a calm end screen; a Card maker agent (no tools) that proposes cards you review before they are saved; warmer colors and kinder wording.
 - Chat: answers stream token by token; long chats send only recent turns to the model.
 - Fixes: delete confirmation keeps keyboard focus; the graph page no longer renders with zero height when there is no banner.
 

@@ -46,10 +46,11 @@ const template = TEMPLATES.find((t) => t.id === "card-maker")!;
 const addAgent = (over: Record<string, unknown> = {}) => putAgent(AgentSchema.parse({ ...template.agent, name: "card-maker", ...over }));
 
 describe("card proposals", () => {
-  it("the template is read-only, manual and cannot write notes", () => {
-    expect(template.agent.tools).toEqual(["read_notes"]);
+  it("the template has no tools at all and runs on demand", () => {
+    expect(template.agent.tools).toEqual([]);
     expect(template.agent.trigger).toEqual({ kind: "manual" });
     expect(template.agent.systemPrompt).toMatch(/ONLY facts stated in that note/);
+    expect(template.agent.systemPrompt).toMatch(/NOTE START/);
   });
 
   it("needs a real note and an enabled card maker, and says what to do", async () => {
@@ -77,7 +78,7 @@ describe("card proposals", () => {
     const started = await j("POST", "/api/notes/bio/card-proposals");
     expect(started.status).toBe(202);
     await waitForRuns();
-    expect(task).toContain("the note with id bio");
+    expect(task).toContain("NOTE START\nATP is energy. The nucleus holds DNA.\nNOTE END");
     const result = await j("GET", `/api/runs/${started.body.data.id}/result`);
     expect(result.body.data.text).toBe(answer); // far over the 1000 characters a run event keeps
     expect(answer.length).toBeGreaterThan(1000);
