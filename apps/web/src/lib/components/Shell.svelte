@@ -13,6 +13,8 @@
   import Search from "@lucide/svelte/icons/search";
   import { pendingCount, trackPending } from "$lib/approvals-state";
   import CommandPalette from "$lib/components/CommandPalette.svelte";
+  import ShortcutsHelp from "$lib/components/ShortcutsHelp.svelte";
+  import Keyboard from "@lucide/svelte/icons/keyboard";
   import Banner from "$lib/components/Banner.svelte";
   import { onMount } from "svelte";
   import { startLive } from "$lib/live";
@@ -21,6 +23,7 @@
 
   let { children }: { children: Snippet } = $props();
   let paletteOpen = $state(false);
+  let helpOpen = $state(false);
   /** Narrow screens: the navigation is a drawer. */
   let navOpen = $state(false);
   const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
@@ -44,10 +47,18 @@
     };
   });
 
+  /** True while the person is typing somewhere, so a plain key such as ? is just a character. */
+  function typing(target: EventTarget | null): boolean {
+    return target instanceof HTMLElement && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName) || target.closest(".cm-editor") !== null);
+  }
+
   function onKeydown(event: KeyboardEvent): void {
     if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
       event.preventDefault();
       paletteOpen = !paletteOpen;
+    } else if (event.key === "?" && !event.metaKey && !event.ctrlKey && !event.altKey && !typing(event.target)) {
+      event.preventDefault();
+      helpOpen = true;
     } else if (event.key === "Escape" && navOpen) {
       navOpen = false;
     }
@@ -68,6 +79,7 @@
 <svelte:window onkeydown={onKeydown} />
 
 <CommandPalette bind:open={paletteOpen} />
+<ShortcutsHelp bind:open={helpOpen} />
 
 <div class="shell">
   {#if navOpen}
@@ -107,6 +119,9 @@
         <Search size={16} strokeWidth={1.5} />
         <span class="placeholder">Search or run a command</span>
         <kbd>{isMac ? "⌘" : "Ctrl "}K</kbd>
+      </button>
+      <button type="button" class="help" aria-label="Keyboard shortcuts" title="Keyboard shortcuts (?)" onclick={() => (helpOpen = true)}>
+        <Keyboard size={18} strokeWidth={1.5} />
       </button>
     </header>
     <Banner />
@@ -238,6 +253,20 @@
   }
 
   .search:hover {
+    background: var(--surface-hover);
+    color: var(--ink);
+  }
+
+  .help {
+    display: grid;
+    place-items: center;
+    width: 34px;
+    height: 34px;
+    border-radius: var(--radius);
+    color: var(--ink-muted);
+  }
+
+  .help:hover {
     background: var(--surface-hover);
     color: var(--ink);
   }

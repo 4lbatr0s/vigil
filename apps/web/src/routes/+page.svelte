@@ -11,6 +11,7 @@
   import RenameNote from "$lib/components/RenameNote.svelte";
   import DeleteNote from "$lib/components/DeleteNote.svelte";
   import { nextAfterDelete } from "$lib/after-delete";
+  import { dailyNote } from "$lib/daily";
   import PanelLeft from "@lucide/svelte/icons/panel-left";
   import type { Run } from "@vigil/shared";
   import AskAgent from "$lib/components/AskAgent.svelte";
@@ -139,6 +140,21 @@
     const wanted = page.url.searchParams.get("note");
     untrack(() => {
       if (wanted && !loading && wanted !== selectedId) void select(wanted);
+    });
+  });
+  // /?daily=1 opens today's note and creates it first when it does not exist yet.
+  $effect(() => {
+    if (page.url.searchParams.get("daily") !== "1" || loading) return;
+    untrack(() => {
+      const { id, title } = dailyNote();
+      void (async () => {
+        try {
+          if (!notes.some((n) => n.id === id)) onCreated(await putNote(id, { title, body: "" }));
+          else await select(id);
+        } catch (err) {
+          status = err instanceof Error ? err.message : "Could not open today's note";
+        }
+      })();
     });
   });
   $effect(() => {

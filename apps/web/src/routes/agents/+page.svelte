@@ -1,5 +1,6 @@
 <script lang="ts">
   import Illustration from "$lib/components/Illustration.svelte";
+  import { groupTemplates } from "$lib/template-groups";
   import Lamp from "@lucide/svelte/icons/lamp";
   import { onMount } from "svelte";
   import { goto } from "$app/navigation";
@@ -96,23 +97,26 @@
   {#if loaded}
     <section class="gallery" aria-labelledby="gallery-title">
       <h2 id="gallery-title">Add an agent</h2>
-      <ul class="ledger">
-        {#each templates as t, i (t.id)}
-          <li class="template">
-            <div class="template-text">
-              <span class="name">{t.title}</span>
-              <span class="summary">{t.summary}</span>
-              <span class="needs">
-                {#if t.needs.includes("llm")}{llmReady ? "Model: ready." : "Model: not set up yet, see Settings."}{/if}
-                {#if t.needs.includes("web")} Web: you choose the allowed sites.{/if}
-              </span>
-            </div>
-            <button type="button" class="add" class:primary={i === 0} disabled={adding !== null} onclick={() => void add(t.id)}>
-              {adding === t.id ? "Adding…" : "Add"}
-            </button>
-          </li>
-        {/each}
-      </ul>
+      {#each groupTemplates(templates) as g (g.id)}
+        <h3 class="group">{g.title}{#if g.blurb}<span class="blurb"> · {g.blurb}</span>{/if}</h3>
+        <ul class="ledger">
+          {#each g.items as t (t.id)}
+            <li class="template">
+              <div class="template-text">
+                <span class="name">{t.title}</span>
+                <span class="summary">{t.summary}</span>
+                <span class="needs">
+                  {#if t.needs.includes("llm")}{llmReady ? "Model: ready." : "Model: not set up yet, see Settings."}{/if}
+                  {#if t.needs.includes("web")} Web: you choose the allowed sites.{/if}
+                </span>
+              </div>
+              <button type="button" class="add" disabled={adding !== null} onclick={() => void add(t.id)}>
+                {adding === t.id ? "Adding…" : "Add"}
+              </button>
+            </li>
+          {/each}
+        </ul>
+      {/each}
     </section>
   {/if}
 </main>
@@ -216,11 +220,6 @@
     font-size: var(--text-label);
     flex: none;
   }
-  .add.primary {
-    background: var(--ink);
-    color: var(--bg);
-    border-color: var(--ink);
-  }
   .add:disabled {
     opacity: 0.5;
     cursor: default;
@@ -244,5 +243,18 @@
 
   .glyph.lit {
     color: var(--amber-ink);
+  }
+  .group {
+    margin: var(--space-6) 0 var(--space-1);
+    font-family: var(--font-serif);
+    font-size: var(--text-h3);
+    font-weight: 600;
+  }
+
+  .blurb {
+    font-family: var(--font-chrome);
+    font-size: var(--text-label);
+    font-weight: 400;
+    color: var(--ink-muted);
   }
 </style>

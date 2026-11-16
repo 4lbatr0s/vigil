@@ -32,6 +32,8 @@ export const BLOCKS: Block[] = [
   { label: "Callout", hint: "[!note]", words: "note info warning tip", block: true, insert: plain("> [!note] \n> ", 10) },
   { label: "Code block", hint: "```", words: "snippet pre", block: true, insert: plain("```\n\n```", 4) },
   { label: "Table", hint: "| |", words: "grid columns", block: true, insert: plain("| Column | Column |\n| --- | --- |\n|  |  |", 41) },
+  { label: "Question card", hint: "Q :: A", words: "flashcard study qa", insert: plain(" :: ", 0) },
+  { label: "Cloze card", hint: "{{ }}", words: "flashcard study blank fill", insert: plain("{{}}", 2) },
   { label: "Divider", hint: "---", words: "line rule hr", insert: divider },
 ];
 

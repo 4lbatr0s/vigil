@@ -11,8 +11,20 @@ const labels = (doc: string, pos?: number) => completeSlash(ctx(doc, pos))?.opti
 
 describe("completeSlash", () => {
   it("fires at the start of a line, also when indented, and offers every block for a bare slash", () => {
-    expect(labels("/")).toHaveLength(11);
-    expect(labels("text\n  /")).toHaveLength(11);
+    expect(labels("/")).toHaveLength(13);
+    expect(labels("text\n  /")).toHaveLength(13);
+  });
+  it("offers card blocks that put the cursor where the typing starts", () => {
+    expect(labels("/flash")?.sort()).toEqual(["Cloze card", "Question card"]);
+    const apply = (label: string): { text: string; anchor: number } => {
+      const r = completeSlash(ctx("/cl"));
+      const opt = r?.options.find((o) => o.label === label);
+      let out = { text: "", anchor: -1 };
+      const view = { state: EditorState.create({ doc: "/cl" }), dispatch: (spec: { changes: { insert: string }; selection: { anchor: number } }) => (out = { text: spec.changes.insert, anchor: spec.selection.anchor }) };
+      (opt?.apply as (v: unknown, c: unknown, f: number, t: number) => void)(view, opt, 0, 3);
+      return out;
+    };
+    expect(apply("Cloze card")).toEqual({ text: "{{}}", anchor: 2 });
   });
   it("does not fire mid-line, in code, or without a slash", () => {
     expect(labels("a /h")).toBeNull();
