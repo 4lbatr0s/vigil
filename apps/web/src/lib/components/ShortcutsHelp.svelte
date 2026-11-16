@@ -43,6 +43,7 @@
       rows: [
         ["Enter / Space", "Show the answer"],
         ["1 / 2 / 3 / 4", "Again, Hard, Good, Easy"],
+        [`Z or ${mod} Z`, "Take back the last answer"],
       ],
     },
   ];

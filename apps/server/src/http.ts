@@ -27,7 +27,7 @@ import { refreshSchedule } from "./scheduler";
 import { llmStatus } from "./llm-status";
 import { usage } from "./usage";
 import { getRunResult } from "./state-db";
-import { answerCard, deckStats, dueCards, studyStats } from "./study";
+import { answerCard, deckStats, dueCards, studyStats, undoAnswer } from "./study";
 import { cardsForNote } from "./index-db";
 import { addPin, approvalsForRun, clearHeartbeat, decideApproval, getApproval, listApprovals, listChatThreads, getAgent, getHeartbeat, getRun, getSchedule, listAgents, listEvents, listPins, listRuns, putAgent, putSchedule, removePin } from "./state-db";
 import { createNote, deleteNote, getNote as vaultGetNote, slugify, updateNote, validateId } from "./vault";
@@ -186,6 +186,14 @@ const routes: { method: string; pattern: RegExp; keys: string[]; handler: Handle
       if (!parsed.success) throw new AppError("invalid-body", "Body must be { cardId: string, answer: again | hard | good | easy }", 400);
       const out = answerCard(parsed.data.cardId, parsed.data.answer, new Date());
       send(res, 200, { data: { due: out.due } });
+    },
+  },
+  {
+    method: "POST",
+    pattern: /^\/api\/study\/undo$/,
+    keys: [],
+    handler: (_req, res) => {
+      send(res, 200, { data: { cardId: undoAnswer() } });
     },
   },
   {

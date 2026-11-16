@@ -106,4 +106,22 @@ describe("study", () => {
     expect(a).toMatchObject({ reviews: MIN_REVIEWS_FOR_RATE, recall: 75, new: 1 });
     expect(after.find((d) => d.noteId === "b")?.recall).toBeNull();
   });
+
+  it("takes back the last answer exactly: a first answer makes the card new again, a later one restores its old schedule", async () => {
+    await note("bio", "Q? :: A");
+    const id = ((await j("GET", "/api/study/due")).body.data as { id: string }[])[0]?.id;
+    expect((await j("POST", "/api/study/undo")).status).toBe(409); // nothing yet
+    const first = (await j("POST", "/api/study/review", { cardId: id, answer: "good" })).body.data.due as string;
+    expect((await j("POST", "/api/study/undo")).body.data.cardId).toBe(id);
+    expect((await j("GET", "/api/study/stats")).body.data).toMatchObject({ new: 1, due: 0, reviewedToday: 0 });
+    // Answer, answer again later, undo the second: back to the first schedule.
+    await j("POST", "/api/study/review", { cardId: id, answer: "good" });
+    await j("POST", "/api/study/review", { cardId: id, answer: "again" });
+    await j("POST", "/api/study/undo");
+    const decks = (await j("GET", "/api/study/decks")).body.data as { reviews: number }[];
+    expect(decks[0]?.reviews).toBe(1);
+    const queue = (await j("GET", "/api/study/due")).body.data as unknown[];
+    expect(queue).toHaveLength(0);
+    expect(new Date(first).getTime()).toBeGreaterThan(Date.now() - 1000);
+  });
 });

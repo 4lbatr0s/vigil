@@ -1,7 +1,7 @@
 import { AppError } from "./errors";
 import { cardsForNote, listCards, type IndexedCard } from "./index-db";
 import { ANSWERS, isDue, newCardState, review, type Answer, type CardState } from "./srs";
-import { allCardStates, getCardState, reviewCountsByNote, reviewCountsForNote, reviewCountsSince, saveReview } from "./state-db";
+import { allCardStates, getCardState, reviewCountsByNote, reviewCountsForNote, reviewCountsSince, saveReview, undoLastReview } from "./state-db";
 
 /** New cards offered per request beyond the ones already due, so a big note never buries the day. */
 export const NEW_PER_SESSION = 10;
@@ -87,4 +87,11 @@ export function deckStats(now: Date): DeckStats[] {
     row.recall = n && n.total >= MIN_REVIEWS_FOR_RATE ? Math.round(((n.total - n.again) / n.total) * 100) : null;
   }
   return [...byNote.values()].sort((a, b) => b.due + b.new - (a.due + a.new) || a.noteId.localeCompare(b.noteId));
+}
+
+/** Takes back the last answer; the card is due again as it was. */
+export function undoAnswer(): string {
+  const id = undoLastReview();
+  if (id === null) throw new AppError("nothing-to-undo", "There is no answer to take back.", 409);
+  return id;
 }

@@ -2,7 +2,7 @@
   import Illustration from "$lib/components/Illustration.svelte";
   import { onMount, tick } from "svelte";
   import { page } from "$app/state";
-  import { answerStudyCard, getDecks, getDueCards, getStudyStats, type Answer, type DeckStats, type StudyStats } from "$lib/api";
+  import { answerStudyCard, getDecks, getDueCards, getStudyStats, undoStudyAnswer, type Answer, type DeckStats, type StudyStats } from "$lib/api";
   import { refreshStudyDue } from "$lib/study-state";
   import { ANSWER_KEYS, answer, current, isFinished, remaining, reveal, startSession, type Session } from "$lib/study-session";
 
@@ -12,6 +12,9 @@
   let loadError = $state("");
   let saveError = $state("");
   let typed = $state("");
+  /** The sitting as it was before the last answer, so one answer can be taken back. */
+  let before = $state<Session | null>(null);
+  let lastAnswer = $state<Answer | null>(null);
   let typeFirst = $state(true);
   let box = $state<HTMLTextAreaElement | undefined>();
   let stage = $state<HTMLDivElement | undefined>();
@@ -19,6 +22,8 @@
   const noteId = $derived(page.url.searchParams.get("note"));
   const card = $derived(session ? current(session) : null);
   const finished = $derived(session ? isFinished(session) : false);
+  const modKey = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform) ? "⌘" : "Ctrl";
+  const inUndoBox = $derived(typeFirst && !!session && !session.revealed);
 
   async function load(): Promise<void> {
     loadError = "";
@@ -52,24 +57,51 @@
     if (!session || !card || !session.revealed) return;
     const id = card.id;
     saveError = "";
-    const before = session;
+    const was = session;
     session = answer(session, a);
     typed = "";
     try {
       await answerStudyCard(id, a);
+      before = was;
+      lastAnswer = a;
       void refreshStudyDue();
     } catch (err) {
       // Keep the person where they were: nothing is lost, they can try the answer again.
-      session = before;
+      session = was;
       saveError = err instanceof Error ? err.message : "That answer was not saved";
     }
     await tick();
     focusCard();
   }
 
+  /** Takes back the last answer on the server and returns to that card, answer showing. */
+  async function undo(): Promise<void> {
+    if (!before) return;
+    saveError = "";
+    try {
+      await undoStudyAnswer();
+      session = { ...before, revealed: true };
+      before = null;
+      lastAnswer = null;
+      void refreshStudyDue();
+      await tick();
+      stage?.focus();
+    } catch (err) {
+      saveError = err instanceof Error ? err.message : "Could not take that back";
+    }
+  }
+
   function onKeydown(event: KeyboardEvent): void {
-    if (!session || event.metaKey || event.ctrlKey || event.altKey) return;
+    if (!session || event.altKey) return;
     const inBox = event.target instanceof HTMLTextAreaElement;
+    // Undo: Cmd/Ctrl+Z while the answer box is empty, or plain Z when you are not typing in it.
+    const asksUndo = event.key.toLowerCase() === "z" && (event.metaKey || event.ctrlKey ? (!inBox || typed === "") && !event.shiftKey : !inBox);
+    if (asksUndo && before) {
+      event.preventDefault();
+      void undo();
+      return;
+    }
+    if (event.metaKey || event.ctrlKey) return;
     if (!session.revealed) {
       // Enter in the answer box (or Space on the card) shows the answer; Shift+Enter makes a new line.
       if ((event.key === "Enter" && !event.shiftKey) || (event.key === " " && !inBox)) {
@@ -122,6 +154,7 @@
       {:else}
         <p class="muted">Your cards are resting. They will come back when it is time.</p>
       {/if}
+      {#if before && lastAnswer}<p class="undo">Last answer: {lastAnswer}. <button type="button" class="linkbtn" onclick={() => void undo()}>Take it back <kbd>{inUndoBox ? `${modKey} Z` : "Z"}</kbd></button></p>{/if}
       <p><a class="btn" href="/">Back to your notes</a></p>
     </div>
   {:else if card}
@@ -150,6 +183,7 @@
         </div>
       {/if}
       {#if saveError}<p class="error" role="alert">{saveError}</p>{/if}
+      {#if before && lastAnswer}<p class="undo">Answered {lastAnswer}. <button type="button" class="linkbtn" onclick={() => void undo()}>Take it back <kbd>{inUndoBox ? `${modKey} Z` : "Z"}</kbd></button></p>{/if}
       <p class="source"><a href={`/?note=${encodeURIComponent(card.noteId)}`}>From {card.noteId}</a></p>
     </div>
   {/if}
@@ -315,6 +349,17 @@
   .btn.primary kbd {
     color: var(--bg);
     opacity: 0.7;
+  }
+
+  .undo {
+    font-size: var(--text-label);
+    color: var(--ink-muted);
+  }
+
+  .linkbtn {
+    color: var(--ink);
+    text-decoration: underline;
+    text-underline-offset: 2px;
   }
 
   .source {

@@ -170,6 +170,10 @@ export const MIGRATIONS: readonly string[] = [
     text TEXT NOT NULL
   );
   `,
+  `
+  -- migration 10: what a card's state was before a review, so the last answer can be undone exactly.
+  ALTER TABLE reviews ADD COLUMN prev_state TEXT;
+  `,
 ];
 
 let current: { key: string; db: Database.Database } | null = null;
@@ -723,9 +727,10 @@ export function allCardStates(): Map<string, CardState> {
 /** Saves the new state and logs the review in one step, so the two can never disagree. */
 export function saveReview(cardId: string, noteId: string, next: CardState, log: { rating: number; elapsedDays: number }, at: Date): void {
   const db = open();
+  const prev = db.prepare("SELECT state FROM card_state WHERE card_id = ?").get(cardId) as { state: string } | undefined;
   db.transaction(() => {
     db.prepare("INSERT INTO card_state (card_id, due, state) VALUES (?, ?, ?) ON CONFLICT(card_id) DO UPDATE SET due = excluded.due, state = excluded.state").run(cardId, next.due, JSON.stringify(next));
-    db.prepare("INSERT INTO reviews (card_id, note_id, rating, elapsed_days, reviewed_at) VALUES (?, ?, ?, ?, ?)").run(cardId, noteId, log.rating, log.elapsedDays, at.toISOString());
+    db.prepare("INSERT INTO reviews (card_id, note_id, rating, elapsed_days, reviewed_at, prev_state) VALUES (?, ?, ?, ?, ?, ?)").run(cardId, noteId, log.rating, log.elapsedDays, at.toISOString(), prev?.state ?? null);
   })();
 }
 
@@ -755,4 +760,23 @@ export function getRunResult(runId: string): string | null {
 export function reviewCountsByNote(): Map<string, { total: number; again: number }> {
   const rows = open().prepare("SELECT note_id, COUNT(*) AS total, COALESCE(SUM(rating = 1), 0) AS again FROM reviews GROUP BY note_id").all() as { note_id: string; total: number; again: number }[];
   return new Map(rows.map((r) => [r.note_id, { total: r.total, again: r.again }]));
+}
+
+/**
+ * Takes back the most recent review: the card goes back to what it was (or to "never reviewed") and the
+ * log row is removed. Returns the card id, or null when there is nothing to undo.
+ */
+export function undoLastReview(): string | null {
+  const db = open();
+  const last = db.prepare("SELECT id, card_id, prev_state FROM reviews ORDER BY id DESC LIMIT 1").get() as { id: number; card_id: string; prev_state: string | null } | undefined;
+  if (!last) return null;
+  db.transaction(() => {
+    if (last.prev_state === null) db.prepare("DELETE FROM card_state WHERE card_id = ?").run(last.card_id);
+    else {
+      const prev = JSON.parse(last.prev_state) as CardState;
+      db.prepare("INSERT INTO card_state (card_id, due, state) VALUES (?, ?, ?) ON CONFLICT(card_id) DO UPDATE SET due = excluded.due, state = excluded.state").run(last.card_id, prev.due, last.prev_state);
+    }
+    db.prepare("DELETE FROM reviews WHERE id = ?").run(last.id);
+  })();
+  return last.card_id;
 }
