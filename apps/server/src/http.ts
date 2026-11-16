@@ -27,7 +27,7 @@ import { refreshSchedule } from "./scheduler";
 import { llmStatus } from "./llm-status";
 import { usage } from "./usage";
 import { getRunResult } from "./state-db";
-import { answerCard, dueCards, studyStats } from "./study";
+import { answerCard, deckStats, dueCards, studyStats } from "./study";
 import { cardsForNote } from "./index-db";
 import { addPin, approvalsForRun, clearHeartbeat, decideApproval, getApproval, listApprovals, listChatThreads, getAgent, getHeartbeat, getRun, getSchedule, listAgents, listEvents, listPins, listRuns, putAgent, putSchedule, removePin } from "./state-db";
 import { createNote, deleteNote, getNote as vaultGetNote, slugify, updateNote, validateId } from "./vault";
@@ -167,6 +167,14 @@ const routes: { method: string; pattern: RegExp; keys: string[]; handler: Handle
     keys: [],
     handler: (_req, res, _params, url) => {
       send(res, 200, { data: studyStats(new Date(), url.searchParams.get("note") ?? undefined) });
+    },
+  },
+  {
+    method: "GET",
+    pattern: /^\/api\/study\/decks$/,
+    keys: [],
+    handler: (_req, res) => {
+      send(res, 200, { data: deckStats(new Date()) });
     },
   },
   {

@@ -7,7 +7,7 @@ import { accessFromEnv } from "./access";
 import { createHandler } from "./http";
 import { closeDb } from "./index-db";
 import { closeState } from "./state-db";
-import { dueCards, studyStats } from "./study";
+import { MIN_REVIEWS_FOR_RATE, dueCards, studyStats } from "./study";
 
 let root = "";
 let server: Server;
@@ -92,5 +92,18 @@ describe("study", () => {
     await note("b", "QB? :: B");
     expect(((await j("GET", "/api/study/due?note=a")).body.data as { front: string }[]).map((c) => c.front)).toEqual(["QA?"]);
     expect((await j("GET", "/api/study/stats?note=b")).body.data).toMatchObject({ total: 1 });
+  });
+
+  it("lists a deck per note with what is waiting, and shows a recall rate only after enough answers", async () => {
+    await note("a", "A1? :: x\nA2? :: y");
+    await note("b", "B1? :: z");
+    const first = (await j("GET", "/api/study/decks")).body.data as { noteId: string; cards: number; new: number; recall: number | null }[];
+    expect(first.map((d) => [d.noteId, d.cards, d.new, d.recall])).toEqual([["a", 2, 2, null], ["b", 1, 1, null]]);
+    const id = ((await j("GET", "/api/study/due?note=a")).body.data as { id: string }[])[0]?.id;
+    for (let i = 0; i < MIN_REVIEWS_FOR_RATE; i++) await j("POST", "/api/study/review", { cardId: id, answer: i < 2 ? "again" : "good" });
+    const after = (await j("GET", "/api/study/decks")).body.data as { noteId: string; reviews: number; recall: number | null; new: number }[];
+    const a = after.find((d) => d.noteId === "a");
+    expect(a).toMatchObject({ reviews: MIN_REVIEWS_FOR_RATE, recall: 75, new: 1 });
+    expect(after.find((d) => d.noteId === "b")?.recall).toBeNull();
   });
 });

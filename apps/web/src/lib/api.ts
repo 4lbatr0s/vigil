@@ -89,6 +89,8 @@ export const getDueCards = (opts: { note?: string; limit?: number } = {}) => {
   return request<StudyCard[]>(`/api/study/due${q.size ? `?${q}` : ""}`);
 };
 export const getStudyStats = (note?: string) => request<StudyStats>(`/api/study/stats${note ? `?note=${encodeURIComponent(note)}` : ""}`);
+export type DeckStats = { noteId: string; cards: number; due: number; new: number; reviews: number; recall: number | null };
+export const getDecks = () => request<DeckStats[]>("/api/study/decks");
 export const answerStudyCard = (cardId: string, answer: Answer) => request<{ due: string }>("/api/study/review", json("POST", { cardId, answer }));
 /** Starts the card maker on a note; the answer is read with getRunResult when the run has succeeded. */
 export const startCardProposals = (noteId: string) => request<Run>(`/api/notes/${seg(noteId)}/card-proposals`, json("POST"));

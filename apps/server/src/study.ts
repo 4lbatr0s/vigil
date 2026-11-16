@@ -1,7 +1,7 @@
 import { AppError } from "./errors";
 import { cardsForNote, listCards, type IndexedCard } from "./index-db";
 import { ANSWERS, isDue, newCardState, review, type Answer, type CardState } from "./srs";
-import { allCardStates, getCardState, reviewCountsForNote, reviewCountsSince, saveReview } from "./state-db";
+import { allCardStates, getCardState, reviewCountsByNote, reviewCountsForNote, reviewCountsSince, saveReview } from "./state-db";
 
 /** New cards offered per request beyond the ones already due, so a big note never buries the day. */
 export const NEW_PER_SESSION = 10;
@@ -58,4 +58,33 @@ export function studyStats(now: Date, noteId?: string): StudyStats {
 /** Lifetime answers for a note and the share that was "again" (a plain count, not a score). */
 export function noteReviewCounts(noteId: string): { total: number; again: number } {
   return reviewCountsForNote(noteId);
+}
+
+/** Reviews needed before a recall rate is shown: a handful of answers says nothing. */
+export const MIN_REVIEWS_FOR_RATE = 8;
+
+export type DeckStats = { noteId: string; cards: number; due: number; new: number; reviews: number; recall: number | null };
+
+/**
+ * One row per note that has cards: how many, how many are waiting, and the share of answers that were not
+ * "again" (a plain recall rate, `null` until there are enough answers). Notes with something waiting first.
+ */
+export function deckStats(now: Date): DeckStats[] {
+  const states = allCardStates();
+  const counts = reviewCountsByNote();
+  const byNote = new Map<string, DeckStats>();
+  for (const c of listCards()) {
+    const row = byNote.get(c.noteId) ?? { noteId: c.noteId, cards: 0, due: 0, new: 0, reviews: 0, recall: null };
+    row.cards++;
+    const s = states.get(c.id);
+    if (!s) row.new++;
+    else if (isDue(s, now)) row.due++;
+    byNote.set(c.noteId, row);
+  }
+  for (const row of byNote.values()) {
+    const n = counts.get(row.noteId);
+    row.reviews = n?.total ?? 0;
+    row.recall = n && n.total >= MIN_REVIEWS_FOR_RATE ? Math.round(((n.total - n.again) / n.total) * 100) : null;
+  }
+  return [...byNote.values()].sort((a, b) => b.due + b.new - (a.due + a.new) || a.noteId.localeCompare(b.noteId));
 }

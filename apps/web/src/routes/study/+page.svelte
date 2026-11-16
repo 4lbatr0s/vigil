@@ -1,12 +1,13 @@
 <script lang="ts">
   import { onMount, tick } from "svelte";
   import { page } from "$app/state";
-  import { answerStudyCard, getDueCards, getStudyStats, type Answer, type StudyStats } from "$lib/api";
+  import { answerStudyCard, getDecks, getDueCards, getStudyStats, type Answer, type DeckStats, type StudyStats } from "$lib/api";
   import { refreshStudyDue } from "$lib/study-state";
   import { ANSWER_KEYS, answer, current, isFinished, remaining, reveal, startSession, type Session } from "$lib/study-session";
 
   let session = $state<Session | null>(null);
   let stats = $state<StudyStats | null>(null);
+  let decks = $state<DeckStats[]>([]);
   let loadError = $state("");
   let saveError = $state("");
   let typed = $state("");
@@ -21,9 +22,10 @@
   async function load(): Promise<void> {
     loadError = "";
     try {
-      const [cards, st] = await Promise.all([getDueCards(noteId ? { note: noteId } : {}), getStudyStats(noteId ?? undefined)]);
+      const [cards, st, d] = await Promise.all([getDueCards(noteId ? { note: noteId } : {}), getStudyStats(noteId ?? undefined), getDecks().catch(() => [] as DeckStats[])]);
       session = startSession(cards);
       stats = st;
+      decks = d;
       await tick();
       focusCard();
     } catch (err) {
@@ -148,6 +150,22 @@
       {#if saveError}<p class="error" role="alert">{saveError}</p>{/if}
       <p class="source"><a href={`/?note=${encodeURIComponent(card.noteId)}`}>From {card.noteId}</a></p>
     </div>
+  {/if}
+
+  {#if decks.length > 0}
+    <section class="decks" aria-labelledby="by-note">
+      <h2 id="by-note">By note</h2>
+      <ul>
+        {#each decks as d (d.noteId)}
+          <li>
+            <a href={`/study?note=${encodeURIComponent(d.noteId)}`} data-sveltekit-reload>{d.noteId}</a>
+            <span class="count">{d.cards} {d.cards === 1 ? "card" : "cards"}</span>
+            <span class="count">{d.due + d.new > 0 ? `${d.due + d.new} to study` : "all done"}</span>
+            <span class="count" title="Share of your answers that were not Again">{d.recall === null ? "recall: not enough answers yet" : `recall ${d.recall}%`}</span>
+          </li>
+        {/each}
+      </ul>
+    </section>
   {/if}
 </div>
 
@@ -302,6 +320,42 @@
   }
 
   .source a {
+    color: var(--ink-muted);
+  }
+
+  .decks h2 {
+    margin-bottom: var(--space-2);
+    font-size: var(--text-label);
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    font-weight: 500;
+    color: var(--ink-muted);
+  }
+
+  .decks ul {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .decks li {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: var(--space-4);
+    padding: var(--space-2) 0;
+    border-bottom: 1px solid var(--hairline);
+  }
+
+  .decks a {
+    margin-right: auto;
+    font-family: var(--font-serif);
+    font-size: var(--text-prose);
+    color: var(--ink);
+  }
+
+  .count {
+    font-size: var(--text-label);
     color: var(--ink-muted);
   }
 

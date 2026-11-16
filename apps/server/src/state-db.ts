@@ -750,3 +750,9 @@ export function getRunResult(runId: string): string | null {
   const row = open().prepare("SELECT text FROM run_results WHERE run_id = ?").get(runId) as { text: string } | undefined;
   return row ? row.text : null;
 }
+
+/** Review counts for every note that has any: [total, answered again]. */
+export function reviewCountsByNote(): Map<string, { total: number; again: number }> {
+  const rows = open().prepare("SELECT note_id, COUNT(*) AS total, COALESCE(SUM(rating = 1), 0) AS again FROM reviews GROUP BY note_id").all() as { note_id: string; total: number; again: number }[];
+  return new Map(rows.map((r) => [r.note_id, { total: r.total, again: r.again }]));
+}
