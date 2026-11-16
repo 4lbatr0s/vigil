@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { AgentSchema, NoteSchema, allTags, extractInlineTags, normalizeHost, slugify, snippetOf } from "./index";
+import { AgentSchema, NoteSchema, allTags, extractCards, extractInlineTags, normalizeHost, slugify, snippetOf } from "./index";
 
 describe("NoteSchema", () => {
   it("parses a valid note", () => {
@@ -108,5 +108,31 @@ describe("note text helpers", () => {
     expect(snippetOf("# Title\n\nSee [[Hiring|the hiring plan]] and **bold** [link](http://x.y) #tag\n\n- item")).toBe("See the hiring plan and bold link item");
     expect(snippetOf("a ".repeat(200), 20).length).toBeLessThanOrEqual(20);
     expect(snippetOf("")).toBe("");
+  });
+});
+
+describe("extractCards", () => {
+  it("reads question and answer lines, with list and quote marks before them", () => {
+    const cards = extractCards("# Bio\n\nWhat is ATP? :: The cell's energy currency\n- Where is DNA kept? :: In the nucleus\n> Quoted? :: yes");
+    expect(cards.map((c) => [c.kind, c.front, c.back, c.line])).toEqual([
+      ["qa", "What is ATP?", "The cell's energy currency", 3],
+      ["qa", "Where is DNA kept?", "In the nucleus", 4],
+      ["qa", "Quoted?", "yes", 5],
+    ]);
+  });
+  it("reads cloze sentences: hidden parts on the front, full text on the back", () => {
+    const [card] = extractCards("The {{mitochondria}} makes {{ATP}}.");
+    expect(card).toMatchObject({ kind: "cloze", front: "The […] makes […].", back: "The mitochondria makes ATP." });
+  });
+  it("ignores fenced code, lines without a separator, and empty sides", () => {
+    expect(extractCards("```\nQ :: A\n{{x}}\n```\nplain line\nAlone ::\n :: Orphan\nA :: B")).toHaveLength(1);
+    expect(extractCards("~~~\nQ :: A\n~~~")).toHaveLength(0);
+  });
+  it("gives the same id for the same front wherever it sits, and one card for a repeat", () => {
+    const a = extractCards("Q? :: A");
+    const b = extractCards("intro\n\n  q?   :: A (changed answer)\nQ? :: again");
+    expect(b).toHaveLength(1);
+    expect(b[0]?.id).toBe(a[0]?.id);
+    expect(extractCards("Q2? :: A")[0]?.id).not.toBe(a[0]?.id);
   });
 });

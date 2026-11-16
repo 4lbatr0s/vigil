@@ -186,3 +186,64 @@ export const PermissionSettingsSchema = z.object({
 export type PermissionSettings = z.infer<typeof PermissionSettingsSchema>;
 
 export * from "./templates";
+
+// ---- Study cards (ADR-0017) ----
+
+export type CardKind = "qa" | "cloze";
+export type Card = {
+  /** Stable for the same front text (hash of the normalised front), so scheduling survives moving a card around a note. */
+  id: string;
+  kind: CardKind;
+  front: string;
+  back: string;
+  /** 1-based line in the note body. */
+  line: number;
+};
+
+/** 32-bit FNV-1a, hex. Enough to tell cards in one vault apart; not a security hash. */
+function fnv1a(text: string): string {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < text.length; i++) {
+    h ^= text.charCodeAt(i);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return h.toString(16).padStart(8, "0");
+}
+
+const norm = (t: string): string => t.replace(/\s+/g, " ").trim().toLowerCase();
+
+/**
+ * Cards written in a note: `Question :: Answer` on one line, and cloze sentences with `{{hidden}}`.
+ * Fenced code is ignored, and so are list markers and quote marks before a card. A cloze card shows the
+ * sentence with the hidden parts as `[…]` on the front and the full sentence on the back. The same front
+ * text twice in one note gives one card.
+ */
+export function extractCards(body: string): Card[] {
+  const cards: Card[] = [];
+  const seen = new Set<string>();
+  let fence: string | null = null;
+  body.split("\n").forEach((raw, i) => {
+    const marker = /^\s*(```|~~~)/.exec(raw)?.[1];
+    if (marker) {
+      fence = fence === null ? marker : fence === marker ? null : fence;
+      return;
+    }
+    if (fence !== null) return;
+    const text = raw.replace(/^\s*(?:[-*+]\s+|\d+[.)]\s+|>\s*)+/, "").trim();
+    if (text === "") return;
+    let card: Omit<Card, "id" | "line"> | null = null;
+    const cloze = text.match(/\{\{([^{}]+)\}\}/g);
+    if (cloze) {
+      card = { kind: "cloze", front: text.replace(/\{\{([^{}]+)\}\}/g, "[…]"), back: text.replace(/\{\{([^{}]+)\}\}/g, "$1") };
+    } else {
+      const at = text.indexOf(" :: ");
+      if (at > 0 && at < text.length - 4) card = { kind: "qa", front: text.slice(0, at).trim(), back: text.slice(at + 4).trim() };
+    }
+    if (!card || card.front === "" || card.back === "") return;
+    const id = fnv1a(`${card.kind}:${norm(card.front)}`);
+    if (seen.has(id)) return;
+    seen.add(id);
+    cards.push({ ...card, id, line: i + 1 });
+  });
+  return cards;
+}
