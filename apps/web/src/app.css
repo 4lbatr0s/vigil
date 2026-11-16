@@ -41,6 +41,13 @@
   --radius: 4px;
   --sidebar-width: 280px;
   --measure: 68ch;
+  --rail-width: 56px;
+  --nav-width: 200px;
+
+  /* UI v2 (ADR-0016): hover and raised surfaces are mixes of existing tokens; one shadow, floating layers only. */
+  --surface-hover: color-mix(in srgb, var(--surface) 82%, var(--ink));
+  --surface-raised: color-mix(in srgb, var(--surface) 94%, var(--ink));
+  --shadow-pop: 0 8px 28px rgb(0 0 0 / 0.35), 0 1px 3px rgb(0 0 0 / 0.3);
 }
 
 /* Light follows the system unless the page says data-theme="dark". */
@@ -56,6 +63,7 @@
     --err: #b03a36;
     --amber-ink: #8f5c0a;
     --err-ink: #b03a36;
+    --shadow-pop: 0 8px 28px rgb(20 20 30 / 0.14), 0 1px 3px rgb(20 20 30 / 0.12);
   }
 }
 
@@ -71,6 +79,7 @@
   --err: #b03a36;
   --amber-ink: #8f5c0a;
   --err-ink: #b03a36;
+  --shadow-pop: 0 8px 28px rgb(20 20 30 / 0.14), 0 1px 3px rgb(20 20 30 / 0.12);
 }
 
 *,

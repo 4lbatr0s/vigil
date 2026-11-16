@@ -11,6 +11,7 @@
   import RenameNote from "$lib/components/RenameNote.svelte";
   import DeleteNote from "$lib/components/DeleteNote.svelte";
   import { nextAfterDelete } from "$lib/after-delete";
+  import PanelLeft from "@lucide/svelte/icons/panel-left";
 
   let notes = $state<NoteSummary[]>([]);
   let selectedId = $state<string | null>(null);
@@ -21,6 +22,8 @@
   let loading = $state(true);
   let loadError = $state("");
   let flicker = $state(new Set<string>());
+  /** Below 1024px the list is a slide-over (ADR-0016); this says whether it is open. */
+  let listOpen = $state(false);
 
   let dirty = false;
   // The updatedAt this editor last saw; sent with every save so a newer change is never overwritten.
@@ -47,8 +50,11 @@
       try {
         notes = await listNotes();
         // The address wins over "newest first" when it names a note.
-        const target = page.url.searchParams.get("note") ?? notes[0]?.id;
+        const asked = page.url.searchParams.get("note");
+        const target = asked ?? notes[0]?.id;
         if (target) await select(target);
+        // On a phone or a narrow window a notes app opens to its list, unless the address names a note.
+        if (!asked && window.matchMedia("(max-width: 1023px)").matches) listOpen = true;
       } catch (err) {
         loadError = err instanceof Error ? err.message : "Could not load notes";
       } finally {
@@ -78,6 +84,7 @@
     try {
       const note = await getNote(id);
       selectedId = note.id;
+      listOpen = false;
       draft = { title: note.title, body: note.body };
       baseUpdatedAt = note.updatedAt;
       // Keep the address in step with the open note, so a reload or a copied link opens the same one.
@@ -124,6 +131,7 @@
   }
 
   function onKeydown(event: KeyboardEvent) {
+    if (event.key === "Escape" && listOpen) listOpen = false;
     if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") {
       event.preventDefault();
       void saveNow();
@@ -186,7 +194,12 @@
 <svelte:window onkeydown={onKeydown} />
 
 <div class="app">
-  <NoteList {notes} {selectedId} {flicker} onselect={(id) => void select(id)} oncreated={onCreated} />
+  {#if listOpen}
+    <button type="button" class="scrim" aria-label="Close the notes list" onclick={() => (listOpen = false)}></button>
+  {/if}
+  <div class="listpane" class:open={listOpen}>
+    <NoteList {notes} {selectedId} {flicker} onselect={(id) => void select(id)} oncreated={onCreated} />
+  </div>
 
   <main class="main">
     {#if loadError}
@@ -194,9 +207,23 @@
     {:else if loading}
       <p class="empty">Loading…</p>
     {:else if !draft}
-      <p class="empty">No note selected — choose one from the list.</p>
+      <div class="empty-state">
+        <button type="button" class="act list-toggle" onclick={() => (listOpen = true)}><PanelLeft size={16} strokeWidth={1.5} /> Notes</button>
+        {#if notes.length === 0}
+          <h2>Your vault is empty.</h2>
+          <p>Write your first note, or let an agent start one for you.</p>
+          <div class="cta">
+            <button type="button" class="act primary" onclick={() => document.getElementById("new-note-title")?.focus()}>Create a note</button>
+            <a class="act" href="/agents">Add an agent</a>
+          </div>
+        {:else}
+          <h2>No note selected.</h2>
+          <p>Choose one from the list, or press ⌘K to search.</p>
+        {/if}
+      </div>
     {:else}
       <header class="head">
+        <button type="button" class="act list-toggle" aria-label="Show the notes list" onclick={() => (listOpen = true)}><PanelLeft size={16} strokeWidth={1.5} /> Notes</button>
         <h1 class="title">{draft.title}</h1>
         <div class="actions">
           <RenameNote noteId={selectedId ?? ""} title={draft.title} onrenamed={onRenamed} />
@@ -233,9 +260,118 @@
 
 <style>
   .app {
+    position: relative;
     display: grid;
     grid-template-columns: var(--sidebar-width) 1fr;
     height: 100%;
+  }
+
+  .listpane {
+    min-width: 0;
+    min-height: 0;
+  }
+
+  .scrim,
+  .act.list-toggle {
+    display: none;
+  }
+
+  .empty-state {
+    align-self: center;
+    justify-self: center;
+    display: grid;
+    gap: var(--space-3);
+    max-width: 36ch;
+    padding: var(--space-6);
+    text-align: center;
+    color: var(--ink-muted);
+  }
+
+  .empty-state h2 {
+    font-family: var(--font-serif);
+    font-size: var(--text-h3);
+    font-weight: 600;
+    color: var(--ink);
+  }
+
+  .cta {
+    display: flex;
+    justify-content: center;
+    gap: var(--space-2);
+  }
+
+  .act {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    color: var(--ink);
+    text-decoration: none;
+  }
+
+  /* Below 1024px the list is a slide-over; the Notes button opens it (ux-spec section 1). */
+  @media (max-width: 1023px) {
+    .app {
+      grid-template-columns: 1fr;
+    }
+    .listpane {
+      position: absolute;
+      inset: 0 auto 0 0;
+      z-index: 10;
+      width: min(var(--sidebar-width), 88vw);
+      transform: translateX(-100%);
+      visibility: hidden;
+      transition: transform 140ms ease-out, visibility 0s linear 140ms;
+      box-shadow: var(--shadow-pop);
+    }
+    .listpane.open {
+      transform: none;
+      visibility: visible;
+      transition: transform 140ms ease-out;
+    }
+    .scrim {
+      display: block;
+      position: absolute;
+      inset: 0;
+      z-index: 9;
+      background: color-mix(in srgb, var(--bg) 60%, transparent);
+    }
+    .act.list-toggle {
+      display: inline-flex;
+    }
+    .head {
+      flex-wrap: wrap;
+      justify-content: flex-start;
+    }
+    .actions {
+      margin-left: auto;
+    }
+    .pane {
+      padding: var(--space-4);
+    }
+  }
+
+  @media (max-width: 639px) {
+    .listpane {
+      width: 100%;
+    }
+    .head {
+      padding: var(--space-3) var(--space-4);
+    }
+    .actions {
+      order: 1;
+      margin-left: auto;
+    }
+    .title {
+      order: 2;
+      flex-basis: 100%;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .listpane,
+    .listpane.open {
+      transition: none;
+    }
   }
 
   .main {

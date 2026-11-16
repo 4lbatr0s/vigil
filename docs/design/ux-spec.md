@@ -19,13 +19,15 @@ Three breakpoints (CSS `min-width`):
 
 | Name | Width | Layout |
 | --- | --- | --- |
-| wide | >= 1024px | rail (56px) + list pane (`--sidebar-width` 280px) + main (fluid). Prose column max `--measure` 68ch, left-aligned in main. |
-| medium | 640 to 1023px | rail (56px) + main. The list pane becomes a slide-over opened by a "Notes" button in the main header; it closes on selection or Escape. |
-| narrow | < 640px | single column. Top bar (title + menu button); the rail becomes a full-height drawer from the left; list pane is a full-screen view; main is a full-screen view; no hover-only controls. |
+| wide | >= 1200px | labelled navigation (`--nav-width` 200px, icon and text) + list pane (`--sidebar-width` 280px) + main (fluid). Prose column max `--measure` 68ch. |
+| medium | 640 to 1199px | icon rail (`--rail-width` 56px) + main. Below 1024px the list pane is a slide-over opened by a "Notes" button in the main header; it closes on selection, on the scrim or on Escape. From 1024px the list pane is docked. |
+| narrow | < 640px | single column. Top bar (menu button, name, search field); the navigation is a drawer from the left; the list pane is a full-width slide-over and opens first when the address names no note; no hover-only controls. |
+
+(ADR-0016 changed the wide layout from the icon-only rail to a labelled navigation.)
 
 Vigil is desktop-first; the narrow layout must work (it is an installable PWA) but is not polished beyond that in v1.
 
-Header strip (top of main, 48px, hairline bottom): left, screen title; right, the command hint `Cmd K` (shows `Ctrl K` on non-Mac) as a chip that opens the palette. Banners (section 14) sit above this strip.
+Header strip (top of main, hairline bottom): a search field that opens the command palette (placeholder "Search or run a command", `Cmd K` or `Ctrl K` shown inside); on narrow screens the menu button and the name come first. Banners (section 14) sit above this strip.
 
 The rail (left, 56px wide, hairline right): icon buttons stacked from the top: Notes, Agents, Chat, Graph; pinned to the bottom: Approvals (with count badge), Settings. Each button has a visible label as a tooltip and an `aria-label`. The active item shows a 2px ink bar on its left edge (not amber).
 

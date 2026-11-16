@@ -25,8 +25,17 @@ Dark is default. Light is a first-class theme, not an afterthought.
 | Chrome | Schibsted Grotesk | nav, buttons, labels, settings, editor UI |
 Scale: 13 (labels) / 15 (UI) / 17 (prose base) / 20 (h3) / 26 (h2) / 34 (h1). Prose line-height 1.6, reading column max 68ch. Mono line-height 1.5.
 
+## UI v2 additions (ADR-0016)
+| Token | Role |
+| --- | --- |
+| --surface-hover | hover and selected rows and buttons (mixed from --surface and --ink) |
+| --surface-raised | card-like panels such as review and Today (mixed, never a new hue) |
+| --shadow-pop | the only shadow: floating layers (menus, palette, toolbars, slide-over, drawer) |
+| --rail-width / --nav-width | 56px icon rail / 200px labelled navigation (from 1200px) |
+Breakpoints: wide >= 1200 (labelled nav), 1024 to 1199 and 640 to 1023 (icon rail; list pane is a slide-over below 1024), < 640 (drawer, single column).
+
 ## Layout & structure
-- Hairlines carry structure; shadows are banned (except focus rings).
+- Hairlines carry structure; shadows are banned except `--shadow-pop` on floating layers and focus rings (ADR-0016).
 - Border radius: 4px on interactive surfaces only. Never on decorative cards.
 - Spacing on a 4/8 grid: 4, 8, 12, 16, 24, 32, 48.
 - Left-aligned text everywhere; centered only in empty states.

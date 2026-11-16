@@ -116,6 +116,15 @@ Legend: `[x]` done, `[ ]` not done. Add a short note after a task only for a dev
 - [x] WP12-T7: CI
 - [x] WP12-T8: Release hygiene
 
+## UI v2: a note app people want to write in (ADR-0016; plan in the owner's approved UI plan, 2026-11-17)
+
+- [x] UI-1: Shell, tokens, responsive (labelled nav, icon rail, drawer, slide-over list, search field, empty states). *Done 2026-11-17: checked at 1568, 900 and 390 px (media queries evaluated in the page, since the browser window cannot be resized) in dark and light; not checked on a real phone.*
+- [ ] UI-2: Note list people expect (search box, snippets, tags, pins, sort)
+- [ ] UI-3: Writing surface (inline title, formatting keys, selection toolbar, slash menu, tables, callouts, images)
+- [ ] UI-4: Agents inside the note (provenance bar, activity panel, review changes, ask an agent)
+- [ ] UI-5: Today view and onboarding
+- [ ] UI-6: Polish, benchmark rubric, README screenshots and demo
+
 ## WP13: after v1 (ordered backlog, do not start before the release)
 
 
