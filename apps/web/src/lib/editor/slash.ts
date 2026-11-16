@@ -46,7 +46,7 @@ function inCode(state: EditorState, pos: number): boolean {
  * The `/` menu: type `/` at the start of an empty-so-far line to insert a block (heading, list, to-do,
  * quote, callout, code, table, divider). Never fires inside code or in the middle of a line.
  */
-export function completeSlash(context: CompletionContext): CompletionResult | null {
+export function completeSlash(context: CompletionContext, onAsk?: () => void): CompletionResult | null {
   const match = context.matchBefore(/\/[\w-]*$/);
   if (!match) return null;
   const line = context.state.doc.lineAt(match.from);
@@ -65,6 +65,18 @@ export function completeSlash(context: CompletionContext): CompletionResult | nu
       view.dispatch({ changes: { from, to, insert: crowded ? `${text}\n` : text }, selection: { anchor: from + cursor }, userEvent: "input.complete" });
     },
   }));
+  // "Ask an agent" is not a block: it removes the slash text and opens the ask dialog.
+  if (onAsk && rank([{ label: "Ask an agent", words: "ai assistant ask" }], query, (b) => `${b.label} ${b.words}`).length > 0) {
+    options.push({
+      label: "Ask an agent",
+      detail: "agent",
+      type: "keyword",
+      apply: (view: EditorView, _c: Completion, from: number, to: number) => {
+        view.dispatch({ changes: { from, to, insert: "" }, userEvent: "input.complete" });
+        onAsk();
+      },
+    });
+  }
   if (options.length === 0) return null;
   return { from: match.from, options, filter: false };
 }

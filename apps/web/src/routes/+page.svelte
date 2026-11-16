@@ -3,7 +3,7 @@
   import { replaceState } from "$app/navigation";
   import { page } from "$app/state";
   import { slugify, type Note, type NoteSummary } from "@vigil/shared";
-  import { getNote, listNotes, listPins, pinNote, putNote, unpinNote } from "$lib/api";
+  import { getNote, listApprovals, listNotes, listPins, listRuns, pinNote, putNote, unpinNote, type ApprovalItem } from "$lib/api";
   import { newAgentNotes } from "$lib/notes-poll";
   import { refreshOnLive } from "$lib/live";
   import NoteList from "$lib/components/NoteList.svelte";
@@ -12,6 +12,11 @@
   import DeleteNote from "$lib/components/DeleteNote.svelte";
   import { nextAfterDelete } from "$lib/after-delete";
   import PanelLeft from "@lucide/svelte/icons/panel-left";
+  import type { Run } from "@vigil/shared";
+  import AskAgent from "$lib/components/AskAgent.svelte";
+  import NoteActivity from "$lib/components/NoteActivity.svelte";
+  import ProvenanceBar from "$lib/components/ProvenanceBar.svelte";
+  import { runsForNote, undoableRun } from "$lib/note-activity";
 
   let notes = $state<NoteSummary[]>([]);
   let selectedId = $state<string | null>(null);
@@ -23,6 +28,29 @@
   let loadError = $state("");
   let flicker = $state(new Set<string>());
   let pins = $state<string[]>([]);
+  // What agents did to this note, and what they are waiting to do (ProvenanceBar and NoteActivity).
+  let runs = $state<Run[]>([]);
+  let pending = $state<ApprovalItem[]>([]);
+  let askOpen = $state(false);
+  let askSelection = $state<string | null>(null);
+  const current = $derived(notes.find((n) => n.id === selectedId));
+  const noteRuns = $derived(selectedId ? runsForNote(runs, selectedId) : []);
+  const writerRun = $derived(selectedId && current?.author === "agent" ? undoableRun(runs, selectedId, current.agentName) : null);
+  const pendingHere = $derived(pending.filter((p) => p.noteId === selectedId));
+
+  async function loadActivity(): Promise<void> {
+    try {
+      [runs, pending] = await Promise.all([listRuns({ limit: 100 }), listApprovals("pending")]);
+    } catch {
+      // The panels keep what they had; the next poll tries again.
+    }
+  }
+
+  /** After "Undo this run": the note on disk changed, so reload it and the lists. */
+  async function onUndone(): Promise<void> {
+    await pollNotes();
+    if (selectedId) await select(selectedId);
+  }
   // The title field: edited in place, saved on Enter or when it loses focus (Escape puts the old title back).
   let titleValue = $state("");
   let titleFocused = $state(false);
@@ -56,6 +84,7 @@
       const next = await listNotes();
       const landed = newAgentNotes(notes, next);
       notes = next;
+      void loadActivity();
       if (landed.length > 0) {
         flicker = new Set(landed);
         setTimeout(() => (flicker = new Set()), 700);
@@ -107,6 +136,7 @@
       const note = await getNote(id);
       selectedId = note.id;
       listOpen = false;
+      void loadActivity();
       draft = { title: note.title, body: note.body };
       baseUpdatedAt = note.updatedAt;
       // Keep the address in step with the open note, so a reload or a copied link opens the same one.
@@ -154,6 +184,11 @@
 
   function onKeydown(event: KeyboardEvent) {
     if (event.key === "Escape" && listOpen) listOpen = false;
+    if (!event.defaultPrevented && (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "j" && draft) {
+      event.preventDefault();
+      askSelection = null;
+      askOpen = true;
+    }
     if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") {
       event.preventDefault();
       void saveNow();
@@ -283,6 +318,8 @@
         <p class="title-hint" id="title-hint">The file name stays the same. Use Rename to change it.</p>
       {/if}
 
+      <ProvenanceBar agentName={current?.author === "agent" ? current.agentName : undefined} writtenAt={current?.updatedAt} run={writerRun} pending={pendingHere} onundone={() => void onUndone()} />
+
       {#if pendingCreate}
         <div class="prompt" role="alertdialog" aria-label="Create note">
           <span>No note called “{pendingCreate}” yet. Create it?</span>
@@ -295,11 +332,12 @@
         <section class="pane editor-pane">
           <!-- The editor (CodeMirror) is the heavy part: load it after the shell and list. -->
           {#await import("$lib/components/Editor.svelte") then { default: Editor }}
-            <Editor value={draft.body} noteId={selectedId ?? ""} onDocChange={onDocChange} onOpenWikilink={(t) => void openWikilink(t)} getTitles={() => notes.map((n) => n.title)} getTitle={() => draft?.title} />
+            <Editor value={draft.body} noteId={selectedId ?? ""} onDocChange={onDocChange} onOpenWikilink={(t) => void openWikilink(t)} getTitles={() => notes.map((n) => n.title)} getTitle={() => draft?.title} onAsk={(sel) => ((askSelection = sel), (askOpen = true))} />
           {/await}
         </section>
       </div>
 
+      <NoteActivity runs={noteRuns} />
       <Backlinks noteId={selectedId ?? ""} signature={notes.map((n) => n.updatedAt).join("|")} />
 
       <footer class="status">
@@ -309,6 +347,10 @@
     {/if}
   </main>
 </div>
+
+{#if draft && selectedId}
+  <AskAgent bind:open={askOpen} noteId={selectedId} title={draft.title} selection={askSelection} />
+{/if}
 
 <style>
   .app {

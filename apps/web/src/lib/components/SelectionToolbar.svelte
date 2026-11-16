@@ -8,9 +8,10 @@
   import Heading2 from "@lucide/svelte/icons/heading-2";
   import Quote from "@lucide/svelte/icons/quote";
   import List from "@lucide/svelte/icons/list";
+  import Bot from "@lucide/svelte/icons/bot";
   import { boldCommand, codeCommand, headingCommand, italicCommand, lineCommand, linkCommand, strikeCommand, type Command } from "$lib/editor/format";
 
-  let { view, left, top }: { view: EditorView; left: number; top: number } = $props();
+  let { view, left, top, onask }: { view: EditorView; left: number; top: number; onask?: () => void } = $props();
 
   const mod = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform) ? "⌘" : "Ctrl+";
   const buttons: { label: string; keys: string; icon: typeof Bold; run: Command }[] = [
@@ -38,6 +39,12 @@
       <Icon size={16} strokeWidth={1.5} />
     </button>
   {/each}
+  {#if onask}
+    <span class="sep" aria-hidden="true"></span>
+    <button type="button" aria-label="Ask an agent" title={`Ask an agent (${mod}J)`} onclick={onask}>
+      <Bot size={16} strokeWidth={1.5} />
+    </button>
+  {/if}
 </div>
 
 <style>
@@ -60,6 +67,12 @@
     height: 30px;
     border-radius: var(--radius);
     color: var(--ink);
+  }
+
+  .sep {
+    width: 1px;
+    margin: 4px 2px;
+    background: var(--hairline);
   }
 
   button:hover {

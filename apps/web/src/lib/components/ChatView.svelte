@@ -15,6 +15,7 @@
     type ChatMessage,
     type ChatThread,
   } from "$lib/api";
+  import { takeDraft } from "$lib/chat-draft";
   import { applyLine, emptyLive, lastIsUser, speakerOf, type Live } from "$lib/chat-view";
   import { agoText } from "$lib/format";
   import { refreshOnLive } from "$lib/live";
@@ -91,6 +92,12 @@
     saved = null;
     error = "";
     void loadThread();
+    // "Ask an agent" on a note hands its text over here; the person still presses Send.
+    const handedOver = id ? takeDraft(id) : null;
+    if (handedOver !== null) {
+      draft = handedOver;
+      void tick().then(() => box?.focus());
+    }
   });
 
   async function scrollDown(): Promise<void> {

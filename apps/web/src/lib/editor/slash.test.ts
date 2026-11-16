@@ -39,6 +39,11 @@ describe("completeSlash", () => {
     expect(apply("/tab\n\nEnd.", "Table")).toBe("| Column | Column |\n| --- | --- |\n|  |  |\n\nEnd.");
     expect(apply("/tab", "Table")).toBe("| Column | Column |\n| --- | --- |\n|  |  |");
   });
+  it("offers Ask an agent only when the page can open it", () => {
+    expect(completeSlash(ctx("/ask"))?.options.map((o) => o.label)).not.toContain("Ask an agent");
+    expect(completeSlash(ctx("/ask"), () => undefined)?.options.map((o) => o.label)).toContain("Ask an agent");
+    expect(completeSlash(ctx("/"), () => undefined)?.options.at(-1)?.label).toBe("Ask an agent");
+  });
   it("replaces the slash and the typed word", () => {
     const r = completeSlash(ctx("one\n/hea"));
     expect(r?.from).toBe(4);

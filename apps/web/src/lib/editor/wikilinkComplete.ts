@@ -46,6 +46,6 @@ export function completeWikilink(context: CompletionContext, titles: string[]): 
 }
 
 /** The autocompletion extension: `[[` offers note titles (read each time it opens), `/` at a line start offers blocks. */
-export function wikilinkCompletion(getTitles: () => string[]): Extension {
-  return autocompletion({ override: [(context) => completeWikilink(context, getTitles()), completeSlash], icons: false, defaultKeymap: true });
+export function wikilinkCompletion(getTitles: () => string[], onAsk?: () => void): Extension {
+  return autocompletion({ override: [(context) => completeWikilink(context, getTitles()), (context) => completeSlash(context, onAsk)], icons: false, defaultKeymap: true });
 }

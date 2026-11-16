@@ -19,6 +19,7 @@
     onOpenWikilink,
     getTitles,
     getTitle,
+    onAsk,
   }: {
     value?: string;
     noteId?: string;
@@ -29,7 +30,11 @@
     getTitles?: () => string[];
     /** The note's title: a first-line `# Title` that repeats it is hidden, the page shows it already. */
     getTitle?: () => string | undefined;
+    /** Cmd/Ctrl+J, the toolbar button or `/ask`: the page opens "Ask an agent" with the selected text. */
+    onAsk?: (selection: string) => void;
   } = $props();
+
+  const selectedText = (v: EditorView): string => v.state.sliceDoc(v.state.selection.main.from, v.state.selection.main.to);
 
   let host = $state<HTMLDivElement | undefined>(undefined);
   let view = $state.raw<EditorView | undefined>(undefined);
@@ -49,7 +54,7 @@
       return;
     }
     const box = wrap.getBoundingClientRect();
-    const width = 8 * 30 + 7 * 2 + 10; // eight buttons, gaps and padding
+    const width = 9 * 30 + 8 * 2 + 10; // nine buttons, gaps and padding
     const left = Math.min(Math.max(0, at.left - box.left), Math.max(0, box.width - width));
     const above = at.top - box.top - 44;
     bar = { left, top: above >= 0 ? above : at.bottom - box.top + 8 };
@@ -63,6 +68,13 @@
       { key: "Mod-e", run: codeCommand },
       { key: "Mod-Shift-x", run: strikeCommand },
       { key: "Mod-Shift-k", run: linkCommand },
+      {
+        key: "Mod-j",
+        run: (v) => {
+          onAsk?.(selectedText(v));
+          return onAsk !== undefined;
+        },
+      },
       { key: "Mod-Alt-1", run: headingCommand(1) },
       { key: "Mod-Alt-2", run: headingCommand(2) },
       { key: "Mod-Alt-3", run: headingCommand(3) },
@@ -132,7 +144,10 @@
           minimalSetup,
           syntaxHighlighting(highlight),
           markdown({ base: markdownLanguage, codeLanguages: languages }),
-          wikilinkCompletion(() => getTitles?.() ?? []),
+          wikilinkCompletion(
+            () => getTitles?.() ?? [],
+            onAsk ? () => onAsk(instance ? selectedText(instance) : "") : undefined,
+          ),
           livePreview({ onOpenWikilink: (title) => onOpenWikilink?.(title), getTitle: () => getTitle?.() }),
           EditorView.lineWrapping,
           theme,
@@ -157,7 +172,7 @@
 <div class="wrap" bind:this={wrap}>
   <div class="editor" bind:this={host}></div>
   {#if bar && view}
-    <SelectionToolbar {view} left={bar.left} top={bar.top} />
+    <SelectionToolbar {view} left={bar.left} top={bar.top} onask={onAsk ? () => onAsk(selectedText(view!)) : undefined} />
   {/if}
 </div>
 
