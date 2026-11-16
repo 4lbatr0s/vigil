@@ -1,7 +1,7 @@
 # ADR-0017: Study cards and spaced review
 
 ## Status
-Proposed (2026-11-17). Becomes Accepted when the first work package of "Study v1" starts.
+Accepted (2026-11-17). Started: card parser and scheduler wrapper done; storage, API and screens still to do.
 
 ## Context
 The owner wants learners first. Research ranks practice testing and spaced practice highest (Dunlosky 2013; Adesope 2017; Cepeda 2006). It also warns that AI which does the thinking for the learner can lower engagement and transfer (Bastani 2025; Fan 2025). No integrated tool covers notes, AI-proposed cards, human review and spaced review.
