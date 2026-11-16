@@ -17,8 +17,39 @@ export const NoteSchema = z.object({
 });
 
 export type Note = z.infer<typeof NoteSchema>;
-/** A note without its body, for lists (GET /api/notes?fields=summary). */
-export type NoteSummary = Omit<Note, "body">;
+/**
+ * A note without its body, for lists (GET /api/notes?fields=summary).
+ * `tags` are the note's frontmatter tags plus its inline #tags; `snippet` is the first words of the body.
+ */
+export type NoteSummary = Omit<Note, "body"> & { snippet?: string };
+
+/** Inline `#tags` in a note body, lowercased, without the `#`, nested with `/`. Code blocks and inline code are ignored. */
+export function extractInlineTags(body: string): string[] {
+  const text = body.replace(/```[\s\S]*?```/g, " ").replace(/~~~[\s\S]*?~~~/g, " ").replace(/`[^`\n]*`/g, " ");
+  const found = new Set<string>();
+  for (const m of text.matchAll(/(?:^|[\s(])#([a-zA-Z][\w-]*(?:\/[\w-]+)*)/gm)) found.add((m[1] as string).toLowerCase());
+  return [...found];
+}
+
+/** Frontmatter tags and inline tags together, unique, in first-seen order. */
+export function allTags(tags: string[], body: string): string[] {
+  return [...new Set([...tags.map((t) => t.toLowerCase()), ...extractInlineTags(body)])];
+}
+
+/** A short plain-text preview of a note body: no headings marks, links reduced to their text, one line. */
+export function snippetOf(body: string, max = 140): string {
+  const plain = body
+    .replace(/```[\s\S]*?```/g, " ")
+    .replace(/^\s{0,3}#{1,6}\s+.*$/m, " ") // the first heading usually repeats the title
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, " ")
+    .replace(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, (_m, a: string, b?: string) => b ?? a)
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
+    .replace(/(^|\s)#[a-zA-Z][\w/-]*/g, "$1")
+    .replace(/[*_~`>#-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return plain.length > max ? `${plain.slice(0, max - 1).trimEnd()}…` : plain;
+}
 
 /** Lowercase, dash-separated, [a-z0-9-] only, max 80 chars. */
 export function slugify(title: string): string {

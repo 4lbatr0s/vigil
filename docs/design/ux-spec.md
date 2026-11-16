@@ -69,10 +69,11 @@ The rail (left, 56px wide, hairline right): icon buttons stacked from the top: N
 
 ### List pane
 
-- Top: a "Search notes" input (filters the list by title as you type, debounce 150ms; Enter runs full-text search `GET /api/search` and shows hits with a snippet in `--ink-muted`; Escape clears). Below it a ghost button "New note".
-- Row: serif 17px title (one line, ellipsis), below it mono 13px muted relative time; if `author === "agent"`: an 8px amber dot at the left and the agent name in the tooltip. Selected row: `--surface` background plus the 2px ink bar at the left edge.
-- Sorted by `updatedAt` descending. Keyboard: Up/Down move the selection, Enter opens, `N` creates a note when focus is in the list.
-- New note: the button turns into a text input "Note title"; Enter creates (slug from title; if taken, show "A note with that name already exists." and keep the text); Escape cancels.
+- Top: a "Filter notes" box (instant match on title, snippet and tags; from 2 characters the server's full-text hits are merged in after 150 ms; Escape clears), a count and a sort menu ("Recently changed" or "Title", remembered in the browser), and a row of tag chips (All plus the 12 most used tags; a tag matches its children, so `work` shows `work/launch`). Below the list: the title box and "New note".
+- Row (68 px, fixed so long lists can be windowed): serif 17px title, relative time on the right in 13px muted; second line a one-line snippet in muted 13px and up to two tags. An 8px-less 6px amber dot marks agent-written notes. Selected row: raised surface plus the 2px ink bar. A pin button shows on hover and focus (always when pinned); pinned notes come first, most recently pinned first. A pin is stored by the server outside the note file, so pinning never changes the note.
+- Tags come from the note's frontmatter and from inline `#tags` in the text (nested with `/`; code is ignored).
+- Keyboard: Up and Down move between rows, Enter opens, `N` jumps to the new-note box.
+- No match: "No notes match." with a "Clear the filter" link.
 
 ### States
 

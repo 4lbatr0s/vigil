@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { AgentSchema, NoteSchema, slugify, normalizeHost } from "./index";
+import { AgentSchema, NoteSchema, allTags, extractInlineTags, normalizeHost, slugify, snippetOf } from "./index";
 
 describe("NoteSchema", () => {
   it("parses a valid note", () => {
@@ -92,5 +92,21 @@ describe("allowedHosts", () => {
     expect(parse(["Example.com"]).success).toBe(false);
     expect(parse(["https://example.com"]).success).toBe(false);
     expect(parse(["example.com", "example.com"]).success).toBe(false);
+  });
+});
+
+
+describe("note text helpers", () => {
+  it("finds inline tags, nested, lowercased, outside code", () => {
+    const body = "Plan #Work/Launch and #ideas.\nNot a tag: C# and #1 and `#code` and\n```\n#fenced\n```\nTitle#nope (#paren)";
+    expect(extractInlineTags(body).sort()).toEqual(["ideas", "paren", "work/launch"]);
+  });
+  it("merges frontmatter and inline tags without duplicates", () => {
+    expect(allTags(["Work", "x"], "see #work and #y")).toEqual(["work", "x", "y"]);
+  });
+  it("builds a one-line snippet without markdown noise", () => {
+    expect(snippetOf("# Title\n\nSee [[Hiring|the hiring plan]] and **bold** [link](http://x.y) #tag\n\n- item")).toBe("See the hiring plan and bold link item");
+    expect(snippetOf("a ".repeat(200), 20).length).toBeLessThanOrEqual(20);
+    expect(snippetOf("")).toBe("");
   });
 });

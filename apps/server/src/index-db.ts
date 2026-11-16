@@ -4,7 +4,7 @@ import { createHash } from "node:crypto";
 import { existsSync, mkdirSync } from "node:fs";
 import path from "node:path";
 import Database from "better-sqlite3";
-import type { Note } from "@vigil/shared";
+import { allTags, snippetOf, type Note, type NoteSummary } from "@vigil/shared";
 import { REPO_ROOT, listNotes as vaultListNotes, slugify } from "./vault";
 
 export type NoteRow = Note;
@@ -19,7 +19,7 @@ export function dbPath(): string {
  * Bump when a table changes. The index is disposable (ADR-0001), so a different version drops every
  * table and the server rebuilds from the vault on start (`isEmpty` then `rebuildAll`).
  */
-const SCHEMA_VERSION = 3;
+const SCHEMA_VERSION = 4;
 
 function migrate(db: Database.Database): void {
   const version = db.pragma("user_version", { simple: true }) as number;
@@ -34,7 +34,9 @@ function migrate(db: Database.Database): void {
       author TEXT NOT NULL DEFAULT 'human',
       tags TEXT NOT NULL DEFAULT '[]',
       agent_name TEXT,
-      hash TEXT
+      hash TEXT,
+      tags_all TEXT NOT NULL DEFAULT '[]',
+      snippet TEXT NOT NULL DEFAULT ''
     );
     CREATE TABLE IF NOT EXISTS notes_body (
       id TEXT PRIMARY KEY,
@@ -121,8 +123,8 @@ export function reindexNote(note: Note): void {
     .update(`${note.title}\n${note.tags.join(",")}\n${note.body}`)
     .digest("hex");
   db.prepare(
-    "INSERT INTO notes (id, title, updated_at, author, tags, agent_name, hash) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET title = excluded.title, updated_at = excluded.updated_at, author = excluded.author, tags = excluded.tags, agent_name = excluded.agent_name, hash = excluded.hash",
-  ).run(note.id, note.title, note.updatedAt, note.author, JSON.stringify(note.tags), note.agentName ?? null, hash);
+    "INSERT INTO notes (id, title, updated_at, author, tags, agent_name, hash, tags_all, snippet) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET title = excluded.title, updated_at = excluded.updated_at, author = excluded.author, tags = excluded.tags, agent_name = excluded.agent_name, hash = excluded.hash, tags_all = excluded.tags_all, snippet = excluded.snippet",
+  ).run(note.id, note.title, note.updatedAt, note.author, JSON.stringify(note.tags), note.agentName ?? null, hash, JSON.stringify(allTags(note.tags, note.body)), snippetOf(note.body));
   db.prepare(
     "INSERT INTO notes_body (id, body) VALUES (?, ?) ON CONFLICT(id) DO UPDATE SET body = excluded.body",
   ).run(note.id, note.body);
@@ -217,14 +219,14 @@ export function listNotes(): NoteRow[] {
 }
 
 /** The list view: no bodies, so the payload stays small however long the notes are. */
-export function listNoteSummaries(): Omit<NoteRow, "body">[] {
+export function listNoteSummaries(): NoteSummary[] {
   const { db } = open();
   const rows = db
-    .prepare("SELECT id, title, updated_at, author, tags, agent_name FROM notes ORDER BY updated_at DESC")
-    .all() as Omit<DbNote, "body">[];
+    .prepare("SELECT id, title, updated_at, author, tags, agent_name, tags_all, snippet FROM notes ORDER BY updated_at DESC")
+    .all() as (Omit<DbNote, "body"> & { tags_all: string; snippet: string })[];
   return rows.map((row) => {
     const { body: _body, ...summary } = toNote({ ...row, body: null });
-    return summary;
+    return { ...summary, tags: JSON.parse(row.tags_all) as string[], snippet: row.snippet };
   });
 }
 

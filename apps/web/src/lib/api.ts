@@ -72,6 +72,11 @@ export const getBacklinks = (id: string) => request<Backlink[]>(`/api/notes/${se
 export const searchNotes = (q: string) =>
   request<Array<{ id: string; title: string; snippet: string }>>(`/api/search?q=${encodeURIComponent(q)}`);
 
+/** Pinned note ids, most recently pinned first. A pin is the owner's choice, kept out of the note file. */
+export const listPins = () => request<string[]>("/api/pins");
+export const pinNote = (id: string) => request<string[]>(`/api/pins/${seg(id)}`, { method: "PUT" });
+export const unpinNote = (id: string) => request<string[]>(`/api/pins/${seg(id)}`, { method: "DELETE" });
+
 // ---- Agents and runs ----
 
 export type Schedule = {

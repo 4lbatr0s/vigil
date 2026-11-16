@@ -2,7 +2,7 @@ export type Window = { start: number; end: number; padTop: number; padBottom: nu
 
 /** Number of rows above which the note list renders only what is on screen. */
 export const VIRTUALIZE_ABOVE = 300;
-export const ROW_HEIGHT = 48;
+export const ROW_HEIGHT = 68;
 
 /**
  * Which rows to render for a scroll position: the visible ones plus `overscan` on each side, with

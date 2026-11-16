@@ -26,7 +26,7 @@ import { planRename, renameNote } from "./rename";
 import { refreshSchedule } from "./scheduler";
 import { llmStatus } from "./llm-status";
 import { usage } from "./usage";
-import { approvalsForRun, clearHeartbeat, decideApproval, getApproval, listApprovals, listChatThreads, getAgent, getHeartbeat, getRun, getSchedule, listAgents, listEvents, listRuns, putAgent, putSchedule } from "./state-db";
+import { addPin, approvalsForRun, clearHeartbeat, decideApproval, getApproval, listApprovals, listChatThreads, getAgent, getHeartbeat, getRun, getSchedule, listAgents, listEvents, listPins, listRuns, putAgent, putSchedule, removePin } from "./state-db";
 import { createNote, deleteNote, getNote as vaultGetNote, slugify, updateNote, validateId } from "./vault";
 
 const MAX_BODY_BYTES = 2 * 1024 * 1024;
@@ -143,8 +143,37 @@ const routes: { method: string; pattern: RegExp; keys: string[]; handler: Handle
       await withNoteLock(async () => {
         await deleteNote(id);
         removeNote(id);
+        removePin(id);
       });
       send(res, 200, { data: { id } });
+    },
+  },
+  {
+    method: "GET",
+    pattern: /^\/api\/pins$/,
+    keys: [],
+    handler: (_req, res) => {
+      send(res, 200, { data: listPins() });
+    },
+  },
+  {
+    method: "PUT",
+    pattern: /^\/api\/pins\/([^/]+)$/,
+    keys: ["id"],
+    handler: (_req, res, params) => {
+      const id = params["id"] ?? "";
+      if (indexGetNote(id) === null) throw new AppError("note-not-found", `Note not found: ${id}`, 404);
+      addPin(id);
+      send(res, 200, { data: listPins() });
+    },
+  },
+  {
+    method: "DELETE",
+    pattern: /^\/api\/pins\/([^/]+)$/,
+    keys: ["id"],
+    handler: (_req, res, params) => {
+      removePin(params["id"] ?? "");
+      send(res, 200, { data: listPins() });
     },
   },
   {

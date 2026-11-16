@@ -3,6 +3,7 @@ import { AppError } from "./errors";
 import { reindexNote, removeNote } from "./index-db";
 import { withNoteLock } from "./lock";
 import { rewriteLinks } from "./links";
+import { movePin } from "./state-db";
 import { getNote, listNotes, moveNote, readNoteFile, replaceBody, restoreNoteFile, validateId } from "./vault";
 import { deleteNote } from "./vault";
 import type { Note } from "@vigil/shared";
@@ -75,6 +76,7 @@ export function renameNote(id: string, title: string): Promise<Note> {
       for (const e of edits) reindexNote(await getNote(e.id));
       if (newId !== id) removeNote(id);
       reindexNote(note);
+      movePin(id, newId);
       return note;
     } catch (err) {
       // Put everything back as it was. Each step is best effort so one failure does not hide the others.

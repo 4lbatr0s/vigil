@@ -3,7 +3,7 @@
   import { replaceState } from "$app/navigation";
   import { page } from "$app/state";
   import { slugify, type Note, type NoteSummary } from "@vigil/shared";
-  import { getNote, listNotes, putNote } from "$lib/api";
+  import { getNote, listNotes, listPins, pinNote, putNote, unpinNote } from "$lib/api";
   import { newAgentNotes } from "$lib/notes-poll";
   import { refreshOnLive } from "$lib/live";
   import NoteList from "$lib/components/NoteList.svelte";
@@ -22,6 +22,7 @@
   let loading = $state(true);
   let loadError = $state("");
   let flicker = $state(new Set<string>());
+  let pins = $state<string[]>([]);
   /** Below 1024px the list is a slide-over (ADR-0016); this says whether it is open. */
   let listOpen = $state(false);
 
@@ -48,7 +49,7 @@
     let stop: (() => void) | undefined;
     void (async () => {
       try {
-        notes = await listNotes();
+        [notes, pins] = await Promise.all([listNotes(), listPins().catch(() => [] as string[])]);
         // The address wins over "newest first" when it names a note.
         const asked = page.url.searchParams.get("note");
         const target = asked ?? notes[0]?.id;
@@ -185,6 +186,17 @@
     }
   }
 
+  async function togglePin(id: string, pinned: boolean): Promise<void> {
+    const before = pins;
+    pins = pinned ? [id, ...pins.filter((p) => p !== id)] : pins.filter((p) => p !== id); // show it at once
+    try {
+      pins = pinned ? await pinNote(id) : await unpinNote(id);
+    } catch (err) {
+      pins = before;
+      status = err instanceof Error ? err.message : "Could not change the pin";
+    }
+  }
+
   function onCreated(note: Note) {
     notes = [note, ...notes.filter((n) => n.id !== note.id)];
     void select(note.id);
@@ -198,7 +210,7 @@
     <button type="button" class="scrim" aria-label="Close the notes list" onclick={() => (listOpen = false)}></button>
   {/if}
   <div class="listpane" class:open={listOpen}>
-    <NoteList {notes} {selectedId} {flicker} onselect={(id) => void select(id)} oncreated={onCreated} />
+    <NoteList {notes} {pins} {selectedId} {flicker} onselect={(id) => void select(id)} oncreated={onCreated} ontogglepin={(id, on) => void togglePin(id, on)} />
   </div>
 
   <main class="main">

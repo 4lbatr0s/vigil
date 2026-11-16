@@ -133,6 +133,14 @@ export const MIGRATIONS: readonly string[] = [
   );
   CREATE INDEX chat_messages_run ON chat_messages(run_id);
   `,
+  `
+  -- migration 7: pinned notes. A UI choice of the owner, kept out of the note files so a pin never
+  -- changes a note's author or modification time.
+  CREATE TABLE pins (
+    note_id TEXT PRIMARY KEY,
+    pinned_at TEXT NOT NULL
+  );
+  `,
 ];
 
 let current: { key: string; db: Database.Database } | null = null;
@@ -647,4 +655,25 @@ export function recentTouches(sinceIso: string): Touch[] {
     .prepare("SELECT agent, note_id, kind, MAX(run_id) AS run_id, MAX(at) AS at FROM agent_touches WHERE at >= ? GROUP BY agent, note_id, kind")
     .all(sinceIso) as { agent: string; note_id: string; kind: string; run_id: string; at: string }[];
   return rows.map((r) => ({ agent: r.agent, noteId: r.note_id, kind: r.kind as Touch["kind"], runId: r.run_id, at: r.at }));
+}
+
+// ---- Pins (migration 7) ----
+
+/** Pinned note ids, most recently pinned first. */
+export function listPins(): string[] {
+  return (open().prepare("SELECT note_id FROM pins ORDER BY pinned_at DESC, note_id").all() as { note_id: string }[]).map((r) => r.note_id);
+}
+
+export function addPin(noteId: string): void {
+  open().prepare("INSERT INTO pins (note_id, pinned_at) VALUES (?, ?) ON CONFLICT(note_id) DO NOTHING").run(noteId, new Date().toISOString());
+}
+
+export function removePin(noteId: string): void {
+  open().prepare("DELETE FROM pins WHERE note_id = ?").run(noteId);
+}
+
+/** A rename keeps the pin: the pin moves to the new id. */
+export function movePin(from: string, to: string): void {
+  if (from === to) return;
+  open().prepare("UPDATE OR REPLACE pins SET note_id = ? WHERE note_id = ?").run(to, from);
 }
