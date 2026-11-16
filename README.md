@@ -65,6 +65,17 @@ An agent is a system prompt, a list of tools, a trigger and a token budget.
 - **Permissions:** Settings has switches that turn a tool off for every agent, a ceiling for token budgets, and run-history retention.
 - **Graph:** notes and agents as a graph; recent notes glow, agent reads and writes are dashed lines.
 
+## Study
+
+Learning research is clear that testing yourself and spacing reviews out beat rereading (Dunlosky et al. 2013; Adesope et al. 2017), and that an AI which does the thinking for you can hurt more than it helps (Bastani et al. 2025). So Vigil's study helpers do the chores and leave the thinking to you.
+
+- **Cards live in your notes.** `Question :: Answer` on one line, or `{{hidden words}}` inside a sentence. Plain markdown, readable anywhere.
+- **Spaced review.** The Study page shows what is due, you type your answer first (optional), reveal it, and rate it with keys 1 to 4. Scheduling uses FSRS. There are no streaks or scores.
+- **Make cards.** The Card maker agent proposes cards from a note; you edit, keep or drop each one before anything is saved. It has no tools, so it cannot change or read anything else.
+- **Tutors.** A Socratic tutor, an explain-it-back coach and a quiz master ask first, hint second and answer last, using only the note you give them.
+
+No claim is made that this multiplies learning many times over: the research supports a solid, practical gain from better habits, with the busywork taken off your hands.
+
 ## Safety model
 
 - **Local by default.** The server binds 127.0.0.1, sends no CORS headers and checks the Host and Origin headers. Any other bind needs `VIGIL_TOKEN`; the browser signs in with it and gets a signed, HttpOnly, SameSite=Strict cookie.

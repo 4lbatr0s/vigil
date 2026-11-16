@@ -12,6 +12,7 @@
   import DeleteNote from "$lib/components/DeleteNote.svelte";
   import { nextAfterDelete } from "$lib/after-delete";
   import { dailyNote } from "$lib/daily";
+  import { WELCOME_BODY, WELCOME_ID, WELCOME_TITLE } from "$lib/welcome";
   import PanelLeft from "@lucide/svelte/icons/panel-left";
   import type { Run } from "@vigil/shared";
   import AskAgent from "$lib/components/AskAgent.svelte";
@@ -240,6 +241,15 @@
     }
   }
 
+  /** From an empty vault: a sample note that teaches by example. */
+  async function createWelcome(): Promise<void> {
+    try {
+      onCreated(await putNote(WELCOME_ID, { title: WELCOME_TITLE, body: WELCOME_BODY }));
+    } catch (err) {
+      status = err instanceof Error ? err.message : "Could not create the sample note";
+    }
+  }
+
   async function createPending(): Promise<void> {
     const title = pendingCreate;
     pendingCreate = null;
@@ -318,6 +328,7 @@
             <button type="button" class="act primary" onclick={() => document.getElementById("new-note-title")?.focus()}>Create a note</button>
             <a class="act" href="/agents">Add an agent</a>
           </div>
+          <p class="muted-line"><button type="button" class="link" onclick={() => void createWelcome()}>Or start with a sample note</button> that shows what Vigil can do.</p>
         {:else}
           <Illustration kind="page" size={72} />
           <h2>Pick a note to keep going.</h2>
@@ -426,6 +437,16 @@
     font-size: var(--text-h3);
     font-weight: 600;
     color: var(--ink);
+  }
+
+  .muted-line {
+    font-size: var(--text-label);
+  }
+
+  .link {
+    color: var(--ink);
+    text-decoration: underline;
+    text-underline-offset: 2px;
   }
 
   .cta {
