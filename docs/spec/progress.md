@@ -133,7 +133,7 @@ Owner:
 
 To verify by hand (not yet done):
 - [x] Keyboard-only pass over every page (focus ring, reachable controls, dialogs). *Done 2026-11-16: all focusable controls on /, /agents, /agents/[name], /approvals, /chat, /graph, /settings show a focus ring; palette traps focus and Escape returns it; found and fixed the inline delete confirm dropping focus to body (now focuses Keep, Escape cancels, focus returns to Delete).*
-- [ ] README "Run it" commands on a clean machine or an empty directory and volume.
+- [x] README "Run it" commands on a clean machine or an empty directory and volume. *Done 2026-11-16: fresh `git clone`, `pnpm install --frozen-lockfile`, typecheck and 277 server + web tests pass; `docker build` and `docker run` with a new volume: health 200, `/api/notes` 401 without the token and 200 with it, UI 200.*
 - [x] Permissions page: switch off web fetch, confirm a run no longer offers the tool; templates are created switched off. *Done 2026-11-16: saved from the UI, run's prompt event listed no fetch_url, then listed it after switching back; templates created disabled.*
 - [x] Research Scout on a real model: allowed host works, a loopback URL is refused and logged. *Done 2026-11-16 (Ollama 4B): example.com fetched; http://127.0.0.1:3001/api/notes refused with 'port 3001 is not allowed' and logged.*
 - [x] Heartbeat: observe live that an agent's own write does not trigger a second run. *Done 2026-11-16: 5-minute heartbeat agent ran once after a note changed (wrote `hb-out`), the next tick logged `skipped: unchanged`, still one run.*
