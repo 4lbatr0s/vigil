@@ -141,18 +141,18 @@ describe("index details", () => {
     expect(noteHashes()["a"]).not.toBe(first);
   });
 
-  it("opening an index at version 2 rebuilds", async () => {
+  it.each([2, 3])("opening an index at version %i rebuilds", async (oldVersion) => {
     await createNote({ title: "Digest", body: "summary" }, { author: "agent", agentName: "digest" });
     reindexNote(await getVaultNote("digest"));
     expect(isEmpty()).toBe(false);
     const old = new Database(dbFile);
-    old.pragma("user_version = 2");
+    old.pragma(`user_version = ${oldVersion}`);
     old.close();
     closeDb();
     // Reopening sees the old version, drops every table and stamps the new version.
     expect(isEmpty()).toBe(true);
     const raw = new Database(dbFile, { readonly: true });
-    expect(raw.pragma("user_version", { simple: true })).toBe(3);
+    expect(raw.pragma("user_version", { simple: true })).toBe(4);
     raw.close();
     expect(await rebuildAll()).toBe(1);
     const fetched = getNote("digest");
