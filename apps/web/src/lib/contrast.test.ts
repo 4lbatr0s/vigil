@@ -61,4 +61,24 @@ describe("design tokens", () => {
       }
     });
   }
+
+  // Hover and raised surfaces are mixes of surface and ink, so they shift with the theme: muted text must still read on them.
+  const mixShare = (name: string): number => {
+    const m = new RegExp(`--${name}:\\s*color-mix\\(in srgb,\\s*var\\(--surface\\)\\s*(\\d+)%,\\s*var\\(--ink\\)\\)`).exec(css);
+    if (!m) throw new Error(`--${name} is not a surface and ink mix`);
+    return Number(m[1]) / 100;
+  };
+  const mixHex = (a: string, b: string, shareOfA: number): string =>
+    "#" + [1, 3, 5].map((i) => Math.round(shareOfA * parseInt(a.slice(i, i + 2), 16) + (1 - shareOfA) * parseInt(b.slice(i, i + 2), 16)).toString(16).padStart(2, "0")).join("");
+  for (const [name, t] of themes) {
+    for (const token of ["surface-hover", "surface-raised"]) {
+      it(`muted and ink text reach 4.5:1 on ${token}: ${name}`, () => {
+        const ground = mixHex(t["surface"] as string, t["ink"] as string, mixShare(token));
+        for (const text of ["ink", "ink-muted"]) {
+          const ratio = contrast(t[text] as string, ground);
+          expect(ratio, `${name}: ${text} on ${token} (${ground}) is ${ratio.toFixed(2)}`).toBeGreaterThanOrEqual(4.5);
+        }
+      });
+    }
+  }
 });

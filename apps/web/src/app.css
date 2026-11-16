@@ -46,7 +46,7 @@
   --nav-width: 200px;
 
   /* UI v2 (ADR-0016): hover and raised surfaces are mixes of existing tokens; one shadow, floating layers only. */
-  --surface-hover: color-mix(in srgb, var(--surface) 82%, var(--ink));
+  --surface-hover: color-mix(in srgb, var(--surface) 90%, var(--ink));
   --surface-raised: color-mix(in srgb, var(--surface) 94%, var(--ink));
   --shadow-pop: 0 10px 32px rgb(10 6 2 / 0.38), 0 1px 3px rgb(10 6 2 / 0.3);
 }
