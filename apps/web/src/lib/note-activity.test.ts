@@ -37,3 +37,30 @@ describe("ask an agent", () => {
     expect(takeDraft("never")).toBeNull();
   });
 });
+
+import { STUDY_NOTE_MAX, studyMessage, withoutCards } from "./chat-draft";
+
+describe("studyMessage", () => {
+  it("wraps the note in markers after the opener for the chosen mode", () => {
+    const msg = studyMessage({ noteId: "bio", title: "Bio", body: "ATP is energy.", mode: "socratic-tutor" });
+    expect(msg).toBe('Please tutor me on this note.\n\nNote "Bio" (id: bio)\nNOTE START\nATP is energy.\nNOTE END');
+    expect(studyMessage({ noteId: "bio", title: "Bio", body: "x", mode: "quiz-master" })).toMatch(/^Please quiz me/);
+  });
+  it("cuts a very long note so the message stays under the chat limit, and says so", () => {
+    const msg = studyMessage({ noteId: "a", title: "A", body: "x".repeat(40_000), mode: "explain-it-back" });
+    expect(msg.length).toBeLessThan(20_000);
+    expect(msg).toContain("only the first part is shown");
+    expect(msg.indexOf("x".repeat(STUDY_NOTE_MAX))).toBeGreaterThan(0);
+  });
+});
+
+describe("withoutCards", () => {
+  it("removes card lines and the Cards heading but keeps the rest of the note", () => {
+    const body = "# Bio\n\nATP is energy.\n\n## Cards\nWhat is ATP? :: Energy\nThe {{nucleus}} holds DNA.\n\n## Later\nmore text";
+    expect(withoutCards(body)).toBe("# Bio\n\nATP is energy.\n\n## Later\nmore text");
+    expect(withoutCards("plain note")).toBe("plain note");
+  });
+  it("is what a study message carries", () => {
+    expect(studyMessage({ noteId: "a", title: "A", body: "Fact.\nQ? :: A", mode: "quiz-master" })).not.toContain("Q? ::");
+  });
+});

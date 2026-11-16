@@ -1,3 +1,5 @@
+import { extractCards } from "@vigil/shared";
+
 /**
  * "Ask an agent about this note": the text for the chat box, and a hand-off through session storage
  * (so a long selection never travels in a URL). The person still presses Send.
@@ -36,4 +38,35 @@ export function takeDraft(threadId: string): string | null {
   } catch {
     return null;
   }
+}
+
+export type StudyMode = "socratic-tutor" | "explain-it-back" | "quiz-master";
+
+export const STUDY_MODES: { id: StudyMode; title: string; blurb: string; opener: string }[] = [
+  { id: "socratic-tutor", title: "Tutor me", blurb: "Asks one question at a time and gives hints before answers.", opener: "Please tutor me on this note." },
+  { id: "explain-it-back", title: "Explain it back", blurb: "You explain the note in your own words; it shows the gaps.", opener: "Please coach me to explain this note back." },
+  { id: "quiz-master", title: "Quiz me", blurb: "Five mixed questions, one at a time, then what to review.", opener: "Please quiz me on this note." },
+];
+
+/** Chat messages are capped at 20,000 characters (server); leave room for the wrapper and the opener. */
+export const STUDY_NOTE_MAX = 15_000;
+
+/** The note without its card lines: they are question and answer pairs, and a tutor that sees the answers gives them away. */
+export function withoutCards(body: string): string {
+  const card = new Set(extractCards(body).map((c) => c.line));
+  return body
+    .split("\n")
+    .filter((_, i) => !card.has(i + 1))
+    .join("\n")
+    .replace(/^##\s+Cards\s*$\n?/m, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+/** The first message of a study chat: the note between markers (so the agent needs no tool), then what to do. */
+export function studyMessage(input: { noteId: string; title: string; body: string; mode: StudyMode }): string {
+  const opener = STUDY_MODES.find((m) => m.id === input.mode)?.opener ?? "";
+  const text = withoutCards(input.body);
+  const body = text.length > STUDY_NOTE_MAX ? `${text.slice(0, STUDY_NOTE_MAX)}\n[the note continues; only the first part is shown]` : text;
+  return `${opener}\n\nNote "${input.title}" (id: ${input.noteId})\nNOTE START\n${body}\nNOTE END`;
 }

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import type { Run } from "@vigil/shared";
-  import { ApiError, listApprovals, listNotes, listRuns, undoRun, type ApprovalItem } from "$lib/api";
+  import { ApiError, getStudyStats, listApprovals, listNotes, listRuns, undoRun, type ApprovalItem, type StudyStats } from "$lib/api";
   import StatusDot from "$lib/components/StatusDot.svelte";
   import { refreshOnLive } from "$lib/live";
   import { relativeTime } from "$lib/note-list";
@@ -12,6 +12,7 @@
   let runs = $state<Run[]>([]);
   let pending = $state<ApprovalItem[]>([]);
   let titles = $state(new Map<string, string>());
+  let study = $state<StudyStats | null>(null);
   let since = $state<string | null>(null);
   let loading = $state(true);
   let loadError = $state("");
@@ -24,9 +25,10 @@
 
   async function load(): Promise<void> {
     try {
-      const [r, a, notes] = await Promise.all([listRuns({ limit: 100 }), listApprovals("pending"), listNotes()]);
+      const [r, a, notes, st] = await Promise.all([listRuns({ limit: 100 }), listApprovals("pending"), listNotes(), getStudyStats()]);
       runs = r;
       pending = a;
+      study = st;
       titles = new Map(notes.map((n) => [n.id, n.title]));
       loadError = "";
     } catch (err) {
@@ -77,6 +79,20 @@
   {:else if loading}
     <p class="muted">Loading…</p>
   {:else}
+    {#if study && study.due + study.new > 0}
+      <section aria-labelledby="study">
+        <h2 id="study">Study</h2>
+        <div class="card">
+          <div class="line">
+            <strong>{study.due > 0 ? `${study.due} ${study.due === 1 ? "card is" : "cards are"} ready to review` : `${Math.min(study.new, 10)} new ${study.new === 1 ? "card" : "cards"} to learn`}</strong>
+            {#if study.reviewedToday > 0}<span class="state">{study.reviewedToday} done today</span>{/if}
+          </div>
+          <p class="muted">A few minutes now is worth more than an hour of rereading later.</p>
+          <div class="actions"><a class="btn primary" href="/study">Start studying</a></div>
+        </div>
+      </section>
+    {/if}
+
     {#if pending.length > 0}
       <section aria-labelledby="needs">
         <h2 id="needs">Needs you</h2>

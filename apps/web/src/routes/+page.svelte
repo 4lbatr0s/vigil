@@ -15,6 +15,7 @@
   import type { Run } from "@vigil/shared";
   import AskAgent from "$lib/components/AskAgent.svelte";
   import CardMaker from "$lib/components/CardMaker.svelte";
+  import StudyWith from "$lib/components/StudyWith.svelte";
   import NoteActivity from "$lib/components/NoteActivity.svelte";
   import ProvenanceBar from "$lib/components/ProvenanceBar.svelte";
   import { runsForNote, undoableRun } from "$lib/note-activity";
@@ -35,6 +36,7 @@
   let cardStats = $state<StudyStats | null>(null);
   let askOpen = $state(false);
   let cardsOpen = $state(false);
+  let studyOpen = $state(false);
   /** Bumped when the note changed on disk behind the editor, so the editor is rebuilt from the saved text. */
   let reloadKey = $state(0);
   let askSelection = $state<string | null>(null);
@@ -323,6 +325,7 @@
           }}
         />
         <div class="actions">
+          <button type="button" class="act" onclick={() => (studyOpen = true)}>Study</button>
           <button type="button" class="act" onclick={() => (cardsOpen = true)}>Make cards</button>
           <RenameNote noteId={selectedId ?? ""} title={draft.title} onrenamed={onRenamed} />
           <DeleteNote noteId={selectedId ?? ""} title={draft.title} ondeleted={onDeleted} />
@@ -365,6 +368,7 @@
 </div>
 
 {#if draft && selectedId}
+  <StudyWith bind:open={studyOpen} noteId={selectedId} title={draft.title} />
   <CardMaker bind:open={cardsOpen} noteId={selectedId} onsaved={() => void onCardsSaved()} />
   <AskAgent bind:open={askOpen} noteId={selectedId} title={draft.title} selection={askSelection} />
 {/if}

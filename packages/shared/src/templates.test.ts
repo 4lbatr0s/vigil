@@ -4,7 +4,7 @@ import { TEMPLATES } from "./templates";
 
 describe("agent templates", () => {
   it("ships the v1 templates and the card maker with unique ids", () => {
-    expect(TEMPLATES.map((t) => t.id)).toEqual(["morning-digest", "weekly-review", "inbox-triager", "backlink-gardener", "research-scout", "card-maker"]);
+    expect(TEMPLATES.map((t) => t.id)).toEqual(["morning-digest", "weekly-review", "inbox-triager", "backlink-gardener", "research-scout", "card-maker", "socratic-tutor", "explain-it-back", "quiz-master"]);
     expect(new Set(TEMPLATES.map((t) => t.id)).size).toBe(TEMPLATES.length);
   });
 
@@ -31,5 +31,22 @@ describe("agent templates", () => {
     expect(by["inbox-triager"]).toMatchObject({ trigger: { kind: "heartbeat", everyMinutes: 30 }, tokenBudget: 15000, strict: true });
     expect(by["backlink-gardener"]).toMatchObject({ trigger: { kind: "heartbeat", everyMinutes: 60 }, tokenBudget: 20000, strict: true });
     expect(by["research-scout"]).toMatchObject({ trigger: { kind: "manual" }, tokenBudget: 40000, strict: true, allowedHosts: [] });
+  });
+});
+
+describe("study agents", () => {
+  const study = TEMPLATES.filter((t) => ["card-maker", "socratic-tutor", "explain-it-back", "quiz-master"].includes(t.id));
+  it("have no tools, so they cannot write, read other notes or reach the web", () => {
+    for (const t of study) expect(t.agent.tools, t.id).toEqual([]);
+  });
+  it("tutors keep to the note and make the learner think: hints before answers, one question at a time", () => {
+    const by = Object.fromEntries(study.map((t) => [t.id, t.agent.systemPrompt]));
+    expect(by["socratic-tutor"]).toMatch(/hint ladder/);
+    expect(by["socratic-tutor"]).toMatch(/ONE question at a time/);
+    expect(by["socratic-tutor"]).toMatch(/Never give the answer first/);
+    expect(by["explain-it-back"]).toMatch(/Do not rewrite their explanation/);
+    for (const id of ["socratic-tutor", "quiz-master", "explain-it-back"]) expect(by[id], id).toMatch(/FIRST reply/);
+    expect(by["quiz-master"]).toMatch(/ONE at a time/);
+    for (const id of ["socratic-tutor", "explain-it-back", "quiz-master"]) expect(by[id], id).toMatch(/NOTE START/);
   });
 });
