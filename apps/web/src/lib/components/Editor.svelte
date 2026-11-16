@@ -9,7 +9,7 @@
   import { tags } from "@lezer/highlight";
   import { livePreview } from "$lib/editor/livePreview";
   import { wikilinkCompletion } from "$lib/editor/wikilinkComplete";
-  import { boldCommand, codeCommand, headingCommand, indentCommand, italicCommand, lineCommand, linkCommand, outdentCommand, strikeCommand } from "$lib/editor/format";
+  import { boldCommand, clozeCommand, codeCommand, headingCommand, indentCommand, italicCommand, lineCommand, linkCommand, outdentCommand, strikeCommand } from "$lib/editor/format";
   import SelectionToolbar from "$lib/components/SelectionToolbar.svelte";
 
   let {
@@ -54,7 +54,7 @@
       return;
     }
     const box = wrap.getBoundingClientRect();
-    const width = 9 * 30 + 8 * 2 + 10; // nine buttons, gaps and padding
+    const width = 10 * 30 + 9 * 2 + 10; // ten buttons, gaps and padding
     const left = Math.min(Math.max(0, at.left - box.left), Math.max(0, box.width - width));
     const above = at.top - box.top - 44;
     bar = { left, top: above >= 0 ? above : at.bottom - box.top + 8 };
@@ -68,6 +68,7 @@
       { key: "Mod-e", run: codeCommand },
       { key: "Mod-Shift-x", run: strikeCommand },
       { key: "Mod-Shift-k", run: linkCommand },
+      { key: "Mod-Shift-h", run: clozeCommand },
       {
         key: "Mod-j",
         run: (v) => {

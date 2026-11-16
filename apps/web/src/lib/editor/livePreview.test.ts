@@ -182,3 +182,17 @@ describe("blocks added in UI v2", () => {
     expect(tagged).toEqual(["#work/launch"]);
   });
 });
+
+describe("cloze blanks", () => {
+  it("styles the hidden words and hides the braces away from the cursor, but not inside code", () => {
+    const doc = "The {{nucleus}} holds DNA.\n\n`{{code}}`";
+    const s = state(doc, doc.length);
+    const cloze = items(s).filter((i) => i.cls === "cm-cloze").map((i) => doc.slice(i.from, i.to));
+    expect(cloze).toEqual(["nucleus"]);
+    expect(replaced(s).filter((t) => t === "{{" || t === "}}")).toHaveLength(2);
+  });
+  it("keeps the braces visible on the line being edited", () => {
+    const doc = "The {{nucleus}} holds DNA.";
+    expect(replaced(state(doc, 8)).filter((t) => t === "{{" || t === "}}")).toHaveLength(0);
+  });
+});

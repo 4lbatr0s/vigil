@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { EditorSelection, EditorState, type TransactionSpec } from "@codemirror/state";
-import { indentListSpec, insertLinkSpec, setHeadingSpec, toggleInlineSpec, toggleLineSpec } from "./format";
+import { indentListSpec, insertLinkSpec, setHeadingSpec, toggleClozeSpec, toggleInlineSpec, toggleLineSpec } from "./format";
 
 /** Applies a spec to a doc written with `|` for the cursor or `[..]` for the selection; returns the result the same way. */
 function apply(doc: string, spec: (s: EditorState) => TransactionSpec | null): string {
@@ -92,5 +92,17 @@ describe("indentListSpec", () => {
     expect(apply("  - a|", (s) => indentListSpec(s, -1))).toBe("- a|");
     expect(indentListSpec(EditorState.create({ doc: "plain", selection: EditorSelection.cursor(2) }), 1)).toBeNull();
     expect(indentListSpec(EditorState.create({ doc: "- a", selection: EditorSelection.cursor(2) }), -1)).toBeNull();
+  });
+});
+
+describe("toggleClozeSpec", () => {
+  it("hides the selected word as a blank, and brings it back", () => {
+    expect(apply("The [nucleus] holds DNA.", toggleClozeSpec)).toBe("The {{[nucleus]}} holds DNA.");
+    expect(apply("The {{[nucleus]}} holds DNA.", toggleClozeSpec)).toBe("The [nucleus] holds DNA.");
+  });
+  it("puts an empty pair at a bare cursor and leaves the newline of a line selection alone", () => {
+    expect(apply("a |b", toggleClozeSpec)).toBe("a {{|}}b");
+    const s = EditorState.create({ doc: "line one\nline two", selection: EditorSelection.single(0, 9) });
+    expect(s.update(toggleClozeSpec(s)).state.doc.toString()).toBe("{{line one}}\nline two");
   });
 });

@@ -57,6 +57,7 @@ const RULE = Decoration.replace({ widget: new RuleWidget() });
 const CALLOUT = /^>\s*\[!([A-Za-z]+)\]/;
 const BULLET = Decoration.replace({ widget: new BulletWidget() });
 const WIKILINK = /\[\[([^\]\n]+)\]\]/g;
+const CLOZE = /\{\{([^{}\n]+)\}\}/g;
 const INLINE_TAG = /(^|[\s(])#([a-zA-Z][\w-]*(?:\/[\w-]+)*)/gm;
 
 export type Range2 = { from: number; to: number };
@@ -210,6 +211,14 @@ export function buildDecorations(state: EditorState, range?: Range2, title?: str
 
   // Wikilinks and #tags: a text pass over the range, skipping anything inside code.
   const text = doc.sliceString(from, to);
+  for (const m of text.matchAll(CLOZE)) {
+    const a = from + (m.index ?? 0);
+    const b = a + m[0].length;
+    if (codeRanges.some((c) => a < c.to && b > c.from)) continue;
+    out.push(Decoration.mark({ class: "cm-cloze" }).range(a + 2, b - 2));
+    hide(a, a + 2);
+    hide(b - 2, b);
+  }
   for (const m of text.matchAll(INLINE_TAG)) {
     const a = from + (m.index ?? 0) + (m[1] ?? "").length;
     const b = a + (m[2] ?? "").length + 1;
@@ -295,6 +304,7 @@ const theme = EditorView.baseTheme({
   ".cm-code": { fontFamily: "var(--font-mono)", fontSize: "0.9em", backgroundColor: "var(--surface)" },
   ".cm-codeblock": { fontFamily: "var(--font-mono)", fontSize: "0.9em", backgroundColor: "var(--surface)" },
   ".cm-quote": { borderLeft: "2px solid var(--hairline)", paddingLeft: "var(--space-3)", color: "var(--ink-muted)" },
+  ".cm-cloze": { backgroundColor: "var(--surface-hover)", borderBottom: "1px dashed var(--ink-muted)", borderRadius: "4px", padding: "0 2px" },
   ".cm-tag": { color: "var(--ink-muted)", fontFamily: "var(--font-chrome)", fontSize: "0.85em", backgroundColor: "var(--surface)", borderRadius: "var(--radius)", padding: "0 3px" },
   ".cm-callout": { borderLeft: "3px solid var(--ink-muted)", paddingLeft: "var(--space-3)", backgroundColor: "var(--surface)" },
   ".cm-callout-warning, .cm-callout-danger, .cm-callout-caution": { borderLeftColor: "var(--err)" },

@@ -9,7 +9,8 @@
   import Quote from "@lucide/svelte/icons/quote";
   import List from "@lucide/svelte/icons/list";
   import Bot from "@lucide/svelte/icons/bot";
-  import { boldCommand, codeCommand, headingCommand, italicCommand, lineCommand, linkCommand, strikeCommand, type Command } from "$lib/editor/format";
+  import EyeOff from "@lucide/svelte/icons/eye-off";
+  import { boldCommand, clozeCommand, codeCommand, headingCommand, italicCommand, lineCommand, linkCommand, strikeCommand, type Command } from "$lib/editor/format";
 
   let { view, left, top, onask }: { view: EditorView; left: number; top: number; onask?: () => void } = $props();
 
@@ -20,6 +21,7 @@
     { label: "Strikethrough", keys: `${mod}⇧X`, icon: Strikethrough, run: strikeCommand },
     { label: "Code", keys: `${mod}E`, icon: Code, run: codeCommand },
     { label: "Link", keys: `${mod}⇧K`, icon: Link, run: linkCommand },
+    { label: "Hide as a study blank", keys: `${mod}⇧H`, icon: EyeOff, run: clozeCommand },
     { label: "Heading", keys: `${mod}⌥2`, icon: Heading2, run: headingCommand(2) },
     { label: "Quote", keys: "", icon: Quote, run: lineCommand("quote") },
     { label: "Bulleted list", keys: `${mod}⇧8`, icon: List, run: lineCommand("bullet") },

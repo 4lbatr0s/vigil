@@ -42,6 +42,21 @@ export function insertLinkSpec(state: EditorState): TransactionSpec {
   return { changes: { from, to, insert }, selection: EditorSelection.range(urlFrom, urlFrom + url.length) };
 }
 
+/**
+ * Hides the selection as a fill-in-the-blank, `{{like this}}`, which makes the line a study card; the same
+ * again takes the braces off. With nothing selected it inserts an empty pair with the cursor inside.
+ */
+export function toggleClozeSpec(state: EditorState): TransactionSpec {
+  const doc = state.doc;
+  let { from, to } = state.selection.main;
+  while (from < to && /\s/.test(doc.sliceString(from, from + 1))) from++;
+  while (to > from && /\s/.test(doc.sliceString(to - 1, to))) to--;
+  const wrapped = doc.sliceString(from - 2, from) === "{{" && doc.sliceString(to, to + 2) === "}}";
+  if (wrapped) return { changes: [{ from: from - 2, to: from }, { from: to, to: to + 2 }], selection: EditorSelection.range(from - 2, to - 2) };
+  if (from === to) return { changes: { from, insert: "{{}}" }, selection: EditorSelection.cursor(from + 2) };
+  return { changes: [{ from, insert: "{{" }, { from: to, insert: "}}" }], selection: EditorSelection.range(from + 2, to + 2) };
+}
+
 const HEADING = /^(#{1,6})\s+/;
 const LIST_PREFIX = /^(\s*)(?:[-*+] \[[ xX]\] |[-*+] |\d+[.)] |> )/;
 
@@ -121,6 +136,7 @@ export const italicCommand = run((s) => toggleInlineSpec(s, "*"));
 export const strikeCommand = run((s) => toggleInlineSpec(s, "~~"));
 export const codeCommand = run((s) => toggleInlineSpec(s, "`"));
 export const linkCommand = run(insertLinkSpec);
+export const clozeCommand = run(toggleClozeSpec);
 export const headingCommand = (level: 1 | 2 | 3): Command => run((s) => setHeadingSpec(s, level));
 export const lineCommand = (kind: LineKind): Command => run((s) => toggleLineSpec(s, kind));
 export const indentCommand: Command = run((s) => indentListSpec(s, 1));

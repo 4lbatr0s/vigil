@@ -21,6 +21,7 @@
       rows: [
         [`${mod} B / I / E`, "Bold, italic, code"],
         [`${mod} Shift K`, "Add a link"],
+        [`${mod} Shift H`, "Hide the selection as a study blank"],
         [`${mod} Alt 1 / 2 / 3`, "Heading 1, 2, 3"],
         [`${mod} Shift 8 / 7 / 9`, "Bulleted, numbered, to-do list"],
         ["Tab / Shift Tab", "Indent a list item, outdent it"],
