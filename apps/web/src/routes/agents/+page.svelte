@@ -1,4 +1,6 @@
 <script lang="ts">
+  import Illustration from "$lib/components/Illustration.svelte";
+  import Lamp from "@lucide/svelte/icons/lamp";
   import { onMount } from "svelte";
   import { goto } from "$app/navigation";
   import type { Agent, AgentTemplate, Run } from "@vigil/shared";
@@ -70,6 +72,7 @@
     <p class="muted">Loading…</p>
   {:else if agents.length === 0}
     <section class="empty">
+      <Illustration kind="lantern" />
       <p class="empty-title">No agents yet</p>
       <p class="muted">Pick one below. It stays off until you turn it on.</p>
     </section>
@@ -81,7 +84,7 @@
           <a class="row" href={`/agents/${agent.name}`}>
             <StatusDot state={statusDot(agent, lastRun)} />
             <span class="stamp">{formatStamp(lastRun?.startedAt)}</span>
-            <span class="name">{agent.name}{#if !agent.enabled}<span class="off"> · off</span>{/if}</span>
+            <span class="name"><span class="glyph" class:lit={agent.enabled} aria-hidden="true"><Lamp size={16} strokeWidth={1.5} /></span>{agent.name}{#if !agent.enabled}<span class="off"> · off</span>{/if}</span>
             <span class="mono">{describeTrigger(agent.trigger)}</span>
             <span class="mono next">{agent.enabled && nextRuns[agent.name] ? `next ${formatStamp(nextRuns[agent.name])}` : ""}</span>
           </a>
@@ -230,5 +233,16 @@
     .row .mono {
       grid-column: 2;
     }
+  }
+  /* The lantern is lit (amber) while the agent is on: amber means agent life, so it stays only here. */
+  .glyph {
+    display: inline-block;
+    margin-right: var(--space-2);
+    vertical-align: -2px;
+    color: var(--ink-muted);
+  }
+
+  .glyph.lit {
+    color: var(--amber-ink);
   }
 </style>

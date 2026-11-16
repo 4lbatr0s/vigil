@@ -16,6 +16,7 @@
   import AskAgent from "$lib/components/AskAgent.svelte";
   import CardMaker from "$lib/components/CardMaker.svelte";
   import StudyWith from "$lib/components/StudyWith.svelte";
+  import Illustration from "$lib/components/Illustration.svelte";
   import NoteActivity from "$lib/components/NoteActivity.svelte";
   import ProvenanceBar from "$lib/components/ProvenanceBar.svelte";
   import { runsForNote, undoableRun } from "$lib/note-activity";
@@ -294,6 +295,7 @@
       <div class="empty-state">
         <button type="button" class="act list-toggle" onclick={() => (listOpen = true)}><PanelLeft size={16} strokeWidth={1.5} /> Notes</button>
         {#if notes.length === 0}
+          <Illustration kind="page" />
           <h2>A blank page, ready when you are.</h2>
           <p>Write your first note, or let an agent start one for you.</p>
           <div class="cta">
@@ -301,6 +303,7 @@
             <a class="act" href="/agents">Add an agent</a>
           </div>
         {:else}
+          <Illustration kind="page" size={72} />
           <h2>Pick a note to keep going.</h2>
           <p>Choose one from the list, or press ⌘K to find it.</p>
         {/if}

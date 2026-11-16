@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Illustration from "$lib/components/Illustration.svelte";
   import { onMount, tick } from "svelte";
   import { page } from "$app/state";
   import { answerStudyCard, getDecks, getDueCards, getStudyStats, type Answer, type DeckStats, type StudyStats } from "$lib/api";
@@ -108,6 +109,7 @@
     <p class="muted">Getting your cards…</p>
   {:else if finished}
     <div class="done">
+      <Illustration kind="cards" />
       <h2>{session.done > 0 ? "That's it for now." : "Nothing to study right now."}</h2>
       {#if session.done > 0}
         <p>

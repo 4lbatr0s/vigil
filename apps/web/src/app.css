@@ -144,6 +144,17 @@ pre {
   line-height: 1.5;
 }
 
+/* Gentle state changes everywhere (ADR-0018); none when the person asks for less motion. */
+@media (prefers-reduced-motion: no-preference) {
+  a,
+  button,
+  input,
+  select,
+  textarea {
+    transition: background-color 140ms ease-out, border-color 140ms ease-out, color 140ms ease-out, opacity 140ms ease-out;
+  }
+}
+
 ::selection {
   background: var(--hairline);
 }

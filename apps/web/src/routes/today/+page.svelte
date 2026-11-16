@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Illustration from "$lib/components/Illustration.svelte";
   import { onMount } from "svelte";
   import type { Run } from "@vigil/shared";
   import { ApiError, getStudyStats, listApprovals, listNotes, listRuns, undoRun, type ApprovalItem, type StudyStats } from "$lib/api";
@@ -116,6 +117,7 @@
       <h2 id="ran">Since your last visit</h2>
       {#if items.length === 0}
         <div class="empty">
+          <Illustration kind="calm" />
           <p>All quiet.</p>
           <p class="muted">Your agents have not done anything since you last looked. <a href="/agents">See your agents</a>.</p>
         </div>

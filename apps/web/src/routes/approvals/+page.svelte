@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Illustration from "$lib/components/Illustration.svelte";
   import { onMount } from "svelte";
   import { ApiError, decideApproval, listApprovals, type ApprovalItem } from "$lib/api";
   import { diffLines, diffStats } from "$lib/diff";
@@ -78,6 +79,7 @@
     <p class="muted">Loading…</p>
   {:else if items.length === 0}
     <section class="empty">
+      <Illustration kind="calm" />
       <p class="empty-title">All caught up. Nothing is waiting for you.</p>
       <p class="muted">Agents in approval mode will appear here before they write.</p>
     </section>
