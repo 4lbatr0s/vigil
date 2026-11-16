@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { AIMessage, HumanMessage, SystemMessage, type BaseMessage } from "@langchain/core/messages";
+import { AIMessage, AIMessageChunk, HumanMessage, SystemMessage, type BaseMessage } from "@langchain/core/messages";
 import { mkdtemp, rm } from "node:fs/promises";
 import { createServer, type Server } from "node:http";
 import { tmpdir } from "node:os";
@@ -107,6 +107,31 @@ describe("chat turns", () => {
     expect(texts.at(-1)).toBe("What is my name?");
     expect(second.filter((x) => SystemMessage.isInstance(x))).toHaveLength(1);
     expect(second.filter((x) => HumanMessage.isInstance(x))).toHaveLength(2);
+  });
+
+  it("a model that can stream shows the answer piece by piece, and the stored reply is the whole text", async () => {
+    let invoked = 0;
+    setRunDeps({
+      makeModel: () => ({
+        invoke: async () => {
+          invoked++;
+          return say("unused");
+        },
+        stream: async () =>
+          (async function* () {
+            for (const piece of ["Hel", "lo ", "there"]) yield new AIMessageChunk({ content: piece });
+            yield new AIMessageChunk({ content: "", usage_metadata: usage(12) });
+          })(),
+      }),
+    });
+    const id = await newChat();
+    const t = await turn(id, "Hi");
+    expect(t.lines.map((l) => l.type)).toEqual(["delta", "delta", "delta", "done"]);
+    expect(t.lines.filter((l) => l.type === "delta").map((l) => l.text)).toEqual(["Hel", "lo ", "there"]);
+    expect(invoked).toBe(0);
+    expect(listChatMessages(id).map((x) => x.content)).toEqual(["Hi", "Hello there"]);
+    const run = (t.lines.at(-1) as unknown as { run: { id: string } }).run;
+    expect(getRun(run.id)?.tokensUsed).toBe(12);
   });
 
   it("a long conversation sends only the newest turns to the model, while the stored chat stays whole", async () => {

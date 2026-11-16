@@ -15,6 +15,19 @@ describe("applyLine", () => {
     expect(live.text).toBe("First part\n\nSecond part");
     expect(live.done).toBe(false);
   });
+  it("joins streamed pieces into one paragraph, and starts a new one after a tool or a whole reply", () => {
+    const lines: ChatLine[] = [
+      { type: "delta", text: "Let me " },
+      { type: "delta", text: "check." },
+      { type: "tool", name: "read_note", status: "call" },
+      { type: "tool", name: "read_note", status: "result" },
+      { type: "delta", text: "It says " },
+      { type: "delta", text: "blue." },
+    ];
+    const live = lines.reduce(applyLine, emptyLive());
+    expect(live.text).toBe("Let me check.\n\nIt says blue.");
+    expect(applyLine(live, { type: "token", text: "Whole" }).text).toBe("Let me check.\n\nIt says blue.\n\nWhole");
+  });
   it("marks approval, error and done", () => {
     expect(applyLine(emptyLive(), { type: "approval", approvalId: "a" }).waitingForApproval).toBe(true);
     expect(applyLine(emptyLive(), { type: "error", message: "boom" }).error).toBe("boom");

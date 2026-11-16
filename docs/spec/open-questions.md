@@ -44,7 +44,7 @@ Answer:
 
 ### 2026-11-15 WP9: chat tables are migration 6, and replies are not streamed token by token
 Migration 5 was used by approvals (WP8), so the chat tables are migration 6. The model adapter interface is `invoke(messages)`, so a turn streams each model reply as one `token` line when the call finishes (the plan allows this fallback) plus `tool` lines as tools run. True per-token streaming needs `stream()` on `ChatModel` and the adapters; worth doing before the public launch.
-Answer:
+Answer: 2026-11-16: done. `ChatModel.stream` is optional; when it exists and a turn is watched, the runtime sends `delta` lines per piece and concatenates the chunks into the final message (tool calls included). Without `stream`, the old whole-reply `token` line is used.
 
 ### 2026-11-15 WP9: chat history is not trimmed
 Every turn re-sends the whole conversation (kept in the checkpoint), and each turn has its own budget, so a very long chat will hit `budget-exceeded` on its own. Summarising or trimming old messages is a post-v1 item.

@@ -27,6 +27,7 @@ export const MAX_CHAT_TEXT = 20_000;
 /** One line of the turn stream. No line ever carries a key; errors are already redacted. */
 export type ChatLine =
   | { type: "token"; text: string }
+  | { type: "delta"; text: string }
   | { type: "tool"; name: string; status: "call" | "result" }
   | { type: "approval"; approvalId: string }
   | { type: "done"; run: Run }

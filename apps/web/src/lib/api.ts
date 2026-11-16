@@ -124,6 +124,7 @@ export type ChatMessage = { seq: number; role: "user" | "assistant" | "error"; c
 /** One line of a streamed turn (mirrors apps/server/src/chat.ts). */
 export type ChatLine =
   | { type: "token"; text: string }
+  | { type: "delta"; text: string }
   | { type: "tool"; name: string; status: "call" | "result" }
   | { type: "approval"; approvalId: string }
   | { type: "done"; run: Run }

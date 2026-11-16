@@ -1,4 +1,4 @@
-import { AIMessage, HumanMessage, SystemMessage, ToolMessage, type BaseMessage } from "@langchain/core/messages";
+import { AIMessage, HumanMessage, SystemMessage, ToolMessage, type AIMessageChunk, type BaseMessage } from "@langchain/core/messages";
 import { Command, END, GraphRecursionError, MessagesValue, START, StateGraph, StateSchema, interrupt, isInterrupted } from "@langchain/langgraph";
 import * as z from "zod";
 import type { Agent, RunStatus } from "@vigil/shared";
@@ -30,7 +30,7 @@ export type AgentRunner = (input: {
   onEvent?: (event: TurnEvent) => void;
 }) => Promise<RunOutcome>;
 
-export type TurnEvent = { type: "token"; text: string } | { type: "tool"; name: string; status: "call" | "result" };
+export type TurnEvent = { type: "token"; text: string } | { type: "delta"; text: string } | { type: "tool"; name: string; status: "call" | "result" };
 
 /** One model call plus one tools call per loop; 25 graph steps is about 12 tool rounds. */
 const RECURSION_LIMIT = 25;
@@ -126,8 +126,22 @@ export const runAgent: AgentRunner = async ({ agent, task, runId, makeModel, dep
     const sent = trimHistory(state.messages);
     const model = makeModel(tools, { model: agent.model, maxTokens: remaining });
     // Wait for the model, but let a cancel win at once instead of after the (possibly long) call.
+    let streamed = false;
+    const ask = async (): Promise<AIMessage> => {
+      // A chat turn shows the answer as it is written; runs nobody watches use one plain call.
+      if (!onEvent || !model.stream) return model.invoke(sent);
+      streamed = true;
+      let acc: AIMessageChunk | undefined;
+      for await (const chunk of await model.stream(sent, { signal })) {
+        if (signal?.aborted) throw new CancelledError();
+        acc = acc ? acc.concat(chunk) : chunk;
+        if (typeof chunk.content === "string" && chunk.content !== "") onEvent({ type: "delta", text: chunk.content });
+      }
+      if (!acc) return new AIMessage("");
+      return new AIMessage({ content: acc.content, tool_calls: acc.tool_calls, usage_metadata: acc.usage_metadata });
+    };
     const reply = await Promise.race([
-      model.invoke(sent),
+      ask(),
       new Promise<never>((_, reject) => signal?.addEventListener("abort", () => reject(new CancelledError()), { once: true })),
     ]).catch((err: unknown) => {
       if (err instanceof CancelledError) return null;
@@ -138,7 +152,7 @@ export const runAgent: AgentRunner = async ({ agent, task, runId, makeModel, dep
       stop = "failed";
       return {};
     }
-    if (messageText(reply).trim() !== "") onEvent?.({ type: "token", text: messageText(reply) });
+    if (!streamed && messageText(reply).trim() !== "") onEvent?.({ type: "token", text: messageText(reply) });
     // Tool call ids come from the model: they can repeat inside one reply, across rounds, or be missing.
     // Approvals and decisions are keyed by them, so give every call a fresh unique id once, here, and use
     // that same id in the approve and tools nodes (the tool messages answer to it, so providers stay happy).

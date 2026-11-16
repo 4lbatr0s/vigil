@@ -1,10 +1,16 @@
-import type { BaseMessage, AIMessage } from "@langchain/core/messages";
+import type { AIMessage, AIMessageChunk, BaseMessage } from "@langchain/core/messages";
 import type { StructuredToolInterface } from "@langchain/core/tools";
 import { ChatOllama } from "@langchain/ollama";
 import { ChatOpenAI } from "@langchain/openai";
 
-/** All the runtime needs from a model: messages in, one AI message out (tools already bound). */
-export type ChatModel = { invoke(messages: BaseMessage[]): Promise<AIMessage> };
+/**
+ * All the runtime needs from a model: messages in, one AI message out (tools already bound).
+ * `stream` is optional: when present, a chat turn shows the answer as it is written.
+ */
+export type ChatModel = {
+  invoke(messages: BaseMessage[]): Promise<AIMessage>;
+  stream?(messages: BaseMessage[], options?: { signal?: AbortSignal }): Promise<AsyncIterable<AIMessageChunk>>;
+};
 
 export type ModelFactory = (
   tools: StructuredToolInterface[],

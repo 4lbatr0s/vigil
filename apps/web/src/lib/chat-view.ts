@@ -6,20 +6,25 @@ export type Live = {
   text: string;
   /** Tool activity, one short line each, e.g. "read_note". */
   tools: string[];
+  /** True while a streamed answer is still being written, so the next piece joins it instead of starting a new paragraph. */
+  open: boolean;
   waitingForApproval: boolean;
   error: string | null;
   done: boolean;
 };
 
-export const emptyLive = (): Live => ({ text: "", tools: [], waitingForApproval: false, error: null, done: false });
+export const emptyLive = (): Live => ({ text: "", tools: [], open: false, waitingForApproval: false, error: null, done: false });
 
 /** Folds one streamed line into the live state. Pure. */
 export function applyLine(live: Live, line: ChatLine): Live {
   switch (line.type) {
     case "token":
-      return { ...live, text: live.text === "" ? line.text : `${live.text}\n\n${line.text}` };
+      return { ...live, open: false, text: live.text === "" ? line.text : `${live.text}\n\n${line.text}` };
+    case "delta":
+      if (live.open) return { ...live, text: live.text + line.text };
+      return { ...live, open: true, text: live.text === "" ? line.text : `${live.text}\n\n${line.text}` };
     case "tool":
-      return line.status === "call" ? { ...live, tools: [...live.tools, line.name] } : live;
+      return line.status === "call" ? { ...live, open: false, tools: [...live.tools, line.name] } : { ...live, open: false };
     case "approval":
       return { ...live, waitingForApproval: true };
     case "error":
