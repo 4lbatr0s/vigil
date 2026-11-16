@@ -125,6 +125,19 @@ Legend: `[x]` done, `[ ]` not done. Add a short note after a task only for a dev
 - [x] UI-5: Today view and onboarding. *Done 2026-11-17: /today with a nav badge, empty-vault state (write a note or add an agent), Appearance settings. The demo-vault button and a self-completing checklist are not built; Today is a nav entry, not the landing page, so opening the app is never a redirect.*
 - [x] UI-6: Polish and proof (partly). *Done 2026-11-17: graph page fixed (content pinned to the third shell row; it had zero height when no banner showed), keyboard audit on the new pages (filter box got a real focus ring), bundle budget still passes (81.7 KB of 180 KB first load), changelog. Not done: the benchmark scoring against other apps, README screenshots and the demo recording (both need the owner's eye), a check on a real phone.*
 
+## Warm UI (ADR-0018)
+
+- [x] Warm palette (charcoal with a brown undertone, warm off-white paper), 8px and 12px radii, warmer shadows. *Done 2026-11-17; contrast test green.*
+- [ ] Copy pass (kind, second person), inviting empty states with line illustrations, agent names with a lantern glyph, gentle motion polish.
+
+## Study v1 (ADR-0017, plan in the owner's approved plan)
+
+- [ ] Cards core: `extractCards`, index table, migration 8, `srs.ts` (ts-fsrs), study API
+- [ ] Study page and note integration (due counts on the note, Today and the navigation)
+- [ ] Card maker agent with the review panel
+- [ ] Tutor, explain-it-back and quiz builder templates
+- [ ] Insight (per-note retention) and the study planner
+
 ## WP13: after v1 (ordered backlog, do not start before the release)
 
 

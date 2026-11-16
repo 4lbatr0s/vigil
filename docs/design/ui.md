@@ -5,11 +5,11 @@ Single source of truth for all UI. Components may not use raw hex values outside
 ## Palette (dark default)
 | Token | Dark | Light | Role |
 | --- | --- | --- | --- |
-| --bg | #111113 | #FAFAF8 | app background |
-| --surface | #1A1A1E | #FFFFFF | cards, panels, editor chrome |
-| --hairline | #26262B | #E7E7E3 | all dividers and borders |
-| --ink | #EDEDEF | #16181D | primary text |
-| --ink-muted | #8B8B92 | #6E6E74 | secondary text, labels |
+| --bg | #161412 | #FAF6F0 | app background |
+| --surface | #1F1C1A | #FFFDF9 | cards, panels, editor chrome |
+| --hairline | #302C28 | #E9E1D6 | all dividers and borders |
+| --ink | #F2EDE6 | #2A2521 | primary text |
+| --ink-muted | #A89F95 | #6B6258 | secondary text, labels |
 | --amber | #E8A33D | #B47612 | agent life ONLY: active runs, agent-written notes, graph glow, lantern flicker |
 | --ok | #4EA36A | #2E7D4F | run success |
 | --err | #C75450 | #B03A36 | run failure (dots, borders) |
@@ -36,7 +36,7 @@ Breakpoints: wide >= 1200 (labelled nav), 1024 to 1199 and 640 to 1023 (icon rai
 
 ## Layout & structure
 - Hairlines carry structure; shadows are banned except `--shadow-pop` on floating layers and focus rings (ADR-0016).
-- Border radius: 4px on interactive surfaces only. Never on decorative cards.
+- Border radius (ADR-0018): 8px on controls, 12px (`--radius-lg`) on cards and dialogs.
 - Spacing on a 4/8 grid: 4, 8, 12, 16, 24, 32, 48.
 - Left-aligned text everywhere; centered only in empty states.
 

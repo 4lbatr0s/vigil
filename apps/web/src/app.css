@@ -3,11 +3,11 @@
 
 :root {
   /* Palette — dark default */
-  --bg: #111113;
-  --surface: #1a1a1e;
-  --hairline: #26262b;
-  --ink: #ededef;
-  --ink-muted: #8b8b92;
+  --bg: #161412;
+  --surface: #1f1c1a;
+  --hairline: #302c28;
+  --ink: #f2ede6;
+  --ink-muted: #a89f95;
   --amber: #e8a33d; /* agent life only: dots, outlines, graph glow */
   --ok: #4ea36a;
   --err: #c75450;
@@ -38,7 +38,8 @@
   --space-12: 48px;
 
   /* Structure */
-  --radius: 4px;
+  --radius: 8px;
+  --radius-lg: 12px;
   --sidebar-width: 280px;
   --measure: 68ch;
   --rail-width: 56px;
@@ -47,39 +48,39 @@
   /* UI v2 (ADR-0016): hover and raised surfaces are mixes of existing tokens; one shadow, floating layers only. */
   --surface-hover: color-mix(in srgb, var(--surface) 82%, var(--ink));
   --surface-raised: color-mix(in srgb, var(--surface) 94%, var(--ink));
-  --shadow-pop: 0 8px 28px rgb(0 0 0 / 0.35), 0 1px 3px rgb(0 0 0 / 0.3);
+  --shadow-pop: 0 10px 32px rgb(10 6 2 / 0.38), 0 1px 3px rgb(10 6 2 / 0.3);
 }
 
 /* Light follows the system unless the page says data-theme="dark". */
 @media (prefers-color-scheme: light) {
   :root:not([data-theme="dark"]) {
-    --bg: #fafaf8;
-    --surface: #ffffff;
-    --hairline: #e7e7e3;
-    --ink: #16181d;
-    --ink-muted: #6e6e74;
+    --bg: #faf6f0;
+    --surface: #fffdf9;
+    --hairline: #e9e1d6;
+    --ink: #2a2521;
+    --ink-muted: #6b6258;
     --amber: #b47612;
     --ok: #2e7d4f;
     --err: #b03a36;
     --amber-ink: #8f5c0a;
     --err-ink: #b03a36;
-    --shadow-pop: 0 8px 28px rgb(20 20 30 / 0.14), 0 1px 3px rgb(20 20 30 / 0.12);
+    --shadow-pop: 0 8px 28px rgb(60 40 20 / 0.14), 0 1px 3px rgb(60 40 20 / 0.1);
   }
 }
 
 /* An explicit light choice wins over the system setting. */
 :root[data-theme="light"] {
-  --bg: #fafaf8;
-  --surface: #ffffff;
-  --hairline: #e7e7e3;
-  --ink: #16181d;
-  --ink-muted: #6e6e74;
+  --bg: #faf6f0;
+  --surface: #fffdf9;
+  --hairline: #e9e1d6;
+  --ink: #2a2521;
+  --ink-muted: #6b6258;
   --amber: #b47612;
   --ok: #2e7d4f;
   --err: #b03a36;
   --amber-ink: #8f5c0a;
   --err-ink: #b03a36;
-  --shadow-pop: 0 8px 28px rgb(20 20 30 / 0.14), 0 1px 3px rgb(20 20 30 / 0.12);
+  --shadow-pop: 0 8px 28px rgb(60 40 20 / 0.14), 0 1px 3px rgb(60 40 20 / 0.1);
 }
 
 *,

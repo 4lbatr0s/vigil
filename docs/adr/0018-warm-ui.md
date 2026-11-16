@@ -1,7 +1,7 @@
 # ADR-0018: A warmer interface (amends ADR-0005 and ADR-0016)
 
 ## Status
-Proposed (2026-11-17). Becomes Accepted when the warm pass starts.
+Accepted (2026-11-17), palette and shape part done; copy, illustrations and agent glyphs still to do.
 
 ## Context
 The owner finds the interface cold. Direction chosen: soft and friendly, neutrals kept. A 2025 UXPA randomized study (N = 187) found rounded forms read as warmer and raised perceived ease of use; it tested corner shape, not color, so the palette is a design judgement.

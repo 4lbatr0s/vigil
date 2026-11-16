@@ -137,7 +137,7 @@
     transform: translateX(-50%);
     padding: var(--space-6);
     border: 1px solid var(--hairline);
-    border-radius: var(--radius);
+    border-radius: var(--radius-lg);
     background: var(--surface);
     box-shadow: var(--shadow-pop);
   }
