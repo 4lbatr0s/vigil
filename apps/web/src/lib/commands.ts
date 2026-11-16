@@ -1,4 +1,5 @@
 import { rank } from "./fuzzy";
+import { NOTE_TEMPLATES } from "./note-templates";
 
 export type Action = { type: "goto"; href: string } | { type: "run"; agent: string };
 export type Command = { id: string; label: string; group: "Notes" | "Agents" | "Commands"; hint?: string; action: Action };
@@ -14,6 +15,7 @@ const FIXED: Command[] = [
   { id: "cmd:daily", label: "Today's note", group: "Commands", hint: "daily note", action: { type: "goto", href: "/?daily=1" } },
   { id: "cmd:study", label: "Study cards", group: "Commands", action: { type: "goto", href: "/study" } },
   { id: "cmd:today", label: "Open Today", group: "Commands", action: { type: "goto", href: "/today" } },
+  ...NOTE_TEMPLATES.map((t): Command => ({ id: `cmd:template:${t.id}`, label: t.label, group: "Commands", hint: "template", action: { type: "goto", href: `/?template=${t.id}` } })),
   { id: "cmd:chat", label: "New chat", group: "Commands", action: { type: "goto", href: "/chat?new=1" } },
   { id: "cmd:graph", label: "Open Graph", group: "Commands", action: { type: "goto", href: "/graph" } },
   { id: "cmd:agents", label: "Open Agents", group: "Commands", action: { type: "goto", href: "/agents" } },

@@ -12,6 +12,7 @@
   import DeleteNote from "$lib/components/DeleteNote.svelte";
   import { nextAfterDelete } from "$lib/after-delete";
   import { dailyNote } from "$lib/daily";
+  import { fromTemplate, templateById } from "$lib/note-templates";
   import { WELCOME_BODY, WELCOME_ID, WELCOME_TITLE } from "$lib/welcome";
   import PanelLeft from "@lucide/svelte/icons/panel-left";
   import type { Run } from "@vigil/shared";
@@ -154,6 +155,23 @@
           else await select(id);
         } catch (err) {
           status = err instanceof Error ? err.message : "Could not open today's note";
+        }
+      })();
+    });
+  });
+  // /?template=lecture starts a note from a template (and opens it if today's already exists).
+  $effect(() => {
+    const wanted = page.url.searchParams.get("template");
+    const template = wanted ? templateById(wanted) : undefined;
+    if (!template || loading) return;
+    untrack(() => {
+      const { id, title, body } = fromTemplate(template);
+      void (async () => {
+        try {
+          if (!notes.some((n) => n.id === id)) onCreated(await putNote(id, { title, body }));
+          else await select(id);
+        } catch (err) {
+          status = err instanceof Error ? err.message : "Could not start the note";
         }
       })();
     });
