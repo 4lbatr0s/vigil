@@ -14,6 +14,7 @@
   import PanelLeft from "@lucide/svelte/icons/panel-left";
   import type { Run } from "@vigil/shared";
   import AskAgent from "$lib/components/AskAgent.svelte";
+  import CardMaker from "$lib/components/CardMaker.svelte";
   import NoteActivity from "$lib/components/NoteActivity.svelte";
   import ProvenanceBar from "$lib/components/ProvenanceBar.svelte";
   import { runsForNote, undoableRun } from "$lib/note-activity";
@@ -33,6 +34,9 @@
   let pending = $state<ApprovalItem[]>([]);
   let cardStats = $state<StudyStats | null>(null);
   let askOpen = $state(false);
+  let cardsOpen = $state(false);
+  /** Bumped when the note changed on disk behind the editor, so the editor is rebuilt from the saved text. */
+  let reloadKey = $state(0);
   let askSelection = $state<string | null>(null);
   const current = $derived(notes.find((n) => n.id === selectedId));
   const noteRuns = $derived(selectedId ? runsForNote(runs, selectedId) : []);
@@ -52,6 +56,14 @@
   async function onUndone(): Promise<void> {
     await pollNotes();
     if (selectedId) await select(selectedId);
+    reloadKey += 1;
+  }
+
+  /** After cards were saved into the note from the review panel. */
+  async function onCardsSaved(): Promise<void> {
+    await pollNotes();
+    if (selectedId) await select(selectedId);
+    reloadKey += 1;
   }
   // The title field: edited in place, saved on Enter or when it loses focus (Escape puts the old title back).
   let titleValue = $state("");
@@ -311,6 +323,7 @@
           }}
         />
         <div class="actions">
+          <button type="button" class="act" onclick={() => (cardsOpen = true)}>Make cards</button>
           <RenameNote noteId={selectedId ?? ""} title={draft.title} onrenamed={onRenamed} />
           <DeleteNote noteId={selectedId ?? ""} title={draft.title} ondeleted={onDeleted} />
         </div>
@@ -334,7 +347,7 @@
         <section class="pane editor-pane">
           <!-- The editor (CodeMirror) is the heavy part: load it after the shell and list. -->
           {#await import("$lib/components/Editor.svelte") then { default: Editor }}
-            <Editor value={draft.body} noteId={selectedId ?? ""} onDocChange={onDocChange} onOpenWikilink={(t) => void openWikilink(t)} getTitles={() => notes.map((n) => n.title)} getTitle={() => draft?.title} onAsk={(sel) => ((askSelection = sel), (askOpen = true))} />
+            {#key reloadKey}<Editor value={draft.body} noteId={selectedId ?? ""} onDocChange={onDocChange} onOpenWikilink={(t) => void openWikilink(t)} getTitles={() => notes.map((n) => n.title)} getTitle={() => draft?.title} onAsk={(sel) => ((askSelection = sel), (askOpen = true))} />{/key}
           {/await}
         </section>
       </div>
@@ -352,6 +365,7 @@
 </div>
 
 {#if draft && selectedId}
+  <CardMaker bind:open={cardsOpen} noteId={selectedId} onsaved={() => void onCardsSaved()} />
   <AskAgent bind:open={askOpen} noteId={selectedId} title={draft.title} selection={askSelection} />
 {/if}
 

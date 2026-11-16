@@ -90,6 +90,9 @@ export const getDueCards = (opts: { note?: string; limit?: number } = {}) => {
 };
 export const getStudyStats = (note?: string) => request<StudyStats>(`/api/study/stats${note ? `?note=${encodeURIComponent(note)}` : ""}`);
 export const answerStudyCard = (cardId: string, answer: Answer) => request<{ due: string }>("/api/study/review", json("POST", { cardId, answer }));
+/** Starts the card maker on a note; the answer is read with getRunResult when the run has succeeded. */
+export const startCardProposals = (noteId: string) => request<Run>(`/api/notes/${seg(noteId)}/card-proposals`, json("POST"));
+export const getRunResult = (runId: string) => request<{ text: string | null }>(`/api/runs/${seg(runId)}/result`);
 export const getNoteCards = (id: string) => request<StudyCard[]>(`/api/notes/${seg(id)}/cards`);
 
 // ---- Agents and runs ----
