@@ -132,10 +132,10 @@ Owner:
 - [ ] Decide when to push release notes / announce.
 
 To verify by hand (not yet done):
-- [ ] Keyboard-only pass over every page (focus ring, reachable controls, dialogs).
+- [ ] Keyboard-only pass over every page (focus ring, reachable controls, dialogs). *Started 2026-11-16: Agents page tabs with a visible focus ring; the other pages are still to do.*
 - [ ] README "Run it" commands on a clean machine or an empty directory and volume.
-- [ ] Permissions page: switch off web fetch, confirm a run no longer offers the tool; templates are created switched off.
-- [ ] Research Scout on a real model: allowed host works, a loopback URL is refused and logged.
+- [x] Permissions page: switch off web fetch, confirm a run no longer offers the tool; templates are created switched off. *Done 2026-11-16: saved from the UI, run's prompt event listed no fetch_url, then listed it after switching back; templates created disabled.*
+- [x] Research Scout on a real model: allowed host works, a loopback URL is refused and logged. *Done 2026-11-16 (Ollama 4B): example.com fetched; http://127.0.0.1:3001/api/notes refused with 'port 3001 is not allowed' and logged.*
 - [ ] Heartbeat: observe live that an agent's own write does not trigger a second run.
 - [ ] Graph: force the no-WebGL path and confirm the automatic list fallback.
 - [ ] Record the 20-second Morning Digest demo (under 5 MB) and put it at the top of the README.

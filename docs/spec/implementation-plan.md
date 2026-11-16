@@ -1118,14 +1118,14 @@ Cheaper models and hurried people tend to do these. Each one has already caused 
 - [x] Morning Digest demo works end to end with a real model on a fresh volume, including undo. *Done 2026-11-15 on a fresh Docker volume with Ollama on the host: run succeeded, digest written, undo removed it.*
 - [x] Strict mode demo: approval queue, restart while waiting, approve. *Done on a real local model, including a restart while waiting (WP8).*
 - [ ] Heartbeat demo: no run while idle; one run after an edit. *One run after an edit observed (WP6); the 'no run while idle after its own write' part is covered by tests, not observed live.*
-- [ ] Web fetch demo: allowed host works; loopback URL refused and logged. *Live fetch of an allowed host and refusals checked against the real network; the Research Scout agent was not run on a model.*
+- [x] Web fetch demo: allowed host works; loopback URL refused and logged. *Done 2026-11-16: Research Scout on a real model fetched an allowed host; the loopback URL was refused and logged.*
 - [x] Graph opens on the demo vault; fallback list works without WebGL. *Checked in a browser: graph draws and the list view toggle works. The automatic no-WebGL fallback was not forced.*
 - [ ] Keyboard-only pass over every page; contrast test passes; reduced-motion pass. *Contrast and reduced-motion rules are tested; a manual keyboard pass over every page is still to do.*
 - [x] `grep -rn "sk-\|api_key" apps packages --include=*.ts --include=*.svelte` shows no real secrets; `git log -p | grep -i "api_key=" ` shows none. *Only test fixtures match; none in history.*
 - [ ] README commands copy-paste correctly on a clean directory; every README claim exists in the code. *Docker commands verified; a clean-machine run is still to do.*
 - [x] Performance budgets hold: `scripts/check-bundle-size.mjs` passes, the 1,000-note index test passes, `node apps/server/dist/server.mjs` smoke test passes (WP4-T10, WP12-T4). *Bundle budget (73 KB of 180), 1,000-note test and the dist smoke test pass.*
 - [ ] Name check done: "Vigil" searched on npm, GitHub and trademark databases; result written in `docs/spec/open-questions.md`. *Owner's task.*
-- [ ] Permissions page works: switch off web fetch and confirm a run no longer offers the tool; template agents are created switched off. *Covered by tests; not re-run by hand in this pass.*
+- [x] Permissions page works: switch off web fetch and confirm a run no longer offers the tool; template agents are created switched off. *Done 2026-11-16 by hand in the UI.*
 - [x] `docs/spec/roadmap.md` marks M0 to M6 done with dates; ADRs 0010 to 0013 written; `docs/spec/open-questions.md` reviewed with the owner.
 - [x] `CHANGELOG.md` has the 1.0.0 entry; versions bumped; tag created only when the owner says so. *Versions are 1.0.0; no tag has been created.*
 
