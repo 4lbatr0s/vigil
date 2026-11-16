@@ -138,6 +138,19 @@ Legend: `[x]` done, `[ ]` not done. Add a short note after a task only for a dev
 - [x] Tutor, explain-it-back and quiz master. *Done 2026-11-17: three no-tool chat templates, a Study dialog on the note (the note goes in the first message, minus its card lines so answers are not leaked), prompts that forbid facts or praise in the first reply. Tutor checked on the local 4B model (greeting plus one question); explain-it-back and quiz master were not run against a model. The quiz does not save a result note (no tools).*
 - [x] Insight and planner. *Done 2026-11-17: a By note list on /study (cards, waiting, recall rate shown only after 8 answers) from GET /api/study/decks. No separate planner agent: the Today Study card plus the due queue already plan the day, and a no-tool agent would add nothing to it.*
 
+## Free-hand improvements (owner granted full authority, 2026-11-17)
+
+Chosen from the research (spaced repetition tied to notes, active processing over copying, daily notes and templates as staples). All tested and checked in the browser unless noted.
+
+- [x] Daily note (palette command, `/?daily=1`), lecture, meeting and reading templates (the lecture and reading ones ask for your own words and end with a Cards section).
+- [x] Slash blocks for Question and Cloze cards; Cmd/Ctrl Shift H hides a selection as a study blank (dashed pill in the preview).
+- [x] Keyboard shortcuts help (`?` or the keyboard button).
+- [x] Sample note for an empty vault; agent gallery grouped (Study, daily rhythm, keeping notes tidy).
+- [x] Take back the last study answer (migration 10 stores the previous state).
+- [x] Accessibility fix: muted text on hovered and raised surfaces was below 4.5:1; mixes lightened and covered by the contrast test.
+- [x] Release check: web bundle 88.8 KB of 180 KB; server bundle starts with ts-fsrs (smoke test passes). **Docker image not re-checked**: Docker Desktop failed with a storage I/O error (daemon-side). CI runs the Docker job.
+- Ideas not built: image paste and attachments (needs a server route and a threat-model entry), per-hunk accept or revert inside the editor, a calendar for daily notes, review-history charts, a quiz result note (the quiz agent has no tools), real-phone testing.
+
 ## WP13: after v1 (ordered backlog, do not start before the release)
 
 
