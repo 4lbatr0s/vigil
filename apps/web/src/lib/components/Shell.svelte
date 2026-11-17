@@ -7,6 +7,7 @@
   import ShieldCheck from "@lucide/svelte/icons/shield-check";
   import MessageSquare from "@lucide/svelte/icons/message-square";
   import Network from "@lucide/svelte/icons/network";
+  import LayoutDashboard from "@lucide/svelte/icons/layout-dashboard";
   import Sunrise from "@lucide/svelte/icons/sunrise";
   import GraduationCap from "@lucide/svelte/icons/graduation-cap";
   import Menu from "@lucide/svelte/icons/menu";
@@ -66,6 +67,7 @@
 
   const items = [
     { href: "/", label: "Notes", icon: NotebookText, match: (p: string) => p === "/" },
+    { href: "/canvas", label: "Canvas", icon: LayoutDashboard, match: (p: string) => p.startsWith("/canvas") },
     { href: "/today", label: "Today", icon: Sunrise, match: (p: string) => p.startsWith("/today") },
     { href: "/study", label: "Study", icon: GraduationCap, match: (p: string) => p.startsWith("/study") },
     { href: "/agents", label: "Agents", icon: Bot, match: (p: string) => p.startsWith("/agents") || p.startsWith("/runs") },

@@ -69,6 +69,10 @@ An agent is a system prompt, a list of tools, a trigger and a token budget.
 - **Other agents (MCP):** off by default. Switch it on in Settings and tools like Claude Code or Claude Desktop can search and read your notes at `/api/mcp`, and, with a second switch, write notes. Each write is a run you can undo.
 - **Learner status:** agents with the notes-reading tool can see your study memory (cards due, exam dates, recall rate, cards that keep slipping), which the weekly study review uses.
 
+## Canvas
+
+A free board for your notes: place note cards and your own text anywhere, group them, and draw arrows between them. Boards are saved in your vault as `canvases/<name>.canvas` in the open [JSON Canvas](https://jsoncanvas.org) format, so Obsidian opens them too. Built on Svelte Flow (MIT).
+
 ## Study
 
 Learning research is clear that testing yourself and spacing reviews out beat rereading (Dunlosky et al. 2013; Adesope et al. 2017), and that an AI which does the thinking for you can hurt more than it helps (Bastani et al. 2025). So Vigil's study helpers do the chores and leave the thinking to you.

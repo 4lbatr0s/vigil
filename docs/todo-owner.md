@@ -20,3 +20,4 @@ Only you can do these (a decision, an account, a real device, or publishing). Ti
 - [ ] **Hosted model (optional):** if you want a hosted model, set `VIGIL_LLM_*` in your own environment. Never paste a key into the chat.
 - [ ] **Embedding model (optional):** if you want Ask to find notes by meaning and not only by words, run `ollama pull nomic-embed-text` (a download of a few hundred MB). Then tell the agent, which will measure full-text search against embeddings on a temp vault before building anything.
 - [ ] **A real hosted key:** add an OpenAI, Anthropic or DeepSeek connection in Settings, press Test and list models, and run an agent; tell the agent what broke (it never sees your key).
+- [ ] **Canvas in Obsidian:** open a `.canvas` file made by Vigil in Obsidian (copy it into a vault) and tell the agent whether it shows correctly; also decide whether to keep the small "Svelte Flow" attribution on the board.

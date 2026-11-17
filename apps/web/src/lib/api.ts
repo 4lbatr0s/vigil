@@ -114,6 +114,13 @@ export const recordRecall = (noteId: string, result: RecallResult) => request<Re
 export const startRecallCheck = (noteId: string, recall: string) => request<Run>(`/api/notes/${seg(noteId)}/recall-check`, json("POST", { recall }));
 export const startOutline = (source: string) => request<Run>("/api/outline", json("POST", { source }));
 export const captureLine = (text: string) => request<{ id: string; line: string }>("/api/capture", json("POST", { text }));
+export type CanvasSummary = { id: string; updatedAt: string; nodes: number };
+export type CanvasDoc = { id: string; updatedAt: string; canvas: import("./canvas").CanvasFile };
+export const listCanvases = () => request<CanvasSummary[]>("/api/canvases");
+export const createCanvas = (title: string) => request<{ id: string; updatedAt: string }>("/api/canvases", json("POST", { title }));
+export const getCanvas = (id: string) => request<CanvasDoc>(`/api/canvases/${seg(id)}`);
+export const saveCanvas = (id: string, canvas: import("./canvas").CanvasFile, baseUpdatedAt?: string) => request<{ id: string; updatedAt: string }>(`/api/canvases/${seg(id)}`, json("PUT", { canvas, ...(baseUpdatedAt ? { baseUpdatedAt } : {}) }));
+export const deleteCanvas = (id: string) => request<{ id: string }>(`/api/canvases/${seg(id)}`, { method: "DELETE" });
 export type Connection = { id: string; name: string; kind: "openai" | "anthropic" | "ollama"; baseUrl: string; hasKey: boolean; defaultModel: string | null; isDefault: boolean; readOnly: boolean };
 export type ConnectionInput = { name: string; kind: Connection["kind"]; baseUrl: string; apiKey?: string; clearKey?: boolean; defaultModel?: string };
 export type ProbeResult = { ok: boolean; models: string[]; error: string | null };

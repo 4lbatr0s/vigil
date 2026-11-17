@@ -225,6 +225,13 @@ Chosen from the research (spaced repetition tied to notes, active processing ove
 - [x] Checked live (Ollama 4B): two drafts were usable (one took about 4 minutes of thinking, so the page says a local model can take a minute or two); the create flow and a schedule and tools edit saved correctly through the browser
 - [ ] Not done: duplicate an agent, gallery search and tags, a test run inside the wizard
 
+## Canvas (owner request 2026-11-17, ADR-0027)
+- [x] Server: `canvas.ts` (JSON Canvas 1.0 schema, atomic write, 409 on a newer file, slug ids), `/api/canvases*`
+- [x] Web: `lib/canvas.ts` (file <-> board, undo history), cards (text, note, link, group), `CanvasBoard`, `/canvas` and `/canvas/[id]`, nav item and palette command, `--canvas-1..6` tokens
+- [x] Checked in the browser: added a group, text and two note cards, dragged, drew an arrow by dropping on a card (saved as `fromSide`/`toSide`), undo removed it, the file on disk is plain JSON Canvas; a 300-card, 299-arrow board rendered at a median 13 ms per frame while panning. First load stays 95.5 KB gzip
+- [ ] Not tried: opening a saved board in real Obsidian (owner list), a phone, text-card editing and group drag checked only by code and unit tests, not by hand in the browser
+- [ ] Not done: agents reading or writing boards, "open a note as a canvas", send graph selection to a canvas, image cards
+
 ## WP13: after v1 (ordered backlog, do not start before the release)
 
 

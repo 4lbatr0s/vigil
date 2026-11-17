@@ -11,6 +11,12 @@
   --amber: #e8a33d; /* agent life only: dots, outlines, graph glow */
   --ok: #4ea36a;
   --err: #c75450;
+  --canvas-1: #c9605c;
+  --canvas-2: #cc8550;
+  --canvas-3: #b8ad5a;
+  --canvas-4: #5aa876;
+  --canvas-5: #55a6b0;
+  --canvas-6: #9a78c7;
   /* Text-safe variants (contrast >= 4.5:1 on --bg and --surface, checked by contrast.test.ts). */
   --amber-ink: #e8a33d;
   --err-ink: #dd6a66;
@@ -62,6 +68,12 @@
     --amber: #b47612;
     --ok: #2e7d4f;
     --err: #b03a36;
+    --canvas-1: #b5483f;
+    --canvas-2: #b56a2c;
+    --canvas-3: #8c8226;
+    --canvas-4: #2f8052;
+    --canvas-5: #2a7f8a;
+    --canvas-6: #7650a8;
     --amber-ink: #8f5c0a;
     --err-ink: #b03a36;
     --shadow-pop: 0 8px 28px rgb(60 40 20 / 0.14), 0 1px 3px rgb(60 40 20 / 0.1);
@@ -78,6 +90,12 @@
   --amber: #b47612;
   --ok: #2e7d4f;
   --err: #b03a36;
+  --canvas-1: #b5483f;
+  --canvas-2: #b56a2c;
+  --canvas-3: #8c8226;
+  --canvas-4: #2f8052;
+  --canvas-5: #2a7f8a;
+  --canvas-6: #7650a8;
   --amber-ink: #8f5c0a;
   --err-ink: #b03a36;
   --shadow-pop: 0 8px 28px rgb(60 40 20 / 0.14), 0 1px 3px rgb(60 40 20 / 0.1);
