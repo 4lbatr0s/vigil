@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { NoteSummary } from "@vigil/shared";
-import { hasTag, matchesQuery, relativeTime, tagCounts, untilText, viewNotes } from "./note-list";
+import { hasTag, matchesQuery, relativeTime, tagCounts, tagTree, untilText, viewNotes } from "./note-list";
 
 const n = (id: string, over: Partial<NoteSummary> = {}): NoteSummary => ({ id, title: id.toUpperCase(), tags: [], author: "human", updatedAt: "2026-11-16T10:00:00Z", snippet: "", ...over });
 
@@ -66,5 +66,25 @@ describe("untilText", () => {
     expect(untilText(at(5 * 3_600_000), now)).toBe("in 5 h");
     expect(untilText(at(26 * 3_600_000), now)).toBe("tomorrow");
     expect(untilText(at(3 * 86_400_000), now)).toBe("in 3 days");
+  });
+});
+
+describe("tagTree", () => {
+  const n = (id: string, tags: string[]) => ({ id, title: id, tags, updatedAt: "2026-11-17T00:00:00.000Z", author: "human" }) as never;
+  const notes = [n("a", ["work/launch", "work/plan"]), n("b", ["work/launch/week1"]), n("c", ["home"]), n("d", ["work"])];
+
+  it("lists top-level tags, counting each note once", () => {
+    expect(tagTree(notes, null).roots).toEqual([{ tag: "work", count: 3 }, { tag: "home", count: 1 }]);
+    expect(tagTree(notes, null).children).toEqual([]);
+  });
+
+  it("lists the tags directly under the selected one", () => {
+    expect(tagTree(notes, "work").children).toEqual([{ tag: "work/launch", count: 2 }, { tag: "work/plan", count: 1 }]);
+    expect(tagTree(notes, "work/launch").children).toEqual([{ tag: "work/launch/week1", count: 1 }]);
+    expect(tagTree(notes, "home").children).toEqual([]);
+  });
+
+  it("does not mix a tag with a longer name that starts the same", () => {
+    expect(tagTree([n("x", ["workshop/a"])], "work").children).toEqual([]);
   });
 });

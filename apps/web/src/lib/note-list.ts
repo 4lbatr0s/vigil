@@ -40,6 +40,32 @@ export function tagCounts(notes: readonly NoteSummary[], limit = 12): { tag: str
     .slice(0, limit);
 }
 
+export type TagChip = { tag: string; count: number };
+
+/**
+ * Tags as a tree, one level at a time. `roots` are the top-level tags (`work` for `work/launch`), counting each note
+ * once however many of its tags sit under it. When a tag is selected, `children` are the tags directly under it
+ * (`work/launch` under `work`), so a deep tree stays two short rows instead of a wall of chips.
+ */
+export function tagTree(notes: readonly NoteSummary[], selected: string | null, limit = 12): { roots: TagChip[]; children: TagChip[] } {
+  const rootCount = new Map<string, number>();
+  const childCount = new Map<string, number>();
+  const wantChildren = selected !== null ? `${selected}/` : null;
+  for (const n of notes) {
+    const roots = new Set<string>();
+    const kids = new Set<string>();
+    for (const t of n.tags) {
+      roots.add(t.split("/")[0] ?? t);
+      if (wantChildren !== null && t.startsWith(wantChildren)) kids.add(`${wantChildren}${t.slice(wantChildren.length).split("/")[0]}`);
+    }
+    for (const r of roots) rootCount.set(r, (rootCount.get(r) ?? 0) + 1);
+    for (const k of kids) childCount.set(k, (childCount.get(k) ?? 0) + 1);
+  }
+  const order = (m: Map<string, number>): TagChip[] =>
+    [...m.entries()].map(([tag, count]) => ({ tag, count })).sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag)).slice(0, limit);
+  return { roots: order(rootCount), children: order(childCount) };
+}
+
 /** "just now", "4 min ago", "2 h ago", "yesterday", "3 d ago", then the date (ux-spec section 2). */
 export function relativeTime(iso: string, now: Date = new Date()): string {
   const then = new Date(iso);

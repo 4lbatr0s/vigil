@@ -9,7 +9,7 @@
   import Calendar from "$lib/components/Calendar.svelte";
   import { getStudyHistory, putNote, searchNotes } from "$lib/api";
   import { parseDay } from "$lib/daily";
-  import { relativeTime, tagCounts, viewNotes, type SortKey } from "$lib/note-list";
+  import { hasTag, relativeTime, tagTree, viewNotes, type SortKey } from "$lib/note-list";
   import { ROW_HEIGHT, VIRTUALIZE_ABOVE, visibleWindow } from "$lib/window";
 
   let {
@@ -94,10 +94,11 @@
   });
   onDestroy(() => clearTimeout(searchTimer));
 
-  const tags = $derived(tagCounts(notes));
+  const tree = $derived(tagTree(notes, tag));
+  const tags = $derived(tree.roots);
   // A tag that no longer exists must not leave the list empty.
   $effect(() => {
-    if (tag !== null && !tags.some((t) => t.tag === tag || t.tag.startsWith(`${tag}/`))) tag = null;
+    if (tag !== null && !notes.some((n) => hasTag(n, tag))) tag = null;
   });
   const shown = $derived(viewNotes(notes, { query, tag, sort, pins, extraIds: hitIds }));
   const pinSet = $derived(new Set(pins));
@@ -181,9 +182,16 @@
       <div class="chips" role="group" aria-label="Filter by tag">
         <button type="button" class="chip" class:on={tag === null} aria-pressed={tag === null} onclick={() => (tag = null)}>All</button>
         {#each tags as t (t.tag)}
-          <button type="button" class="chip" class:on={tag === t.tag} aria-pressed={tag === t.tag} onclick={() => (tag = tag === t.tag ? null : t.tag)}>#{t.tag}</button>
+          <button type="button" class="chip" class:on={tag === t.tag || (tag?.startsWith(`${t.tag}/`) ?? false)} aria-pressed={tag === t.tag} onclick={() => (tag = tag === t.tag ? null : t.tag)}>#{t.tag}</button>
         {/each}
       </div>
+      {#if tree.children.length > 0}
+        <div class="chips" role="group" aria-label={`Tags under ${tag}`}>
+          {#each tree.children as c (c.tag)}
+            <button type="button" class="chip" class:on={tag === c.tag} aria-pressed={tag === c.tag} onclick={() => (tag = c.tag)}>#{c.tag.slice((tag?.length ?? 0) + 1)}</button>
+          {/each}
+        </div>
+      {/if}
     {/if}
   </header>
 
