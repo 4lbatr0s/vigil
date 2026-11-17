@@ -6,6 +6,7 @@ import { isAppError } from "./errors";
 import { htmlToText, safeFetch, SafeFetchError } from "./safe-fetch";
 import { withNoteLock } from "./lock";
 import { listNotes, reindexNote, searchNotes } from "./index-db";
+import { learnerReport } from "./learner";
 import { addEvent, dropSnapshot, recordSnapshot, recordTouch, setWrittenUpdatedAt } from "./state-db";
 import { createNote, getNote, readNoteFile, slugify, updateNote, validateId } from "./vault";
 
@@ -37,7 +38,7 @@ export function truncate(text: string, max = MAX_TOOL_OUTPUT): string {
 
 /** Which tool names a grant opens. The allowlist is the only way a tool gets built. */
 export const GRANTS: Record<ToolGrant, string[]> = {
-  read_notes: ["list_notes", "read_note", "search_notes"],
+  read_notes: ["list_notes", "read_note", "search_notes", "learner_status"],
   write_notes: ["write_note"],
   web_fetch: ["fetch_url"],
   call_agents: [], // WP7 builds the call_agent tool
@@ -89,6 +90,21 @@ export function buildTools(grants: ToolGrant[], ctx: ToolContext): StructuredToo
           name: "search_notes",
           description: "Full-text search over notes: id | title | snippet.",
           schema: z.object({ query: z.string() }),
+        },
+      ),
+      tool(
+        async ({ id }) => {
+          try {
+            return truncate(learnerReport(new Date(), id === undefined ? undefined : validateId(id)));
+          } catch (err) {
+            return `error: ${isAppError(err) ? err.message : "could not read study status"}`;
+          }
+        },
+        {
+          name: "learner_status",
+          description:
+            "Read-only summary of the user's study memory: cards due, exam dates, recall rate per note, cards that keep slipping and recall checks. Pass a note `id` to narrow it to one note.",
+          schema: z.object({ id: z.string().optional() }),
         },
       ),
     );

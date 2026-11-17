@@ -13,6 +13,7 @@ A note app first, with agents inside it.
 - Study: card hints (long answer, a list, yes or no, several blanks, front not a question) when the card maker proposes cards, and a prompt on cards you have forgotten six times.
 - Agents: on a note an agent wrote, "Review changes" shows each change with the line around it and lets you put the old text back one change at a time ("Undo this run" still undoes everything).
 - Settings: remove pictures that no note uses any more (after a confirm).
+- Agents: a read-only `learner_status` tool (with the notes-reading permission) lets an agent see your study memory: cards due, exam dates, recall rate per note, cards that keep slipping, recall checks. New "Weekly study review" template writes a Sunday note from it.
 - Notes: paste or drop an image into a note. It is saved inside your vault (`attachments/`) and linked with a normal relative markdown link, so other markdown apps show it too.
 - Notes: a calendar for daily notes with marks for days that have a note and days you studied.
 - Study: a quiet 14-day strip of how many cards you answered each day (plain counts, no streaks).

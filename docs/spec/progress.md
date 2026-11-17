@@ -170,6 +170,11 @@ Chosen from the research (spaced repetition tied to notes, active processing ove
 ## Review changes hunk by hunk (owner delegated, 2026-11-17)
 - [x] `GET /api/runs/:id/before/:noteId` (the body before the run, from its snapshot, no frontmatter), `segments` and `revertChange` in `lib/diff.ts`, a "Review changes" panel on notes an agent wrote with "Put the old text back" per change. Reverting is the owner's own save with `baseUpdatedAt`, so it never overwrites a newer edit. Checked in the browser on a real agent note.
 
+## Learner status for agents (owner approved the AI-native plan, 2026-11-17)
+- [x] `learner_status` tool (read-only, under the `read_notes` grant, optional note id) built from `learnerReport` in `apps/server/src/learner.ts`: totals, exam dates, per-note cards/due/new/recall rate, slipping cards, recall ladder. No card answers, capped at 8000 characters
+- [x] Template `study-review` (Sunday 18:00, reads and writes notes): what you studied, what is slipping, a small plan; uses only numbers the tool gave
+- [ ] Run `study-review` on a real model against a temp vault and record the result (rubric: only tool numbers, no invented scores, no rewritten notes)
+
 ## WP13: after v1 (ordered backlog, do not start before the release)
 
 

@@ -110,7 +110,7 @@ describe("agent runtime", () => {
     expect(reply?.tool_call_id).toBe(asked?.tool_calls?.[0]?.id);
     expect(reply?.tool_call_id).not.toBe("call-9");
     await expect(getNote("x")).rejects.toMatchObject({ code: "note-not-found" });
-    expect(seen[0]?.toolNames).toEqual(["list_notes", "read_note", "search_notes"]);
+    expect(seen[0]?.toolNames).toEqual(["list_notes", "read_note", "search_notes", "learner_status"]);
   });
 
   it("stops before running tools once the budget is used up", async () => {
@@ -292,7 +292,7 @@ describe("provider adapter", () => {
       expect(requests).toHaveLength(2);
       expect(requests[0]).toMatchObject({ url: "/v1/chat/completions", auth: "Bearer test-key-123456" });
       expect(requests[0]?.body.model).toBe("stub-model");
-      expect(requests[0]?.body.tools?.length).toBe(4);
+      expect(requests[0]?.body.tools?.length).toBe(5);
       expect(JSON.stringify(listEvents(created.id))).not.toContain("test-key-123456");
     } finally {
       await new Promise<void>((r) => server.close(() => r()));
