@@ -152,7 +152,9 @@ export const runAgent: AgentRunner = async ({ agent, task, runId, makeModel, dep
         }
       }
       const summary = summaries.get(chat.threadId);
-      if (summary) sent = [...sent.slice(0, sent[0] instanceof SystemMessage ? 1 : 0), new SystemMessage(summaryNote(summary.text)), ...sent.slice(sent[0] instanceof SystemMessage ? 1 : 0)];
+      // A user-role message, not a system one: the summary was written by a model from text that may be untrusted,
+      // so it must not carry the authority of the system prompt.
+      if (summary) sent = [...sent.slice(0, sent[0] instanceof SystemMessage ? 1 : 0), new HumanMessage(summaryNote(summary.text)), ...sent.slice(sent[0] instanceof SystemMessage ? 1 : 0)];
     }
     const model = makeModel(tools, { model: agent.model, maxTokens: remaining });
     // Wait for the model, but let a cancel win at once instead of after the (possibly long) call.

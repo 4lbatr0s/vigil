@@ -144,8 +144,9 @@ describe("login", () => {
     setPressureSpacingForTests(300);
     for (let i = 0; i < 40; i++) await call("POST", "/api/login", { body: { token: "wrong" }, headers: { host: "notes.example.com", "x-forwarded-for": `${30 + (i % 200)}.2.2.${1 + i}` } });
     const same = { host: "notes.example.com", "x-forwarded-for": "77.7.7.7" };
-    const results = await Promise.all([TOKEN, "wrong", TOKEN, "wrong", TOKEN].map((token) => call("POST", "/api/login", { body: { token }, headers: same })));
+    const results = await Promise.all(["wrong", "wrong", TOKEN, "wrong", TOKEN].map((token) => call("POST", "/api/login", { body: { token }, headers: same })));
     // Per-address limit (5 attempts) is not reached, but the queue allows two at a time per address.
+    // (The first two are wrong on purpose: a right guess marks the address as known, which skips the queue.)
     expect(results.filter((r) => r.status === 429).length).toBeGreaterThanOrEqual(1);
     // Another address is not affected by that one's queue places.
     expect((await call("POST", "/api/login", { body: { token: TOKEN }, headers: { host: "notes.example.com", "x-forwarded-for": "88.8.8.8" } })).status).toBe(200);

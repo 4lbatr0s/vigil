@@ -180,7 +180,7 @@ Chosen from the research (spaced repetition tied to notes, active processing ove
 - [x] `/ask` page and palette command: answer with `[n]` marks, "Where it comes from" quotes the line with note link and line number; `verdict` flags no marks and marks to lines never given (`lib/citations.ts`)
 - [x] Checked live (Ollama 4B, temp vault): correct cited answer on the second and third try; the first try failed with a stream error from the model server, and one run took 66 s. A 4B thinking model is slow here
 - [x] Opening a note at a line (`/?note=<id>&line=<n>`, the editor scrolls to and selects it) from the cited sources on `/ask`; checked in the browser
-- [ ] Not done: vector search, "gap check" against pasted text
+- [ ] Not done (see `todo-agent.md` item 11): vector search, "gap check" against pasted text
 
 ## Memory map (same plan, 2026-11-17)
 - [x] `retrievability` in `srs.ts` (FSRS forgetting curve from ts-fsrs `retrievability`), `memoryMap` in `memory.ts` (mean chance of recall over answered cards, recall check due, nearest exam days by note or tag), `GET /api/graph` nodes carry `memory`
