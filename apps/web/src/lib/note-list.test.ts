@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { NoteSummary } from "@vigil/shared";
-import { hasTag, matchesQuery, relativeTime, tagCounts, viewNotes } from "./note-list";
+import { hasTag, matchesQuery, relativeTime, tagCounts, untilText, viewNotes } from "./note-list";
 
 const n = (id: string, over: Partial<NoteSummary> = {}): NoteSummary => ({ id, title: id.toUpperCase(), tags: [], author: "human", updatedAt: "2026-11-16T10:00:00Z", snippet: "", ...over });
 
@@ -53,5 +53,18 @@ describe("tagCounts and relativeTime", () => {
     expect(relativeTime("2026-11-13T12:00:00Z", now)).toBe("3 d ago");
     expect(relativeTime("2026-11-01T12:00:00Z", now)).toBe("2026-11-01");
     expect(relativeTime("garbage", now)).toBe("garbage");
+  });
+});
+
+describe("untilText", () => {
+  const now = new Date("2026-11-17T09:00:00Z");
+  const at = (ms: number) => new Date(now.getTime() + ms).toISOString();
+  it("words coming times", () => {
+    expect(untilText(at(10_000), now)).toBe("now");
+    expect(untilText(at(-5 * 60_000), now)).toBe("now");
+    expect(untilText(at(20 * 60_000), now)).toBe("in 20 min");
+    expect(untilText(at(5 * 3_600_000), now)).toBe("in 5 h");
+    expect(untilText(at(26 * 3_600_000), now)).toBe("tomorrow");
+    expect(untilText(at(3 * 86_400_000), now)).toBe("in 3 days");
   });
 });

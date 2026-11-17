@@ -55,3 +55,17 @@ export function relativeTime(iso: string, now: Date = new Date()): string {
   if (days < 7) return `${days} d ago`;
   return then.toISOString().slice(0, 10);
 }
+
+/** How far away a coming time is: `in 5 h`, `tomorrow`, `in 3 days`. Times already past read as `now`. */
+export function untilText(iso: string, now: Date = new Date()): string {
+  const then = new Date(iso);
+  if (Number.isNaN(then.getTime())) return iso;
+  const sec = Math.round((then.getTime() - now.getTime()) / 1000);
+  if (sec < 60) return "now";
+  const min = Math.round(sec / 60);
+  if (min < 60) return `in ${min} min`;
+  const hours = Math.round(min / 60);
+  if (hours < 24) return `in ${hours} h`;
+  const days = Math.round(sec / 86400);
+  return days <= 1 ? "tomorrow" : `in ${days} days`;
+}

@@ -2,7 +2,7 @@
   import { onDestroy, onMount } from "svelte";
   import { page } from "$app/state";
   import { ApiError, createFromTemplate, enrollRecall, getRecall, getRun, getRunResult, listAgents, listNotes, putAgent, recordRecall, startRecallCheck, type RecallItem, type RecallResult } from "$lib/api";
-  import { relativeTime } from "$lib/note-list";
+  import { relativeTime, untilText } from "$lib/note-list";
 
   type Step = "pick" | "write" | "running" | "feedback" | "done" | "error";
 
@@ -100,7 +100,7 @@
         {/each}
       </ul>
     {:else if items.length > 0}
-      <p>Nothing to recall right now. Next one is {relativeTime(items[0]!.due)}.</p>
+      <p>Nothing to recall right now. Next one is {untilText(items[0]!.due)}.</p>
     {:else}
       <p>Open a note and press <strong>Recall</strong> to start. Vigil will bring it back after a day, then 3, 7 and 21 days.</p>
     {/if}
@@ -129,7 +129,7 @@
     </div>
     {#if message}<p class="error" role="alert">{message}</p>{/if}
   {:else if step === "done"}
-    <p>Saved. You will be asked again {next ? relativeTime(next.due) : "later"}.</p>
+    <p>Saved. You will be asked again {next ? untilText(next.due) : "later"}.</p>
     <p><a class="btn" href="/">Back to your notes</a></p>
   {:else}
     <p class="error" role="alert">{message}</p>
