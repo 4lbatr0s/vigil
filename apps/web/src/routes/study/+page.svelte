@@ -1,4 +1,5 @@
 <script lang="ts">
+  import ExamDates from "$lib/components/ExamDates.svelte";
   import Illustration from "$lib/components/Illustration.svelte";
   import { onMount, tick } from "svelte";
   import { page } from "$app/state";
@@ -201,6 +202,8 @@
       <p class="source"><a href={`/?note=${encodeURIComponent(card.noteId)}`}>From {card.noteId}</a></p>
     </div>
   {/if}
+
+  <ExamDates initialNote={noteId} onchange={() => void refreshStudyDue()} />
 
   {#if history.some((d) => d.count > 0)}
     <section class="history" aria-labelledby="recent">

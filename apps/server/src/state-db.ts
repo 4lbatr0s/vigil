@@ -174,6 +174,17 @@ export const MIGRATIONS: readonly string[] = [
   -- migration 10: what a card's state was before a review, so the last answer can be undone exactly.
   ALTER TABLE reviews ADD COLUMN prev_state TEXT;
   `,
+  `
+  -- migration 11: exam dates (ADR-0019). A goal is a date for one note or one tag; the scheduler paces
+  -- the cards in that scope to land before it.
+  CREATE TABLE goals (
+    scope_kind TEXT NOT NULL,      -- 'note' or 'tag'
+    scope_value TEXT NOT NULL,
+    day TEXT NOT NULL,             -- YYYY-MM-DD, the viewer's calendar day
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (scope_kind, scope_value)
+  );
+  `,
 ];
 
 let current: { key: string; db: Database.Database } | null = null;
@@ -784,4 +795,23 @@ export function undoLastReview(): string | null {
     db.prepare("DELETE FROM reviews WHERE id = ?").run(last.id);
   })();
   return last.card_id;
+}
+
+// ---- Exam dates (migration 11) ----
+
+export type GoalRow = { kind: "note" | "tag"; value: string; day: string };
+
+export function listGoals(): GoalRow[] {
+  const rows = open().prepare("SELECT scope_kind, scope_value, day FROM goals ORDER BY day, scope_value").all() as { scope_kind: string; scope_value: string; day: string }[];
+  return rows.map((r) => ({ kind: r.scope_kind === "tag" ? "tag" : "note", value: r.scope_value, day: r.day }));
+}
+
+export function setGoal(goal: GoalRow, now: Date): void {
+  open()
+    .prepare("INSERT INTO goals (scope_kind, scope_value, day, created_at) VALUES (?, ?, ?, ?) ON CONFLICT(scope_kind, scope_value) DO UPDATE SET day = excluded.day")
+    .run(goal.kind, goal.value, goal.day, now.toISOString());
+}
+
+export function removeGoal(kind: "note" | "tag", value: string): boolean {
+  return open().prepare("DELETE FROM goals WHERE scope_kind = ? AND scope_value = ?").run(kind, value).changes > 0;
 }

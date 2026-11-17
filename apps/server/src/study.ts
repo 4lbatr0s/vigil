@@ -1,7 +1,8 @@
 import { AppError } from "./errors";
 import { cardsForNote, listCards, type IndexedCard } from "./index-db";
 import { ANSWERS, isDue, newCardState, review, type Answer, type CardState } from "./srs";
-import { allCardStates, getCardState, reviewCountsByNote, reviewCountsForNote, reviewCountsSince, reviewTimesSince, saveReview, undoLastReview } from "./state-db";
+import { capDue, goalFor, retentionFor, daysLeft } from "./goals";
+import { allCardStates, listGoals, type GoalRow, getCardState, reviewCountsByNote, reviewCountsForNote, reviewCountsSince, reviewTimesSince, saveReview, undoLastReview } from "./state-db";
 
 /** New cards offered per request beyond the ones already due, so a big note never buries the day. */
 export const NEW_PER_SESSION = 10;
@@ -16,12 +17,19 @@ export type StudyCard = IndexedCard & { isNew: boolean; due: string | null; laps
 export function dueCards(now: Date, opts: { limit?: number; newLimit?: number; noteId?: string } = {}): StudyCard[] {
   const states = allCardStates();
   const cards = opts.noteId ? cardsForNote(opts.noteId) : listCards();
+  const goals = listGoals();
   const reviews: StudyCard[] = [];
   const fresh: StudyCard[] = [];
   for (const c of cards) {
     const s = states.get(c.id);
-    if (!s) fresh.push({ ...c, isNew: true, due: null, lapses: 0 });
-    else if (isDue(s, now)) reviews.push({ ...c, isNew: false, due: s.due, lapses: s.lapses });
+    if (!s) {
+      fresh.push({ ...c, isNew: true, due: null, lapses: 0 });
+      continue;
+    }
+    // An exam date can pull a card's review in; it never pushes one out.
+    const goal = goals.length > 0 ? goalFor(c.noteId, now, goals) : null;
+    const due = goal ? capDue(s.due, goal.day, now) : s.due;
+    if (new Date(due).getTime() <= now.getTime()) reviews.push({ ...c, isNew: false, due, lapses: s.lapses });
   }
   reviews.sort((a, b) => (a.due ?? "").localeCompare(b.due ?? ""));
   return [...reviews, ...fresh.slice(0, opts.newLimit ?? NEW_PER_SESSION)].slice(0, opts.limit ?? 50);
@@ -33,9 +41,17 @@ export function answerCard(cardId: string, answer: string, now: Date): { next: C
   const card = listCards().find((c) => c.id === cardId);
   if (!card) throw new AppError("card-not-found", `Card not found: ${cardId}`, 404);
   const state = getCardState(cardId) ?? newCardState(now);
-  const { next, log } = review(state, answer as Answer, now);
+  const goal = goalFor(card.noteId, now);
+  const { next, log } = review(state, answer as Answer, now, goal ? retentionFor(daysLeft(goal.day, now)) : undefined);
+  if (goal) next.due = capDue(next.due, goal.day, now);
   saveReview(cardId, card.noteId, next, log, now);
   return { next, due: next.due };
+}
+
+/** Due now, counting an exam date that pulls the review in. */
+function dueWithGoals(noteId: string, s: CardState, now: Date, goals: GoalRow[]): boolean {
+  const goal = goals.length > 0 ? goalFor(noteId, now, goals) : null;
+  return isDue(goal ? { ...s, due: capDue(s.due, goal.day, now) } : s, now);
 }
 
 export type StudyStats = { total: number; due: number; new: number; reviewedToday: number; againToday: number };
@@ -43,12 +59,13 @@ export type StudyStats = { total: number; due: number; new: number; reviewedToda
 export function studyStats(now: Date, noteId?: string): StudyStats {
   const states = allCardStates();
   const cards = noteId ? cardsForNote(noteId) : listCards();
+  const goals = listGoals();
   let due = 0;
   let fresh = 0;
   for (const c of cards) {
     const s = states.get(c.id);
     if (!s) fresh++;
-    else if (isDue(s, now)) due++;
+    else if (dueWithGoals(c.noteId, s, now, goals)) due++;
   }
   const dayStart = new Date(now);
   dayStart.setHours(0, 0, 0, 0);
@@ -74,12 +91,13 @@ export function deckStats(now: Date): DeckStats[] {
   const states = allCardStates();
   const counts = reviewCountsByNote();
   const byNote = new Map<string, DeckStats>();
+  const goals = listGoals();
   for (const c of listCards()) {
     const row = byNote.get(c.noteId) ?? { noteId: c.noteId, cards: 0, due: 0, new: 0, reviews: 0, recall: null };
     row.cards++;
     const s = states.get(c.id);
     if (!s) row.new++;
-    else if (isDue(s, now)) row.due++;
+    else if (dueWithGoals(c.noteId, s, now, goals)) row.due++;
     byNote.set(c.noteId, row);
   }
   for (const row of byNote.values()) {

@@ -4,6 +4,9 @@
 
 A note app first, with agents inside it.
 
+- Study: exam dates (ADR-0019) for a note or a tag. Reviews are paced to land before the day and the retention target rises in the last weeks. Today shows where the nearest one stands.
+- Study: card hints (long answer, a list, yes or no, several blanks, front not a question) when the card maker proposes cards, and a prompt on cards you have forgotten six times.
+- Notes: a calendar for daily notes with marks for days that have a note and days you studied.
 - Study: a quiet 14-day strip of how many cards you answered each day (plain counts, no streaks).
 - Responsive layout: labelled navigation on wide screens, icon rail in the middle, drawer and slide-over list on narrow screens; the top strip is a search field.
 - Note list: filter box with full-text hits, snippets, relative times, tag chips (frontmatter and inline `#tags`), pins (stored by the server, outside the note files) and a sort menu.

@@ -2,9 +2,10 @@
   import Illustration from "$lib/components/Illustration.svelte";
   import { onMount } from "svelte";
   import type { Run } from "@vigil/shared";
-  import { ApiError, getStudyStats, listApprovals, listNotes, listRuns, undoRun, type ApprovalItem, type StudyStats } from "$lib/api";
+  import { ApiError, getGoals, getStudyStats, listApprovals, listNotes, listRuns, undoRun, type ApprovalItem, type Goal, type StudyStats } from "$lib/api";
   import StatusDot from "$lib/components/StatusDot.svelte";
   import { refreshOnLive } from "$lib/live";
+  import { goalLine, nextGoal } from "$lib/goals";
   import { relativeTime } from "$lib/note-list";
   import { canUndo } from "$lib/run-log";
   import { statusDot } from "$lib/schedule";
@@ -14,6 +15,8 @@
   let pending = $state<ApprovalItem[]>([]);
   let titles = $state(new Map<string, string>());
   let study = $state<StudyStats | null>(null);
+  let goals = $state<Goal[]>([]);
+  const exam = $derived(nextGoal(goals));
   let since = $state<string | null>(null);
   let loading = $state(true);
   let loadError = $state("");
@@ -27,6 +30,7 @@
   async function load(): Promise<void> {
     try {
       const [r, a, notes, st] = await Promise.all([listRuns({ limit: 100 }), listApprovals("pending"), listNotes(), getStudyStats()]);
+      goals = await getGoals().catch(() => [] as Goal[]);
       runs = r;
       pending = a;
       study = st;
@@ -88,6 +92,7 @@
             <strong>{study.due > 0 ? `${study.due} ${study.due === 1 ? "card is" : "cards are"} ready to review` : `${Math.min(study.new, 10)} new ${study.new === 1 ? "card" : "cards"} to learn`}</strong>
             {#if study.reviewedToday > 0}<span class="state">{study.reviewedToday} done today</span>{/if}
           </div>
+          {#if exam}<p>{goalLine(exam)}</p>{/if}
           <p class="muted">A few minutes now is worth more than an hour of rereading later.</p>
           <div class="actions"><a class="btn primary" href="/study">Start studying</a></div>
         </div>

@@ -92,6 +92,10 @@ export const getStudyStats = (note?: string) => request<StudyStats>(`/api/study/
 export type DeckStats = { noteId: string; cards: number; due: number; new: number; reviews: number; recall: number | null };
 export type DayCount = { day: string; count: number };
 export const getStudyHistory = (days = 14) => request<DayCount[]>(`/api/study/history?days=${days}`);
+export type Goal = { kind: "note" | "tag"; value: string; day: string; daysLeft: number; cards: number; toStudy: number; unseen: number; onTrack: boolean };
+export const getGoals = () => request<Goal[]>("/api/goals");
+export const setGoal = (g: { kind: "note" | "tag"; value: string; day: string }) => request<Goal[]>("/api/goals", json("PUT", g));
+export const removeGoal = (kind: "note" | "tag", value: string) => request<Goal[]>(`/api/goals?kind=${kind}&value=${encodeURIComponent(value)}`, { method: "DELETE" });
 export const getDecks = () => request<DeckStats[]>("/api/study/decks");
 export const answerStudyCard = (cardId: string, answer: Answer) => request<{ due: string }>("/api/study/review", json("POST", { cardId, answer }));
 /** Starts the card maker on a note; the answer is read with getRunResult when the run has succeeded. */

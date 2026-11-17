@@ -151,6 +151,15 @@ Chosen from the research (spaced repetition tied to notes, active processing ove
 - [x] Release check: web bundle 88.8 KB of 180 KB; server bundle starts with ts-fsrs (smoke test passes). **Docker image not re-checked**: Docker Desktop failed with a storage I/O error (daemon-side). CI runs the Docker job.
 - Ideas not built: image paste and attachments (needs a server route and a threat-model entry), per-hunk accept or revert inside the editor, a calendar for daily notes, review-history charts, a quiz result note (the quiz agent has no tools), real-phone testing.
 
+## Study v2 (ADR-0019, owner approved 2026-11-17)
+- [x] Calendar for daily notes (month grid, note and study-day marks, `/?daily=YYYY-MM-DD`)
+- [x] Card quality hints (`lintCard`) in the card maker, stuck-card prompt after 6 lapses
+- [x] Exam dates: migration 11 `goals`, retention steps, review cap, `/api/goals`, Study page form, Today line
+- [ ] Note recall check (migration 12, `recall-checker` agent)
+- [ ] Active note scaffold (`outliner` agent, Cornell template)
+- [ ] Anki text export and import
+- [ ] Forecast strip, desired retention and new-per-day settings, interleaving, weak-spot list
+
 ## WP13: after v1 (ordered backlog, do not start before the release)
 
 

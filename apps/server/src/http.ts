@@ -27,9 +27,10 @@ import { refreshSchedule } from "./scheduler";
 import { llmStatus } from "./llm-status";
 import { usage } from "./usage";
 import { getRunResult } from "./state-db";
-import { answerCard, deckStats, dueCards, studyHistory, studyStats, undoAnswer } from "./study";
+import { GoalBodySchema, goalStatuses, validGoalDay } from "./goals";
+import { NEW_PER_SESSION, answerCard, deckStats, dueCards, studyHistory, studyStats, undoAnswer } from "./study";
 import { cardsForNote } from "./index-db";
-import { addPin, approvalsForRun, clearHeartbeat, decideApproval, getApproval, listApprovals, listChatThreads, getAgent, getHeartbeat, getRun, getSchedule, listAgents, listEvents, listPins, listRuns, putAgent, putSchedule, removePin } from "./state-db";
+import { addPin, approvalsForRun, clearHeartbeat, decideApproval, getApproval, listApprovals, listChatThreads, getAgent, getHeartbeat, getRun, getSchedule, listAgents, listEvents, listPins, listRuns, putAgent, putSchedule, removeGoal, removePin, setGoal } from "./state-db";
 import { createNote, deleteNote, getNote as vaultGetNote, slugify, updateNote, validateId } from "./vault";
 
 const MAX_BODY_BYTES = 2 * 1024 * 1024;
@@ -269,6 +270,39 @@ const routes: { method: string; pattern: RegExp; keys: string[]; handler: Handle
     handler: (_req, res, params) => {
       removePin(params["id"] ?? "");
       send(res, 200, { data: listPins() });
+    },
+  },
+  {
+    method: "GET",
+    pattern: /^\/api\/goals$/,
+    keys: [],
+    handler: (_req, res) => {
+      send(res, 200, { data: goalStatuses(new Date(), NEW_PER_SESSION) });
+    },
+  },
+  {
+    method: "PUT",
+    pattern: /^\/api\/goals$/,
+    keys: [],
+    handler: async (req, res) => {
+      const parsed = GoalBodySchema.safeParse(await readJsonBody(req));
+      if (!parsed.success) throw new AppError("invalid-body", "Body must be { kind: note | tag, value: string, day: YYYY-MM-DD }", 400);
+      validGoalDay(parsed.data.day);
+      if (parsed.data.kind === "note" && indexGetNote(parsed.data.value) === null) throw new AppError("note-not-found", `Note not found: ${parsed.data.value}`, 404);
+      setGoal(parsed.data, new Date());
+      send(res, 200, { data: goalStatuses(new Date(), NEW_PER_SESSION) });
+    },
+  },
+  {
+    method: "DELETE",
+    pattern: /^\/api\/goals$/,
+    keys: [],
+    handler: (_req, res, _params, url) => {
+      const kind = url.searchParams.get("kind");
+      const value = url.searchParams.get("value") ?? "";
+      if ((kind !== "note" && kind !== "tag") || value === "") throw new AppError("invalid-body", "kind (note or tag) and value are required", 400);
+      removeGoal(kind, value);
+      send(res, 200, { data: goalStatuses(new Date(), NEW_PER_SESSION) });
     },
   },
   {

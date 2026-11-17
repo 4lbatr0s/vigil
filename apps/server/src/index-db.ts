@@ -246,6 +246,12 @@ export function listNoteSummaries(): NoteSummary[] {
   });
 }
 
+/** Every tag on a note (frontmatter and inline), or an empty list for an unknown note. */
+export function noteTagsAll(id: string): string[] {
+  const row = open().db.prepare("SELECT tags_all FROM notes WHERE id = ?").get(id) as { tags_all: string } | undefined;
+  return row ? (JSON.parse(row.tags_all) as string[]) : [];
+}
+
 export function getNote(id: string): NoteRow | null {
   const { db } = open();
   const row = db
