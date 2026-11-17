@@ -1,9 +1,10 @@
 <script lang="ts">
   import { onMount, tick, untrack } from "svelte";
-  import { replaceState } from "$app/navigation";
+  import { goto, replaceState } from "$app/navigation";
   import { page } from "$app/state";
   import { slugify, type Note, type NoteSummary } from "@vigil/shared";
-  import { getNote, getStudyStats, listApprovals, listNotes, listPins, listRuns, pinNote, putNote, unpinNote, type ApprovalItem, type StudyStats } from "$lib/api";
+  import { createCanvas, getNote, getStudyStats, saveCanvas, listApprovals, listNotes, listPins, listRuns, pinNote, putNote, unpinNote, type ApprovalItem, type StudyStats } from "$lib/api";
+  import { SIZES, noteFile } from "$lib/canvas";
   import { newAgentNotes } from "$lib/notes-poll";
   import { refreshOnLive } from "$lib/live";
   import NoteList from "$lib/components/NoteList.svelte";
@@ -300,6 +301,18 @@
   }
 
   /** After a delete: drop it from the list and open the next note, or show the empty state. */
+  /** A new canvas board that already holds this note as a card, opened for you. */
+  async function openAsCanvas(): Promise<void> {
+    if (!draft || !selectedId) return;
+    try {
+      const made = await createCanvas(draft.title);
+      await saveCanvas(made.id, { nodes: [{ id: "note1", type: "file", x: 0, y: 0, width: SIZES.file.width, height: SIZES.file.height, file: noteFile(selectedId) }], edges: [] }, made.updatedAt);
+      await goto(`/canvas/${encodeURIComponent(made.id)}`);
+    } catch (err) {
+      status = err instanceof Error ? err.message : "Could not make a canvas";
+    }
+  }
+
   async function onDeleted(id: string): Promise<void> {
     const next = nextAfterDelete(notes.map((n) => n.id), id);
     notes = notes.filter((n) => n.id !== id);
@@ -384,6 +397,7 @@
         <div class="actions">
           <button type="button" class="act" onclick={() => (studyOpen = true)}>Study</button>
           <button type="button" class="act" onclick={() => (cardsOpen = true)}>Make cards</button>
+          <button type="button" class="act" onclick={() => void openAsCanvas()} title="Put this note on a new canvas board">Canvas</button>
           <a class="act" href={`/recall?note=${encodeURIComponent(selectedId ?? "")}`} title="Write what you remember, then see what you missed">Recall</a>
           <RenameNote noteId={selectedId ?? ""} title={draft.title} onrenamed={onRenamed} />
           <DeleteNote noteId={selectedId ?? ""} title={draft.title} ondeleted={onDeleted} />

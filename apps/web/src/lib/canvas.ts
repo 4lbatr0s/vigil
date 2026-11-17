@@ -34,6 +34,11 @@ export function noteIdOf(file: string): string | null {
   return m?.[1] ?? null;
 }
 
+/** The pasted picture a `file` card points at (`attachments/<16 hex>.png` and so on), or null. */
+export function imageNameOf(file: string): string | null {
+  return /(?:^|\/)attachments\/([a-f0-9]{16}\.(?:png|jpg|gif|webp))$/.exec(file)?.[1] ?? null;
+}
+
 export const noteFile = (noteId: string): string => `${noteId}.md`;
 
 export function newId(prefix: string, taken: ReadonlySet<string>): string {
@@ -178,4 +183,25 @@ export class History {
 export function excerpt(body: string, maxLines = 6, maxChars = 280): string {
   const lines = body.split("\n").map((l) => l.trim()).filter((l) => l !== "");
   return lines.slice(0, maxLines).join("\n").slice(0, maxChars);
+}
+
+/**
+ * A board for one note and the notes around it: the note in the middle, its neighbours on a ring, an arrow from the
+ * middle to each. `links` are the neighbours' ids; at most `max` are used (the ring gets crowded).
+ */
+export function ringBoard(centerId: string, links: readonly string[], max = 12): CanvasFile {
+  const ids = [...new Set(links.filter((l) => l !== centerId))].slice(0, max);
+  const c = SIZES.file;
+  const radius = Math.max(380, Math.round((ids.length * (c.width + 40)) / (2 * Math.PI)));
+  const nodes: FileNode[] = [{ id: "center", type: "file", x: -Math.round(c.width / 2), y: -Math.round(c.height / 2), width: c.width, height: c.height, file: noteFile(centerId), color: "2" }];
+  const edges: FileEdge[] = [];
+  ids.forEach((id, i) => {
+    const angle = (i / Math.max(1, ids.length)) * Math.PI * 2 - Math.PI / 2;
+    const x = Math.round(Math.cos(angle) * radius - c.width / 2);
+    const y = Math.round(Math.sin(angle) * radius - c.height / 2);
+    nodes.push({ id: `n${i}`, type: "file", x, y, width: c.width, height: c.height, file: noteFile(id) });
+    const horizontal = Math.abs(Math.cos(angle)) > Math.abs(Math.sin(angle));
+    edges.push({ id: `e${i}`, fromNode: "center", toNode: `n${i}`, fromSide: horizontal ? (Math.cos(angle) > 0 ? "right" : "left") : Math.sin(angle) > 0 ? "bottom" : "top", toSide: horizontal ? (Math.cos(angle) > 0 ? "left" : "right") : Math.sin(angle) > 0 ? "top" : "bottom" });
+  });
+  return { nodes, edges };
 }

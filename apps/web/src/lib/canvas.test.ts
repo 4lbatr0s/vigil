@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { History, cssColor, excerpt, newId, noteFile, noteIdOf, snapshot, toBoard, toFile, type CanvasFile } from "./canvas";
+import { History, cssColor, imageNameOf, ringBoard, excerpt, newId, noteFile, noteIdOf, snapshot, toBoard, toFile, type CanvasFile } from "./canvas";
 
 // Built from parts: raw color literals are not allowed outside app.css.
 const HEX = `#${"ff"}${"88"}${"00"}`;
@@ -62,6 +62,14 @@ describe("helpers", () => {
     expect(noteFile("bio")).toBe("bio.md");
   });
 
+  it("finds the picture behind a file card, and nothing else", () => {
+    expect(imageNameOf("attachments/0123456789abcdef.png")).toBe("0123456789abcdef.png");
+    expect(imageNameOf("vault/attachments/0123456789abcdef.webp")).toBe("0123456789abcdef.webp");
+    expect(imageNameOf("attachments/../secret.png")).toBeNull();
+    expect(imageNameOf("attachments/photo.png")).toBeNull();
+    expect(imageNameOf("bio.md")).toBeNull();
+  });
+
   it("maps colors to tokens, and drops what is not a color", () => {
     expect(cssColor("1")).toBe("var(--canvas-1)");
     expect(cssColor(HEX)).toBe(HEX);
@@ -105,5 +113,21 @@ describe("History", () => {
     let steps = 0;
     while (h.undo() !== null) steps++;
     expect(steps).toBe(3);
+  });
+});
+
+describe("ringBoard", () => {
+  it("puts the note in the middle and its neighbours around it with an arrow each", () => {
+    const f = ringBoard("bio", ["cells", "dna", "cells", "bio", "atp"]);
+    expect(f.nodes?.map((n) => n.file)).toEqual(["bio.md", "cells.md", "dna.md", "atp.md"]);
+    expect(f.edges?.map((e) => [e.fromNode, e.toNode])).toEqual([["center", "n0"], ["center", "n1"], ["center", "n2"]]);
+    const c = f.nodes![0]!;
+    expect([c.x + c.width / 2, c.y + c.height / 2]).toEqual([0, 0]);
+    // The first neighbour is straight above, so its arrow leaves the top and arrives at the bottom.
+    expect(f.edges?.[0]).toMatchObject({ fromSide: "top", toSide: "bottom" });
+  });
+  it("caps the ring and copes with no neighbours", () => {
+    expect(ringBoard("a", Array.from({ length: 40 }, (_, i) => `n${i}`)).nodes).toHaveLength(13);
+    expect(ringBoard("a", []).edges).toEqual([]);
   });
 });

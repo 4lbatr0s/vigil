@@ -16,7 +16,7 @@ Nothing here needs the owner. The agent works top to bottom, one item per commit
 - [x] 12. **Live re-checks on the local model.** *Done with the 4B model and the 16,384-token window: the weekly study review now used only numbers the tool gave (4 answered "again" today, exam in 7 days, 2 cards to study), invented no targets, and read the right notes; the write waited for approval and I rejected it (temp vault). Ask returned a correct answer with correct line marks [1] and [3]. Both were much better than the earlier runs, which fits the empty-reply and window fix.*
 
 ## Added 2026-11-17 (after the connections, agents, canvas and UI work)
-- [ ] 13. **Canvas follow-ups.** Open a note as a canvas, send a graph selection to a canvas, image cards (reuse `attachments/`), and a hand check of text-card editing and group drag in the browser.
+- [x] 13. **Canvas follow-ups.** *Done and checked in the browser: a Canvas button on a note makes a board holding it; the Graph panel puts a note and the notes it links to or from on a ring with arrows (`ringBoard`); picture cards (the Image button uploads to `attachments/` and the card shows it); text-card editing saved as Markdown; dragging a group moved the cards inside it.*
 - [ ] 14. **UI pass, second round.** Notes, Today, Chat and Approvals layouts; phone width and light theme; collapse long sections on the agent page; keyboard-only check of the wizard and canvas toolbar.
 - [ ] 15. **Agents.** *Duplicate is done (switched-off copy `name-copy`).* Still open: template tags and a test run inside the new-agent wizard.
 - [x] 16. **Connections.** *Done: a "Tested HH:MM" line after Test, and a warning on the agent page when it names a removed connection (the model list reloads when the connection changes).*

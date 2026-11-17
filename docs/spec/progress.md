@@ -229,8 +229,9 @@ Chosen from the research (spaced repetition tied to notes, active processing ove
 - [x] Server: `canvas.ts` (JSON Canvas 1.0 schema, atomic write, 409 on a newer file, slug ids), `/api/canvases*`
 - [x] Web: `lib/canvas.ts` (file <-> board, undo history), cards (text, note, link, group), `CanvasBoard`, `/canvas` and `/canvas/[id]`, nav item and palette command, `--canvas-1..6` tokens
 - [x] Checked in the browser: added a group, text and two note cards, dragged, drew an arrow by dropping on a card (saved as `fromSide`/`toSide`), undo removed it, the file on disk is plain JSON Canvas; a 300-card, 299-arrow board rendered at a median 13 ms per frame while panning. First load stays 95.5 KB gzip
-- [ ] Not tried: opening a saved board in real Obsidian (owner list), a phone, text-card editing and group drag checked only by code and unit tests, not by hand in the browser
-- [ ] Not done: agents reading or writing boards, "open a note as a canvas", send graph selection to a canvas, image cards
+- [x] Follow-ups (same day): a Canvas button on a note, the Graph panel's "put it and its neighbours on a canvas", picture cards, and hand checks of text editing and group drag, all in the browser
+- [ ] Not tried: opening a saved board in real Obsidian (owner list), a phone
+- [ ] Not done: agents reading or writing boards
 
 ## UI pass (owner request 2026-11-17)
 - [x] Audit and fixes recorded in `docs/design/ui-audit.md`: grouped nav, Tools page, Settings order and spacing, Agents page search and empty state

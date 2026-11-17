@@ -1,7 +1,7 @@
 <script lang="ts">
   import { getContext } from "svelte";
   import { NodeResizer, type NodeProps } from "@xyflow/svelte";
-  import { cssColor, noteIdOf, type CardData } from "$lib/canvas";
+  import { cssColor, imageNameOf, noteIdOf, type CardData } from "$lib/canvas";
   import { CANVAS_KEY, type CanvasContext } from "./context";
   import Handles from "./Handles.svelte";
 
@@ -9,6 +9,7 @@
   const board = getContext<CanvasContext>(CANVAS_KEY);
 
   const noteId = $derived(noteIdOf(data.file ?? ""));
+  const image = $derived(imageNameOf(data.file ?? ""));
   const info = $derived(noteId ? board.noteInfo(noteId) : null);
   $effect(() => {
     if (noteId) board.loadNote(noteId);
@@ -17,8 +18,10 @@
 </script>
 
 <NodeResizer isVisible={selected} minWidth={160} minHeight={80} onResizeEnd={() => board.commit()} />
-<div class="card" style:--accent={color} role="group" aria-label="Note card">
-  {#if noteId === null}
+<div class="card" class:pic={image !== null} style:--accent={color} role="group" aria-label={image ? "Picture card" : "Note card"}>
+  {#if image}
+    <img src={`/api/attachments/${image}`} alt="" draggable="false" />
+  {:else if noteId === null}
     <p class="title">{data.file}</p>
     <p class="hint">Not a note this app can open.</p>
   {:else if info === null}
@@ -48,6 +51,16 @@
     border-radius: var(--radius);
     background: color-mix(in srgb, var(--surface) 90%, var(--accent, var(--surface)));
     color: var(--ink);
+  }
+  .card.pic {
+    padding: 0;
+    border-left-width: 1.5px;
+  }
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    display: block;
   }
   .title {
     font-family: var(--font-serif);

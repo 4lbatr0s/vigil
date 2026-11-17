@@ -1,7 +1,8 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { goto } from "$app/navigation";
-  import { getBacklinks, getGraph, type Backlink } from "$lib/api";
+  import { createCanvas, getBacklinks, getGraph, saveCanvas, type Backlink } from "$lib/api";
+  import { ringBoard } from "$lib/canvas";
   import {
     agentsTouching,
     buildGraph,
@@ -309,6 +310,20 @@
     }
   }
 
+  /** A new canvas with this note in the middle and the notes it links to or is linked from around it. */
+  async function toCanvas(id: string): Promise<void> {
+    if (!data) return;
+    const near = data.edges.filter((e) => e.kind === "link" && !e.dangling && (e.source === id || e.target === id)).map((e) => (e.source === id ? e.target : e.source));
+    try {
+      const title = data.nodes.find((n) => n.id === id)?.title ?? id;
+      const made = await createCanvas(title);
+      await saveCanvas(made.id, ringBoard(id, near), made.updatedAt);
+      await goto(`/canvas/${encodeURIComponent(made.id)}`);
+    } catch (err) {
+      error = err instanceof Error ? err.message : "Could not make a canvas";
+    }
+  }
+
   function openNote(id: string): void {
     void goto(`/?note=${encodeURIComponent(id)}`);
   }
@@ -377,6 +392,7 @@
           {#if selectedNode.memory.cards > 0}<a class="act" href={`/study?note=${encodeURIComponent(selectedNode.id)}`}>Study this note</a>{/if}
           <a class="act" href={`/recall?note=${encodeURIComponent(selectedNode.id)}`}>Recall check</a>
         {/if}
+        {#if selectedNode.kind === "note"}<button type="button" class="act" onclick={() => void toCanvas(selectedNode.id)}>Put it and its neighbours on a canvas</button>{/if}
       {/if}
       {#if backlinks.length > 0}
         <h3>Linked from</h3>

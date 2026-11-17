@@ -1,8 +1,8 @@
 <script lang="ts">
   import { setContext, untrack } from "svelte";
   import { Background, BackgroundVariant, ConnectionMode, Controls, MarkerType, MiniMap, Panel, SvelteFlow, useSvelteFlow, type Edge, type Node } from "@xyflow/svelte";
-  import { getNote, listNotes } from "$lib/api";
-  import { History, PRESETS, PRESET_NAMES, SIZES, cssColor, excerpt, newId, noteFile, noteIdOf, snapshot, toBoard, toFile, type BoardEdge, type BoardNode, type CanvasFile, type CardData, type CardKind } from "$lib/canvas";
+  import { getNote, listNotes, uploadImage } from "$lib/api";
+  import { History, PRESETS, PRESET_NAMES, SIZES, cssColor, excerpt, imageNameOf, newId, noteFile, noteIdOf, snapshot, toBoard, toFile, type BoardEdge, type BoardNode, type CanvasFile, type CardData, type CardKind } from "$lib/canvas";
   import type { NoteSummary } from "@vigil/shared";
   import { CANVAS_KEY, type CanvasContext } from "./context";
   import GroupBox from "./GroupBox.svelte";
@@ -135,6 +135,21 @@
     if (picking && notes.length === 0) notes = await listNotes().catch(() => []);
   }
 
+  let fileInput = $state<HTMLInputElement | undefined>(undefined);
+  let imageError = $state("");
+
+  /** A picture from your computer becomes a card; it is stored in the vault like a pasted picture (png, jpg, gif, webp). */
+  async function addImage(file: File | undefined): Promise<void> {
+    if (!file) return;
+    imageError = "";
+    try {
+      const up = await uploadImage(file);
+      add("file", { file: `attachments/${up.name}` });
+    } catch (err) {
+      imageError = err instanceof Error ? err.message.replace(/^[a-z-]+: /, "") : "Could not add the picture";
+    }
+  }
+
   const pickable = $derived(notes.filter((n) => pickQuery.trim() === "" || n.title.toLowerCase().includes(pickQuery.trim().toLowerCase())).slice(0, 40));
 
   function onPaneDoubleClick(event: MouseEvent): void {
@@ -247,7 +262,7 @@
 
   const label = (n: Node): string => {
     const d = n.data as CardData;
-    return n.type === "text" ? ((d.text ?? "").split("\n")[0] || "(empty text card)") : n.type === "file" ? (noteIdOf(d.file ?? "") ?? d.file ?? "file") : n.type === "link" ? (d.url ?? "link") : (d.label || "Group");
+    return n.type === "text" ? ((d.text ?? "").split("\n")[0] || "(empty text card)") : n.type === "file" ? (imageNameOf(d.file ?? "") ? "Picture" : (noteIdOf(d.file ?? "") ?? d.file ?? "file")) : n.type === "link" ? (d.url ?? "link") : (d.label || "Group");
   };
   const kindName: Record<string, string> = { text: "Text", file: "Note", link: "Link", group: "Group" };
 </script>
@@ -283,6 +298,7 @@
       <div class="bar" role="toolbar" aria-label="Canvas tools">
         <button type="button" onclick={() => add("text")} title="A card for your own words (or double-click the board)">Text</button>
         <button type="button" onclick={() => void openPicker()} aria-expanded={picking} title="Put a note on the board">Note…</button>
+        <button type="button" onclick={() => fileInput?.click()} title="A picture from your computer">Image…</button>
         <button type="button" onclick={() => add("link")} title="A web address">Link</button>
         <button type="button" onclick={() => add("group")} title="A box to gather cards in">Group</button>
         <span class="sep" aria-hidden="true"></span>
@@ -291,6 +307,8 @@
         <span class="sep" aria-hidden="true"></span>
         <button type="button" aria-pressed={outline} onclick={() => (outline = !outline)} title="A list of everything on the board, for the keyboard">Outline</button>
       </div>
+      <input type="file" accept="image/png,image/jpeg,image/gif,image/webp" class="hidden" bind:this={fileInput} onchange={(e) => { void addImage(e.currentTarget.files?.[0]); e.currentTarget.value = ""; }} aria-label="Choose a picture" />
+      {#if imageError}<p class="img-err" role="alert">{imageError}</p>{/if}
       {#if picking}
         <div class="picker" role="dialog" aria-label="Choose a note">
           <!-- svelte-ignore a11y_autofocus -->
@@ -397,6 +415,18 @@
     border-radius: var(--radius);
     background: var(--surface);
     box-shadow: var(--shadow-pop);
+  }
+  .hidden {
+    display: none;
+  }
+  .img-err {
+    margin: var(--space-1) 0 0;
+    padding: var(--space-1) var(--space-2);
+    border: 1px solid var(--err);
+    border-radius: var(--radius);
+    background: var(--surface);
+    color: var(--err-ink);
+    font-size: var(--text-label);
   }
   .sel {
     margin-top: var(--space-2);

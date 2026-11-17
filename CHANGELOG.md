@@ -26,6 +26,7 @@ A note app first, with agents inside it.
 - Study: a card shows the heading it sits under, and the same question under two different headings is now two cards instead of one.
 - Gap check (`/gap`): paste an article or transcript and an agent compares it with your notes: what you already have, what is missing, what disagrees.
 - Graph: a "Memory" view colors each note by how much of it you remember (green strong, red fading, grey nothing answered yet, a ring when its recall check is due). Clicking a note shows the numbers and links to "Study this note" and "Recall check".
+- Canvas: a Canvas button on a note, "put it and its neighbours on a canvas" in the Graph panel, and picture cards.
 - Agents: Duplicate makes a switched-off copy; the agent page warns when its model connection was removed; Settings shows when a connection was last tested.
 - Navigation: grouped into Write, Learn, Agents and App, and a new Tools page lists Ask, Gap check, Recall, Outline, Capture and Import (they had no link before). Settings starts with AI models, has a jump bar and clearer sections. The Agents page has a search box and a clearer empty state. See `docs/design/ui-audit.md`.
 - Canvas (ADR-0027): a free board of note cards, text, links and groups with arrows, colors, undo and autosave, saved as JSON Canvas files (`canvases/*.canvas`) that Obsidian can open. Built on Svelte Flow.
