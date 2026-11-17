@@ -26,6 +26,7 @@
     "@lezer/markdown": "1.8.1",
     "@lucide/svelte": "1.73.0",
     "@vigil/shared": "workspace:*",
+    "@xyflow/svelte": "1.7.0",
     "codemirror": "^6",
     "dompurify": "^3",
     "graphology": "0.26.0",

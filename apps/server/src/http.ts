@@ -30,6 +30,7 @@ import { getPermissions, putPermissions } from "./permissions";
 import { planRename, renameNote } from "./rename";
 import { refreshSchedule } from "./scheduler";
 import { llmStatus } from "./llm-status";
+import { SaveBodySchema, createCanvas, listCanvases, readCanvas, removeCanvas, saveCanvas } from "./canvas";
 import { ConnectionInputSchema, ProbeInputSchema, createConnection, listConnections, probeConnection, removeConnection, savedKey, setDefaultConnection, updateConnection } from "./connections";
 import { usage } from "./usage";
 import { getRunResult } from "./state-db";
@@ -711,6 +712,47 @@ const routes: { method: string; pattern: RegExp; keys: string[]; handler: Handle
         throw new AppError("invalid-body", `Invalid settings: ${where}${issue?.message ?? "bad shape"}`, 400);
       }
       send(res, 200, { data: putPermissions(parsed.data) });
+    },
+  },
+  {
+    method: "GET",
+    pattern: /^\/api\/canvases$/,
+    keys: [],
+    handler: async (_req, res) => send(res, 200, { data: await listCanvases() }),
+  },
+  {
+    method: "POST",
+    pattern: /^\/api\/canvases$/,
+    keys: [],
+    handler: async (req, res) => {
+      const parsed = z.object({ title: z.string().trim().min(1).max(100) }).safeParse(await readJsonBody(req));
+      if (!parsed.success) throw new AppError("invalid-body", "Body must be { title: string }", 400);
+      send(res, 201, { data: await createCanvas(parsed.data.title) });
+    },
+  },
+  {
+    method: "GET",
+    pattern: /^\/api\/canvases\/([^/]+)$/,
+    keys: ["id"],
+    handler: async (_req, res, params) => send(res, 200, { data: await readCanvas(params["id"] ?? "") }),
+  },
+  {
+    method: "PUT",
+    pattern: /^\/api\/canvases\/([^/]+)$/,
+    keys: ["id"],
+    handler: async (req, res, params) => {
+      const parsed = SaveBodySchema.safeParse(await readJsonBody(req));
+      if (!parsed.success) throw new AppError("invalid-body", `Not a valid canvas: ${parsed.error.issues[0]?.message ?? "unknown problem"}`, 400);
+      send(res, 200, { data: await saveCanvas(params["id"] ?? "", parsed.data.canvas, parsed.data.baseUpdatedAt) });
+    },
+  },
+  {
+    method: "DELETE",
+    pattern: /^\/api\/canvases\/([^/]+)$/,
+    keys: ["id"],
+    handler: async (_req, res, params) => {
+      await removeCanvas(params["id"] ?? "");
+      send(res, 200, { data: { id: params["id"] } });
     },
   },
   {
