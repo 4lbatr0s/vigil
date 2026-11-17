@@ -12,6 +12,14 @@
   let draft = $state("");
   const color = $derived(cssColor(data.color));
 
+  $effect(() => {
+    if (board.wantsEdit() === id) {
+      board.clearEdit();
+      draft = data.label ?? "";
+      editing = true;
+    }
+  });
+
   function finish(save: boolean): void {
     editing = false;
     if (save && draft !== (data.label ?? "")) {

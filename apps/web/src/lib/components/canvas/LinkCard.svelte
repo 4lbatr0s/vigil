@@ -14,6 +14,14 @@
   /** Only web addresses become links; anything else (a `javascript:` address, say) is shown as text. */
   const safe = $derived(/^https?:\/\//i.test(data.url ?? ""));
 
+  $effect(() => {
+    if (board.wantsEdit() === id) {
+      board.clearEdit();
+      draft = data.url ?? "";
+      editing = true;
+    }
+  });
+
   function finish(save: boolean): void {
     editing = false;
     if (save && draft.trim() !== (data.url ?? "")) {

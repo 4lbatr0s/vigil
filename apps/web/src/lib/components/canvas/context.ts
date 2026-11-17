@@ -10,6 +10,9 @@ export type CanvasContext = {
   noteInfo(noteId: string): { title: string; excerpt: string; missing: boolean } | null;
   /** Starts loading a note's card text if that has not happened yet. Call it from an effect, not while rendering. */
   loadNote(noteId: string): void;
+  /** The card the board wants to start editing (Enter, the menu, a new card), or null. A card that finds its own id here calls `clearEdit` and begins editing. */
+  wantsEdit(): string | null;
+  clearEdit(): void;
 };
 
 export const CANVAS_KEY = Symbol("vigil-canvas");

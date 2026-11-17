@@ -51,7 +51,13 @@ export function newId(prefix: string, taken: ReadonlySet<string>): string {
 
 /** What the board keeps per card besides its place: the data the card shows, and the fields to write back untouched. */
 export type CardData = { kind: CardKind; text?: string; file?: string; subpath?: string; url?: string; label?: string; color?: string; extra: Record<string, unknown> };
-export type BoardNode = { id: string; type: CardKind; position: { x: number; y: number }; width: number; height: number; zIndex: number; data: CardData };
+export type BoardNode = { id: string; type: CardKind; position: { x: number; y: number }; width: number; height: number; zIndex: number; data: CardData; draggable?: boolean; deletable?: boolean };
+
+/** A locked card cannot be moved or deleted. The format has no lock, so it is a Vigil field that other apps keep and ignore. */
+export const LOCK_FIELD = "vigilLock";
+export const isLocked = (n: { data: CardData }): boolean => n.data.extra[LOCK_FIELD] === true;
+/** The board properties a lock turns off (none when unlocked, so an unlocked card carries no extra fields). */
+export const lockProps = (locked: boolean): { draggable?: false; deletable?: false } => (locked ? { draggable: false, deletable: false } : {});
 export type BoardEdge = { id: string; source: string; target: string; sourceHandle: CanvasSide; targetHandle: CanvasSide; label?: string; data: { color?: string; fromEnd: "none" | "arrow"; toEnd: "none" | "arrow"; extra: Record<string, unknown> } };
 
 const NODE_KNOWN = new Set(["id", "type", "x", "y", "width", "height", "color", "text", "file", "subpath", "url", "label"]);
@@ -62,6 +68,7 @@ const rest = (o: Record<string, unknown>, known: Set<string>): Record<string, un
 /** The array order of a canvas is its stacking order (first is at the bottom); the board uses it as `zIndex`. */
 export function toBoard(file: CanvasFile): { nodes: BoardNode[]; edges: BoardEdge[] } {
   const nodes = (file.nodes ?? []).map((n, i): BoardNode => ({
+    ...lockProps(n[LOCK_FIELD] === true),
     id: n.id,
     type: n.type,
     position: { x: n.x, y: n.y },

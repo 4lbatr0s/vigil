@@ -2,8 +2,10 @@
   import { setContext, untrack } from "svelte";
   import { Background, BackgroundVariant, ConnectionMode, Controls, MarkerType, MiniMap, Panel, SvelteFlow, useSvelteFlow, type Edge, type Node } from "@xyflow/svelte";
   import { getNote, listNotes, uploadImage } from "$lib/api";
-  import { History, PRESETS, PRESET_NAMES, SIZES, cssColor, excerpt, imageNameOf, newId, noteFile, noteIdOf, snapshot, toBoard, toFile, type BoardEdge, type BoardNode, type CanvasFile, type CardData, type CardKind } from "$lib/canvas";
+  import { History, LOCK_FIELD, PRESETS, PRESET_NAMES, SIZES, cssColor, excerpt, imageNameOf, isLocked, lockProps, newId, noteFile, noteIdOf, snapshot, toBoard, toFile, type BoardEdge, type BoardNode, type CanvasFile, type CardData, type CardKind } from "$lib/canvas";
+  import { boundsOf, copySelection, groupAround, pasteClip, restack, type Clip } from "$lib/canvas-clipboard";
   import type { NoteSummary } from "@vigil/shared";
+  import CanvasMenu, { type MenuItem } from "./CanvasMenu.svelte";
   import { CANVAS_KEY, type CanvasContext } from "./context";
   import GroupBox from "./GroupBox.svelte";
   import LinkCard from "./LinkCard.svelte";
@@ -28,6 +30,14 @@
   let picking = $state(false);
   let pickQuery = $state("");
   let notes = $state<NoteSummary[]>([]);
+  let help = $state(false);
+  let menu = $state<{ x: number; y: number; items: MenuItem[] } | null>(null);
+  /** The card the board wants to start editing; the card itself notices and begins (see `wantsEdit`). */
+  let editTarget = $state<string | null>(null);
+  /** What Copy and Cut put aside, and the text that went to the system clipboard with it (null when that failed). */
+  let clip: Clip | null = null;
+  let clipText: string | null = "";
+  let pastes = 0;
 
   /** Arrowheads and color are display; the file keeps only what the format has. */
   function decorate(e: BoardEdge | (Edge & Partial<BoardEdge>)): Edge {
@@ -72,14 +82,243 @@
     if (t !== null) load(t);
   }
 
+  const typing = (target: EventTarget | null): boolean => {
+    const t = target as HTMLElement | null;
+    return !!t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable);
+  };
+  const chosen = (): string[] => nodes.filter((n) => n.selected).map((n) => n.id);
+
   function onKey(event: KeyboardEvent): void {
-    const target = event.target as HTMLElement | null;
-    if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) return;
-    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "z") {
+    if (typing(event.target) || menu) return;
+    const mod = event.metaKey || event.ctrlKey;
+    const key = event.key.toLowerCase();
+    if (mod && key === "z") {
       event.preventDefault();
       if (event.shiftKey) redo();
       else undo();
+    } else if (mod && key === "y") {
+      event.preventDefault();
+      redo();
+    } else if (mod && key === "c") {
+      if (copy()) event.preventDefault();
+    } else if (mod && key === "x") {
+      if (copy()) {
+        event.preventDefault();
+        removeSelected();
+      }
+    } else if (mod && key === "d") {
+      event.preventDefault();
+      duplicate();
+    } else if (mod && key === "a") {
+      event.preventDefault();
+      nodes = nodes.map((n) => ({ ...n, selected: true }));
+    } else if (mod && key === "g") {
+      event.preventDefault();
+      groupSelection();
+    } else if (event.shiftKey && !mod && event.code === "Digit1") {
+      event.preventDefault();
+      void flow.fitView({ duration: 200, padding: 0.15 });
+    } else if (event.shiftKey && !mod && event.code === "Digit2") {
+      event.preventDefault();
+      zoomToSelection();
+    } else if (event.key === "Enter" && !mod && !event.shiftKey) {
+      const only = chosen();
+      const node = only.length === 1 ? nodes.find((n) => n.id === only[0]) : undefined;
+      if (node && node.type !== "file") {
+        event.preventDefault();
+        editTarget = node.id;
+      }
+    } else if (event.key === "Escape") {
+      nodes = nodes.map((n) => (n.selected ? { ...n, selected: false } : n));
+      edges = edges.map((e) => (e.selected ? { ...e, selected: false } : e));
     }
+  }
+
+  // ---- copy, cut, paste, duplicate ----
+  const plainText = (n: BoardNode): string => (n.type === "text" ? (n.data.text ?? "") : n.type === "link" ? (n.data.url ?? "") : n.type === "group" ? (n.data.label ?? "") : (n.data.file ?? ""));
+
+  /** Puts the selected cards aside (and their words on the system clipboard). False when nothing is selected. */
+  function copy(): boolean {
+    const ids = chosen();
+    if (ids.length === 0) return false;
+    const b = asBoard();
+    clip = copySelection(b.nodes, b.edges, ids);
+    pastes = 0;
+    const text = clip.nodes.map(plainText).filter((t) => t !== "").join("\n\n");
+    clipText = text;
+    // If the browser refuses the system clipboard, the cards are still ours to paste: null means "always paste ours".
+    void navigator.clipboard.writeText(text).catch(() => (clipText = null));
+    return true;
+  }
+
+  function place(c: Clip, offset: { x: number; y: number }): void {
+    const top = nodes.reduce((m, n) => Math.max(m, n.zIndex ?? 0), 0);
+    const out = pasteClip(c, taken(), offset, top);
+    nodes = [...nodes.map((n) => ({ ...n, selected: false })), ...out.nodes.map((n) => ({ ...(n as unknown as Node), selected: true }))];
+    edges = [...edges.map((e) => ({ ...e, selected: false })), ...out.edges.map((e) => decorate(e as unknown as BoardEdge))];
+    commit();
+  }
+
+  /** Pastes what Copy put aside: a little down and right each time, or with its top left corner at `at`. */
+  function pasteCards(at?: { x: number; y: number }): void {
+    if (!clip) return;
+    pastes += 1;
+    const box = boundsOf(clip.nodes);
+    place(clip, at && box ? { x: at.x - box.x, y: at.y - box.y } : { x: 24 * pastes, y: 24 * pastes });
+  }
+
+  function duplicate(ids: string[] = chosen()): void {
+    if (ids.length === 0) return;
+    const b = asBoard();
+    place(copySelection(b.nodes, b.edges, ids), { x: 24, y: 24 });
+  }
+
+  const asUrl = (text: string): string | null => {
+    const first = text.split("\n").find((l) => l.trim() !== "" && !l.startsWith("#"))?.trim() ?? "";
+    return /^https?:\/\/\S+$/i.test(first) ? first : null;
+  };
+
+  function onPaste(event: ClipboardEvent): void {
+    if (typing(event.target)) return;
+    const data = event.clipboardData;
+    if (!data) return;
+    const images = [...data.files].filter((f) => f.type.startsWith("image/"));
+    const text = data.getData("text/plain");
+    event.preventDefault();
+    if (images.length > 0) {
+      images.forEach((f, i) => void addImage(f, nextSpot(i)));
+    } else if (clip && (clipText === null || text === clipText)) {
+      pasteCards();
+    } else if (asUrl(text)) {
+      add("link", { url: asUrl(text) ?? "" });
+    } else if (text.trim() !== "") {
+      add("text", { text });
+    } else {
+      pasteCards();
+    }
+  }
+
+  /** Where the next card goes when you did not point: where you are looking, one step further for each in a row. */
+  const nextSpot = (i: number): { x: number; y: number } => {
+    const c = center({ width: 0, height: 0 });
+    return { x: c.x + i * 24, y: c.y + i * 24 };
+  };
+
+  // ---- dropping pictures and addresses from outside the app ----
+  function onDragOver(event: DragEvent): void {
+    const types = event.dataTransfer?.types ?? [];
+    if (types.includes("Files") || types.includes("text/uri-list")) event.preventDefault();
+  }
+
+  function onDrop(event: DragEvent): void {
+    const dt = event.dataTransfer;
+    if (!dt) return;
+    const at = flow.screenToFlowPosition({ x: event.clientX, y: event.clientY });
+    const images = [...dt.files].filter((f) => f.type.startsWith("image/"));
+    const url = asUrl(dt.getData("text/uri-list") || dt.getData("text/plain"));
+    if (images.length === 0 && !url) return;
+    event.preventDefault();
+    if (images.length > 0) images.forEach((f, i) => void addImage(f, { x: Math.round(at.x + i * 24), y: Math.round(at.y + i * 24) }));
+    else if (url) add("link", { url }, { x: Math.round(at.x - SIZES.link.width / 2), y: Math.round(at.y - SIZES.link.height / 2) });
+  }
+
+  // ---- group, lock, stacking, view ----
+  function groupSelection(): void {
+    const g = groupAround(asBoard().nodes, chosen(), taken());
+    if (!g) return;
+    nodes = [{ ...(g as unknown as Node), selected: true }, ...nodes.map((n) => ({ ...n, selected: false }))];
+    editTarget = g.id;
+    commit();
+  }
+
+  function toggleLock(ids: string[]): void {
+    const targets = nodes.filter((n) => ids.includes(n.id));
+    if (targets.length === 0) return;
+    const lock = !targets.every((n) => isLocked(n as unknown as BoardNode));
+    nodes = nodes.map((n) => {
+      if (!ids.includes(n.id)) return n;
+      const d = n.data as CardData;
+      const extra = { ...d.extra };
+      if (lock) extra[LOCK_FIELD] = true;
+      else delete extra[LOCK_FIELD];
+      return { ...n, ...(lock ? lockProps(true) : { draggable: true, deletable: true }), data: { ...d, extra } };
+    });
+    commit();
+  }
+
+  function stack(ids: string[], to: "front" | "back"): void {
+    const order = restack(asBoard().nodes, ids, to);
+    nodes = nodes.map((n) => ({ ...n, zIndex: order.get(n.id) ?? n.zIndex }));
+    commit();
+  }
+
+  function zoomToSelection(): void {
+    const ids = chosen();
+    void flow.fitView({ ...(ids.length > 0 ? { nodes: ids.map((id) => ({ id })) } : {}), duration: 200, padding: 0.3, maxZoom: 1.5 });
+  }
+
+  // ---- right-click menus ----
+  const at = (e: MouseEvent): { x: number; y: number } => ({ x: e.clientX, y: e.clientY });
+
+  function openMenu(event: MouseEvent, items: MenuItem[]): void {
+    event.preventDefault();
+    menu = { ...at(event), items };
+  }
+
+  function onPaneMenu({ event }: { event: MouseEvent }): void {
+    const p = flow.screenToFlowPosition(at(event));
+    const spot = (w: number, h: number): { x: number; y: number } => ({ x: Math.round(p.x - w / 2), y: Math.round(p.y - h / 2) });
+    openMenu(event, [
+      { label: "Add text card", run: () => add("text", {}, spot(SIZES.text.width, SIZES.text.height)) },
+      { label: "Add note…", run: () => void openPicker() },
+      { label: "Add picture…", run: () => fileInput?.click() },
+      { label: "Add link", run: () => add("link", {}, spot(SIZES.link.width, SIZES.link.height)) },
+      { label: "Add group", run: () => add("group", {}, spot(SIZES.group.width, SIZES.group.height)) },
+      "-",
+      { label: "Paste", hint: "Ctrl/Cmd V", disabled: clip === null, run: () => pasteCards({ x: Math.round(p.x), y: Math.round(p.y) }) },
+      { label: "Select all", hint: "Ctrl/Cmd A", disabled: nodes.length === 0, run: () => (nodes = nodes.map((n) => ({ ...n, selected: true }))) },
+      { label: "Fit everything", hint: "Shift 1", run: () => void flow.fitView({ duration: 200, padding: 0.15 }) },
+    ]);
+  }
+
+  function cardMenu(event: MouseEvent, ids: string[]): void {
+    const only = ids.length === 1 ? nodes.find((n) => n.id === ids[0]) : undefined;
+    const locked = ids.length > 0 && ids.every((id) => isLocked(nodes.find((n) => n.id === id) as unknown as BoardNode));
+    openMenu(event, [
+      ...(only && only.type !== "file" ? [{ label: only.type === "group" ? "Rename" : "Edit", hint: "Enter", run: () => (editTarget = only.id) } satisfies MenuItem] : []),
+      { label: "Duplicate", hint: "Ctrl/Cmd D", run: () => duplicate(ids) },
+      { label: "Copy", hint: "Ctrl/Cmd C", run: () => copy() },
+      { label: "Cut", hint: "Ctrl/Cmd X", run: () => { if (copy()) removeSelected(); } },
+      "-",
+      { label: "Bring to front", run: () => stack(ids, "front") },
+      { label: "Send to back", run: () => stack(ids, "back") },
+      { label: locked ? "Unlock" : "Lock in place", run: () => toggleLock(ids) },
+      { label: "Zoom to", hint: "Shift 2", run: () => void flow.fitView({ nodes: ids.map((id) => ({ id })), duration: 200, padding: 0.3, maxZoom: 1.5 }) },
+      "-",
+      { label: "Delete", hint: "Del", danger: true, disabled: locked, run: removeSelected },
+    ]);
+  }
+
+  function onNodeMenu({ event, node }: { event: MouseEvent; node: Node }): void {
+    if (!node.selected) nodes = nodes.map((n) => ({ ...n, selected: n.id === node.id }));
+    selectedNodes = chosen().includes(node.id) ? chosen() : [node.id];
+    cardMenu(event, selectedNodes);
+  }
+
+  function onSelectionMenu({ event, nodes: ns }: { event: MouseEvent; nodes: Node[] }): void {
+    cardMenu(event, ns.map((n) => n.id));
+  }
+
+  function onEdgeMenu({ event, edge }: { event: MouseEvent; edge: Edge }): void {
+    edges = edges.map((e) => ({ ...e, selected: e.id === edge.id }));
+    nodes = nodes.map((n) => (n.selected ? { ...n, selected: false } : n));
+    selectedEdges = [edge.id];
+    openMenu(event, [
+      { label: "Edit label", run: () => setTimeout(() => document.querySelector<HTMLInputElement>(".label-in")?.focus(), 60) },
+      { label: "Go to the card it points at", run: () => focusNode(edge.target) },
+      "-",
+      { label: "Delete", hint: "Del", danger: true, run: removeSelected },
+    ]);
   }
 
   // ---- notes shown on cards ----
@@ -100,6 +339,8 @@
     commit,
     noteInfo,
     loadNote,
+    wantsEdit: () => editTarget,
+    clearEdit: () => (editTarget = null),
   });
 
   // ---- adding things ----
@@ -117,10 +358,12 @@
 
   function add(kind: CardKind, data: Partial<CardData> = {}, at?: { x: number; y: number }): void {
     const size = SIZES[kind];
+    const writes = (kind === "text" && !data.text) || (kind === "link" && !data.url);
     const id = newId(kind[0] ?? "n", taken());
     const top = nodes.reduce((m, n) => Math.max(m, n.zIndex ?? 0), 0) + 1;
     const node: BoardNode = { id, type: kind, position: at ?? center(size), width: size.width, height: size.height, zIndex: kind === "group" ? 0 : top, data: { kind, extra: {}, ...data } };
     nodes = [...nodes.map((n) => ({ ...n, selected: false })), { ...(node as unknown as Node), selected: true }];
+    if (writes) editTarget = id;
     commit();
   }
 
@@ -139,12 +382,12 @@
   let imageError = $state("");
 
   /** A picture from your computer becomes a card; it is stored in the vault like a pasted picture (png, jpg, gif, webp). */
-  async function addImage(file: File | undefined): Promise<void> {
+  async function addImage(file: File | undefined, at?: { x: number; y: number }): Promise<void> {
     if (!file) return;
     imageError = "";
     try {
       const up = await uploadImage(file);
-      add("file", { file: `attachments/${up.name}` });
+      add("file", { file: `attachments/${up.name}` }, at);
     } catch (err) {
       imageError = err instanceof Error ? err.message.replace(/^[a-z-]+: /, "") : "Could not add the picture";
     }
@@ -200,8 +443,16 @@
     return cx >= g.position.x && cx <= g.position.x + gw && cy >= g.position.y && cy <= g.position.y + gh;
   }
 
-  function dragStart({ targetNode }: { targetNode: Node | null }): void {
+  function dragStart({ targetNode, nodes: moving, event }: { targetNode: Node | null; nodes: Node[]; event: MouseEvent | TouchEvent }): void {
     groupDrag = null;
+    // Holding Alt while you start a drag leaves a copy behind, as in Obsidian.
+    if ("altKey" in event && event.altKey && moving.length > 0) {
+      const b = asBoard();
+      const top = nodes.reduce((m, n) => Math.max(m, n.zIndex ?? 0), 0);
+      const out = pasteClip(copySelection(b.nodes, b.edges, moving.map((n) => n.id)), taken(), { x: 0, y: 0 }, top);
+      nodes = [...nodes, ...out.nodes.map((n) => ({ ...(n as unknown as Node), selected: false }))];
+      edges = [...edges, ...out.edges.map((e) => decorate(e as unknown as BoardEdge))];
+    }
     if (!targetNode || targetNode.type !== "group") return;
     const kids = new Map<string, { x: number; y: number }>();
     for (const n of nodes) if (n.id !== targetNode.id && n.type !== "group" && inside(targetNode, n)) kids.set(n.id, { ...n.position });
@@ -246,7 +497,8 @@
   }
 
   function removeSelected(): void {
-    const ns = new Set(selectedNodes);
+    const locked = new Set(nodes.filter((n) => isLocked(n as unknown as BoardNode)).map((n) => n.id));
+    const ns = new Set(selectedNodes.filter((id) => !locked.has(id)));
     const es = new Set(selectedEdges);
     nodes = nodes.filter((n) => !ns.has(n.id));
     edges = edges.filter((e) => !es.has(e.id) && !ns.has(e.source) && !ns.has(e.target));
@@ -267,9 +519,9 @@
   const kindName: Record<string, string> = { text: "Text", file: "Note", link: "Link", group: "Group" };
 </script>
 
-<svelte:window onkeydown={onKey} />
+<svelte:window onkeydown={onKey} onpaste={onPaste} />
 
-<div class="canvas-wrap" ondblclick={onPaneDoubleClick} role="presentation">
+<div class="canvas-wrap" ondblclick={onPaneDoubleClick} ondragover={onDragOver} ondrop={onDrop} role="presentation">
   <SvelteFlow
     bind:nodes
     bind:edges
@@ -279,6 +531,16 @@
     maxZoom={2.5}
     snapGrid={[10, 10]}
     zoomOnDoubleClick={false}
+    zoomOnScroll={false}
+    panOnScroll
+    panOnDrag={[1]}
+    selectionOnDrag
+    panActivationKey="Space"
+    multiSelectionKey={["Shift", "Meta", "Control"]}
+    onpanecontextmenu={onPaneMenu}
+    onnodecontextmenu={onNodeMenu}
+    onselectioncontextmenu={onSelectionMenu}
+    onedgecontextmenu={onEdgeMenu}
     connectionMode={ConnectionMode.Loose}
     deleteKey={["Backspace", "Delete"]}
     onbeforeconnect={onBeforeConnect}
@@ -306,6 +568,7 @@
         <button type="button" disabled={!canRedo} onclick={redo} title="Redo (Shift + Ctrl or Cmd + Z)">Redo</button>
         <span class="sep" aria-hidden="true"></span>
         <button type="button" aria-pressed={outline} onclick={() => (outline = !outline)} title="A list of everything on the board, for the keyboard">Outline</button>
+        <button type="button" aria-pressed={help} onclick={() => (help = !help)} title="Keys and mouse">Keys</button>
       </div>
       <input type="file" accept="image/png,image/jpeg,image/gif,image/webp" class="hidden" bind:this={fileInput} onchange={(e) => { void addImage(e.currentTarget.files?.[0]); e.currentTarget.value = ""; }} aria-label="Choose a picture" />
       {#if imageError}<p class="img-err" role="alert">{imageError}</p>{/if}
@@ -337,8 +600,30 @@
       {/if}
     </Panel>
 
-    {#if outline}
+    {#if outline || help}
       <Panel position="top-right">
+        {#if help}
+          <div class="outline help" role="region" aria-label="Keys and mouse">
+            <strong>Keys and mouse</strong>
+            <dl>
+              <dt>Double-click the board</dt><dd>New text card</dd>
+              <dt>Right-click</dt><dd>Menu for the board, a card or an arrow</dd>
+              <dt>Drag on the board</dt><dd>Select with a box</dd>
+              <dt>Space + drag, or scroll</dt><dd>Move around</dd>
+              <dt>Ctrl/Cmd + scroll</dt><dd>Zoom</dd>
+              <dt>Shift 1 / Shift 2</dt><dd>Fit all / zoom to selection</dd>
+              <dt>Ctrl/Cmd C, X, V</dt><dd>Copy, cut, paste</dd>
+              <dt>Ctrl/Cmd D</dt><dd>Duplicate</dd>
+              <dt>Ctrl/Cmd A</dt><dd>Select all</dd>
+              <dt>Ctrl/Cmd G</dt><dd>Group the selection</dd>
+              <dt>Enter</dt><dd>Edit the selected card</dd>
+              <dt>Esc</dt><dd>Clear the selection</dd>
+              <dt>Ctrl/Cmd Z</dt><dd>Undo (add Shift to redo)</dd>
+            </dl>
+            <p class="none">Paste a web address for a link card, a picture for a picture card. Drop pictures and addresses on the board.</p>
+          </div>
+        {/if}
+        {#if outline}
         <div class="outline" role="region" aria-label="Everything on the board">
           <strong>On this board</strong>
           <ul>
@@ -349,9 +634,13 @@
             {/each}
           </ul>
         </div>
+        {/if}
       </Panel>
     {/if}
   </SvelteFlow>
+  {#if menu}
+    <CanvasMenu x={menu.x} y={menu.y} items={menu.items} onclose={() => (menu = null)} />
+  {/if}
   {#if nodes.length === 0}
     <p class="empty">An empty board. Double-click anywhere to write a card, or use <strong>Note…</strong> to bring in a note.</p>
   {/if}
@@ -519,6 +808,20 @@
   .picker li button:hover,
   .outline li button:hover {
     background: var(--surface-hover);
+  }
+  .help dl {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: var(--space-1) var(--space-3);
+    margin: 0;
+    overflow: auto;
+  }
+  .help dt {
+    font-family: var(--font-mono);
+  }
+  .help dd {
+    margin: 0;
+    color: var(--ink-muted);
   }
   .kind {
     color: var(--ink-muted);

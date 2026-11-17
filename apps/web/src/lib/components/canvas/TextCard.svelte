@@ -20,6 +20,13 @@
     queueMicrotask(() => area?.focus());
   }
 
+  $effect(() => {
+    if (board.wantsEdit() === id) {
+      board.clearEdit();
+      start();
+    }
+  });
+
   function finish(save: boolean): void {
     editing = false;
     if (save && draft !== (data.text ?? "")) {
@@ -47,7 +54,7 @@
   {:else if (data.text ?? "").trim() === ""}
     <p class="hint">Double-click to write</p>
   {:else}
-    <div class="prose">{@html renderMarkdown(data.text ?? "")}</div>
+    <div class="prose" class:nowheel={selected}>{@html renderMarkdown(data.text ?? "")}</div>
   {/if}
 </div>
 <Handles />

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { History, cssColor, imageNameOf, ringBoard, excerpt, newId, noteFile, noteIdOf, snapshot, toBoard, toFile, type CanvasFile } from "./canvas";
+import { History, LOCK_FIELD, cssColor, isLocked, lockProps, imageNameOf, ringBoard, excerpt, newId, noteFile, noteIdOf, snapshot, toBoard, toFile, type CanvasFile } from "./canvas";
 
 // Built from parts: raw color literals are not allowed outside app.css.
 const HEX = `#${"ff"}${"88"}${"00"}`;
@@ -129,5 +129,24 @@ describe("ringBoard", () => {
   it("caps the ring and copes with no neighbours", () => {
     expect(ringBoard("a", Array.from({ length: 40 }, (_, i) => `n${i}`)).nodes).toHaveLength(13);
     expect(ringBoard("a", []).edges).toEqual([]);
+  });
+});
+
+describe("locked cards", () => {
+  const file: CanvasFile = { nodes: [{ id: "l", type: "text", x: 0, y: 0, width: 100, height: 50, text: "x", [LOCK_FIELD]: true }, { id: "u", type: "text", x: 0, y: 0, width: 100, height: 50, text: "y" }], edges: [] };
+
+  it("turns off moving and deleting for a locked card only", () => {
+    const [l, u] = toBoard(file).nodes;
+    expect(l).toMatchObject({ draggable: false, deletable: false });
+    expect(u).not.toHaveProperty("draggable");
+    expect(isLocked(l!)).toBe(true);
+    expect(isLocked(u!)).toBe(false);
+  });
+
+  it("writes the lock back and writes nothing for an unlocked card", () => {
+    const out = toFile(toBoard(file).nodes, []);
+    expect(out.nodes?.find((n) => n.id === "l")?.[LOCK_FIELD]).toBe(true);
+    expect(out.nodes?.find((n) => n.id === "u")).not.toHaveProperty(LOCK_FIELD);
+    expect(lockProps(false)).toEqual({});
   });
 });
