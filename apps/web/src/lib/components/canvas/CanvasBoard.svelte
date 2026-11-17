@@ -4,7 +4,18 @@
   import { getNote, listNotes, uploadImage } from "$lib/api";
   import { History, LOCK_FIELD, PRESETS, PRESET_NAMES, SIZES, cssColor, checklistProgress, excerpt, imageNameOf, isLocked, lockProps, newId, noteFile, noteIdOf, snapshot, toBoard, toFile, type BoardEdge, type BoardNode, type CanvasFile, type CardData, type CardKind } from "$lib/canvas";
   import { boundsOf, copySelection, groupAround, pasteClip, restack, type Clip } from "$lib/canvas-clipboard";
+  import { alignBoxes, distributeBoxes, matchedSize, snapToObjects, type AlignHow, type Box } from "$lib/canvas-guides";
   import { relativeSpot, tidy } from "$lib/canvas-layout";
+  import AlignCenterHorizontal from "@lucide/svelte/icons/align-center-horizontal";
+  import AlignCenterVertical from "@lucide/svelte/icons/align-center-vertical";
+  import AlignEndHorizontal from "@lucide/svelte/icons/align-end-horizontal";
+  import AlignEndVertical from "@lucide/svelte/icons/align-end-vertical";
+  import AlignHorizontalDistributeCenter from "@lucide/svelte/icons/align-horizontal-distribute-center";
+  import AlignStartHorizontal from "@lucide/svelte/icons/align-start-horizontal";
+  import AlignStartVertical from "@lucide/svelte/icons/align-start-vertical";
+  import AlignVerticalDistributeCenter from "@lucide/svelte/icons/align-vertical-distribute-center";
+  import MoveHorizontal from "@lucide/svelte/icons/move-horizontal";
+  import MoveVertical from "@lucide/svelte/icons/move-vertical";
   import type { NoteSummary } from "@vigil/shared";
   import CanvasMenu, { type MenuItem } from "./CanvasMenu.svelte";
   import { CANVAS_KEY, type CanvasContext } from "./context";
@@ -39,6 +50,26 @@
   let clip: Clip | null = null;
   let clipText: string | null = "";
   let pastes = 0;
+  /** Snapping: to the grid and to the edges and centres of other cards. Holding Space turns it off for one drag. */
+  let snapOn = $state(readSnap());
+  let spaceDown = $state(false);
+  let guides = $state<{ v: number | null; h: number | null }>({ v: null, h: null });
+
+  function readSnap(): boolean {
+    try {
+      return localStorage.getItem("vigil.canvas.snap") !== "off";
+    } catch {
+      return true; // no storage (private window): snapping stays on, it is only a preference
+    }
+  }
+  function toggleSnap(): void {
+    snapOn = !snapOn;
+    try {
+      localStorage.setItem("vigil.canvas.snap", snapOn ? "on" : "off");
+    } catch {
+      // The choice still holds for this visit; it just is not remembered.
+    }
+  }
 
   /** Arrowheads and color are display; the file keeps only what the format has. */
   function decorate(e: BoardEdge | (Edge & Partial<BoardEdge>)): Edge {
@@ -89,7 +120,12 @@
   };
   const chosen = (): string[] => nodes.filter((n) => n.selected).map((n) => n.id);
 
+  function onKeyUp(event: KeyboardEvent): void {
+    if (event.code === "Space") spaceDown = false;
+  }
+
   function onKey(event: KeyboardEvent): void {
+    if (event.code === "Space" && !typing(event.target)) spaceDown = true;
     if (typing(event.target) || menu) return;
     const mod = event.metaKey || event.ctrlKey;
     const key = event.key.toLowerCase();
@@ -174,6 +210,23 @@
     nodes = nodes.map((n) => (at.has(n.id) ? { ...n, position: at.get(n.id) ?? n.position } : n));
     commit();
     void flow.fitView({ nodes: ids.map((id) => ({ id })), duration: 250, padding: 0.3, maxZoom: 1.2 });
+  }
+
+  const boxesOf = (ids: string[]): Box[] => asBoard().nodes.filter((n) => ids.includes(n.id) && n.type !== "group").map((n) => ({ id: n.id, x: n.position.x, y: n.position.y, width: n.width, height: n.height }));
+
+  function moveTo(at: Map<string, { x: number; y: number }>): void {
+    if (at.size === 0) return;
+    nodes = nodes.map((n) => (at.has(n.id) ? { ...n, position: at.get(n.id) ?? n.position } : n));
+    commit();
+  }
+  const align = (how: AlignHow): void => moveTo(alignBoxes(boxesOf(selectedNodes), how));
+  const spread = (axis: "horizontal" | "vertical"): void => moveTo(distributeBoxes(boxesOf(selectedNodes), axis));
+  function sameSize(dim: "width" | "height"): void {
+    const boxes = boxesOf(selectedNodes);
+    if (boxes.length < 2) return;
+    const size = matchedSize(boxes, dim);
+    nodes = nodes.map((n) => (boxes.some((b) => b.id === n.id) ? { ...n, [dim]: size } : n));
+    commit();
   }
 
   // ---- copy, cut, paste, duplicate ----
@@ -503,7 +556,24 @@
     groupDrag = { id: targetNode.id, at: { ...targetNode.position }, kids };
   }
 
-  function drag({ targetNode }: { targetNode: Node | null }): void {
+  /** While one card is dragged: nudge it onto the edges and centres of its neighbours and show the guide lines. */
+  function snapDrag(target: Node): void {
+    if (!snapOn || spaceDown) {
+      guides = { v: null, h: null };
+      return;
+    }
+    const size = (n: Node): { width: number; height: number } => ({ width: n.width ?? n.measured?.width ?? 0, height: n.height ?? n.measured?.height ?? 0 });
+    const moving = { ...target.position, ...size(target) };
+    const others = nodes.filter((n) => n.id !== target.id && n.type !== "group").map((n) => ({ ...n.position, ...size(n) }));
+    const snap = snapToObjects(moving, others, 6 / Math.max(0.1, flow.getViewport().zoom));
+    if (snap.dx !== 0 || snap.dy !== 0) nodes = nodes.map((n) => (n.id === target.id ? { ...n, position: { x: target.position.x + snap.dx, y: target.position.y + snap.dy } } : n));
+    const wrap = document.querySelector(".canvas-wrap")?.getBoundingClientRect();
+    const screen = flow.flowToScreenPosition({ x: snap.vertical ?? 0, y: snap.horizontal ?? 0 });
+    guides = { v: snap.vertical === null ? null : screen.x - (wrap?.left ?? 0), h: snap.horizontal === null ? null : screen.y - (wrap?.top ?? 0) };
+  }
+
+  function drag({ targetNode, nodes: moving }: { targetNode: Node | null; nodes: Node[] }): void {
+    if (targetNode && !groupDrag && moving.length <= 1 && targetNode.type !== "group") snapDrag(targetNode);
     if (!groupDrag || !targetNode || targetNode.id !== groupDrag.id) return;
     const dx = targetNode.position.x - groupDrag.at.x;
     const dy = targetNode.position.y - groupDrag.at.y;
@@ -516,6 +586,7 @@
 
   function dragStop(): void {
     groupDrag = null;
+    guides = { v: null, h: null };
     commit();
   }
 
@@ -563,7 +634,7 @@
   const kindName: Record<string, string> = { text: "Text", file: "Note", link: "Link", group: "Group" };
 </script>
 
-<svelte:window onkeydown={onKey} onpaste={onPaste} />
+<svelte:window onkeydown={onKey} onkeyup={onKeyUp} onpaste={onPaste} />
 
 <div class="canvas-wrap" ondblclick={onPaneDoubleClick} ondragover={onDragOver} ondrop={onDrop} role="presentation">
   <SvelteFlow
@@ -573,7 +644,7 @@
     fitView
     minZoom={0.1}
     maxZoom={2.5}
-    snapGrid={[10, 10]}
+    snapGrid={snapOn && !spaceDown ? [10, 10] : undefined}
     zoomOnDoubleClick={false}
     zoomOnScroll={false}
     panOnScroll
@@ -611,6 +682,7 @@
         <button type="button" disabled={!canUndo} onclick={undo} title="Undo (Ctrl or Cmd + Z)">Undo</button>
         <button type="button" disabled={!canRedo} onclick={redo} title="Redo (Shift + Ctrl or Cmd + Z)">Redo</button>
         <span class="sep" aria-hidden="true"></span>
+        <button type="button" aria-pressed={snapOn} onclick={toggleSnap} title="Snap cards to the grid and to each other (hold Space while dragging to turn it off)">Snap</button>
         <button type="button" aria-pressed={outline} onclick={() => (outline = !outline)} title="A list of everything on the board, for the keyboard">Outline</button>
         <button type="button" aria-pressed={help} onclick={() => (help = !help)} title="Keys and mouse">Keys</button>
       </div>
@@ -637,6 +709,20 @@
           {/each}
           <button type="button" onclick={() => setColor(undefined)}>No color</button>
           {#if selectedNodes.length > 1}
+            <span class="sep" aria-hidden="true"></span>
+            <button type="button" class="icon" aria-label="Align left" title="Align left" onclick={() => align("left")}><AlignStartVertical size={16} strokeWidth={1.5} /></button>
+            <button type="button" class="icon" aria-label="Align centre" title="Align centre" onclick={() => align("center")}><AlignCenterVertical size={16} strokeWidth={1.5} /></button>
+            <button type="button" class="icon" aria-label="Align right" title="Align right" onclick={() => align("right")}><AlignEndVertical size={16} strokeWidth={1.5} /></button>
+            <button type="button" class="icon" aria-label="Align top" title="Align top" onclick={() => align("top")}><AlignStartHorizontal size={16} strokeWidth={1.5} /></button>
+            <button type="button" class="icon" aria-label="Align middle" title="Align middle" onclick={() => align("middle")}><AlignCenterHorizontal size={16} strokeWidth={1.5} /></button>
+            <button type="button" class="icon" aria-label="Align bottom" title="Align bottom" onclick={() => align("bottom")}><AlignEndHorizontal size={16} strokeWidth={1.5} /></button>
+            <button type="button" class="icon" aria-label="Same width" title="Make all as wide as the widest" onclick={() => sameSize("width")}><MoveHorizontal size={16} strokeWidth={1.5} /></button>
+            <button type="button" class="icon" aria-label="Same height" title="Make all as tall as the tallest" onclick={() => sameSize("height")}><MoveVertical size={16} strokeWidth={1.5} /></button>
+            {#if selectedNodes.length > 2}
+              <button type="button" class="icon" aria-label="Space evenly across" title="Even gaps left to right" onclick={() => spread("horizontal")}><AlignHorizontalDistributeCenter size={16} strokeWidth={1.5} /></button>
+              <button type="button" class="icon" aria-label="Space evenly down" title="Even gaps top to bottom" onclick={() => spread("vertical")}><AlignVerticalDistributeCenter size={16} strokeWidth={1.5} /></button>
+            {/if}
+            <span class="sep" aria-hidden="true"></span>
             <button type="button" onclick={() => applyTidy(selectedNodes, "tree")} title="Lay the selected cards out following their arrows">Tidy tree</button>
             <button type="button" onclick={() => applyTidy(selectedNodes, "grid")} title="Lay the selected cards out in rows">Tidy grid</button>
           {/if}
@@ -688,6 +774,8 @@
       </Panel>
     {/if}
   </SvelteFlow>
+  {#if guides.v !== null}<div class="guide vertical" style:left={`${guides.v}px`} aria-hidden="true"></div>{/if}
+  {#if guides.h !== null}<div class="guide horizontal" style:top={`${guides.h}px`} aria-hidden="true"></div>{/if}
   {#if menu}
     <CanvasMenu x={menu.x} y={menu.y} items={menu.items} onclose={() => (menu = null)} />
   {/if}
@@ -793,6 +881,26 @@
   }
   .bar .danger {
     color: var(--err-ink);
+  }
+  .bar .icon {
+    display: inline-flex;
+    padding: var(--space-1) !important;
+  }
+  .guide {
+    position: absolute;
+    z-index: 5;
+    pointer-events: none;
+    background: var(--canvas-5);
+  }
+  .guide.vertical {
+    top: 0;
+    bottom: 0;
+    width: 1px;
+  }
+  .guide.horizontal {
+    left: 0;
+    right: 0;
+    height: 1px;
   }
   .swatch {
     width: 20px;
