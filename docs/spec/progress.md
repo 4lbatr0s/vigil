@@ -185,6 +185,11 @@ Chosen from the research (spaced repetition tied to notes, active processing ove
 - [x] `retrievability` in `srs.ts` (FSRS forgetting curve from ts-fsrs `retrievability`), `memoryMap` in `memory.ts` (mean chance of recall over answered cards, recall check due, nearest exam days by note or tag), `GET /api/graph` nodes carry `memory`
 - [x] Graph "Memory" toggle: note dots colored from `--err` to `--ok` (no amber; amber stays for agent life), glow off, ring for a due recall check, side panel line plus "Study this note" and "Recall check". Checked in the browser (answered cards green, unanswered grey). A fading (red) note was not seen live because it needs days to pass; the color mapping and the decay are unit tested
 
+## Vigil as an MCP server (same plan, 2026-11-17)
+- [x] ADR-0022, threat model T20; `POST /api/mcp` (initialize, ping, tools/list, tools/call, batches), `GET/PUT /api/mcp/settings`, run trigger `mcp`; Settings, "Other agents (MCP)" section
+- [x] Tests: off by default, write only with its own switch, read tools, write as an undoable run, 30 writes per minute, size cap, Origin check
+- [ ] Not checked with a real MCP client (Claude Code or Claude Desktop); only our own JSON-RPC tests. Clients that speak only stdio need a bridge
+
 ## WP13: after v1 (ordered backlog, do not start before the release)
 
 

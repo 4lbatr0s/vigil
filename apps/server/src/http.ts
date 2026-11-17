@@ -3,6 +3,7 @@ import { z } from "zod";
 import { checkAccess, type Access } from "./access";
 import { handleAuth } from "./auth";
 import { serveStatic } from "./static";
+import { McpSettingsSchema, handleMcp, mcpSettings, saveMcpSettings } from "./mcp";
 import { AskBodySchema, askTask, findPassages } from "./ask";
 import { AppError, isAppError } from "./errors";
 import { healthPayload } from "./health";
@@ -359,6 +360,44 @@ const routes: { method: string; pattern: RegExp; keys: string[]; handler: Handle
       if (!agent.enabled) throw new AppError("agent-disabled", "The Note asker agent is switched off. Turn it on from the Agents page.", 409);
       const run = startRun("note-asker", askTask(parsed.data.question, passages), "manual");
       send(res, 202, { data: { run, passages } });
+    },
+  },
+  {
+    // MCP over HTTP (ADR-0022). Behind the same Host, Origin and token checks as the rest of the API; off until the owner switches it on.
+    method: "POST",
+    pattern: /^\/api\/mcp$/,
+    keys: [],
+    handler: async (req, res) => {
+      let body: unknown;
+      try {
+        body = await readJsonBody(req);
+      } catch (err) {
+        if (isAppError(err) && err.status === 413) throw err;
+        send(res, 400, { jsonrpc: "2.0", id: null, error: { code: -32700, message: "Parse error" } });
+        return;
+      }
+      const reply = await handleMcp(body, mcpSettings());
+      if (reply.body === undefined) {
+        res.writeHead(reply.status).end();
+        return;
+      }
+      send(res, reply.status, reply.body);
+    },
+  },
+  {
+    method: "GET",
+    pattern: /^\/api\/mcp\/settings$/,
+    keys: [],
+    handler: async (_req, res) => send(res, 200, { data: mcpSettings() }),
+  },
+  {
+    method: "PUT",
+    pattern: /^\/api\/mcp\/settings$/,
+    keys: [],
+    handler: async (req, res) => {
+      const parsed = McpSettingsSchema.safeParse(await readJsonBody(req));
+      if (!parsed.success) throw new AppError("invalid-body", "Body must be { enabled: boolean, write: boolean }", 400);
+      send(res, 200, { data: saveMcpSettings(parsed.data) });
     },
   },
   {

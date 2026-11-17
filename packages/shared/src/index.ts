@@ -136,7 +136,7 @@ export const RunSchema = z.object({
   id: z.string(),
   agent: z.string(),
   status: RunStatusSchema,
-  trigger: z.enum(["manual", "cron", "heartbeat", "chat", "call"]),
+  trigger: z.enum(["manual", "cron", "heartbeat", "chat", "call", "mcp"]),
   parentRunId: z.string().nullable(),
   startedAt: z.string(),
   finishedAt: z.string().nullable(),
