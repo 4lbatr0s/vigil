@@ -8,6 +8,7 @@
   import MessageSquare from "@lucide/svelte/icons/message-square";
   import Network from "@lucide/svelte/icons/network";
   import LayoutDashboard from "@lucide/svelte/icons/layout-dashboard";
+  import Wrench from "@lucide/svelte/icons/wrench";
   import Sunrise from "@lucide/svelte/icons/sunrise";
   import GraduationCap from "@lucide/svelte/icons/graduation-cap";
   import Menu from "@lucide/svelte/icons/menu";
@@ -65,16 +66,18 @@
     }
   }
 
+  /** The navigation in four groups, so eight-plus links read as places, not a list. */
   const items = [
-    { href: "/", label: "Notes", icon: NotebookText, match: (p: string) => p === "/" },
-    { href: "/canvas", label: "Canvas", icon: LayoutDashboard, match: (p: string) => p.startsWith("/canvas") },
-    { href: "/today", label: "Today", icon: Sunrise, match: (p: string) => p.startsWith("/today") },
-    { href: "/study", label: "Study", icon: GraduationCap, match: (p: string) => p.startsWith("/study") },
-    { href: "/agents", label: "Agents", icon: Bot, match: (p: string) => p.startsWith("/agents") || p.startsWith("/runs") },
-    { href: "/chat", label: "Chat", icon: MessageSquare, match: (p: string) => p.startsWith("/chat") },
-    { href: "/graph", label: "Graph", icon: Network, match: (p: string) => p.startsWith("/graph") },
-    { href: "/approvals", label: "Approvals", icon: ShieldCheck, match: (p: string) => p.startsWith("/approvals") },
-    { href: "/settings", label: "Settings", icon: Settings, match: (p: string) => p.startsWith("/settings") },
+    { group: "Write", href: "/", label: "Notes", icon: NotebookText, match: (p: string) => p === "/" },
+    { group: "Write", href: "/canvas", label: "Canvas", icon: LayoutDashboard, match: (p: string) => p.startsWith("/canvas") },
+    { group: "Write", href: "/graph", label: "Graph", icon: Network, match: (p: string) => p.startsWith("/graph") },
+    { group: "Learn", href: "/today", label: "Today", icon: Sunrise, match: (p: string) => p.startsWith("/today") },
+    { group: "Learn", href: "/study", label: "Study", icon: GraduationCap, match: (p: string) => p.startsWith("/study") },
+    { group: "Learn", href: "/tools", label: "Tools", icon: Wrench, match: (p: string) => ["/tools", "/ask", "/gap", "/recall", "/outline", "/import", "/capture"].some((x) => p.startsWith(x)) },
+    { group: "Agents", href: "/agents", label: "Agents", icon: Bot, match: (p: string) => p.startsWith("/agents") || p.startsWith("/runs") },
+    { group: "Agents", href: "/chat", label: "Chat", icon: MessageSquare, match: (p: string) => p.startsWith("/chat") },
+    { group: "Agents", href: "/approvals", label: "Approvals", icon: ShieldCheck, match: (p: string) => p.startsWith("/approvals") },
+    { group: "App", href: "/settings", label: "Settings", icon: Settings, match: (p: string) => p.startsWith("/settings") },
   ];
 </script>
 
@@ -89,8 +92,11 @@
   {/if}
   <nav class="rail" class:open={navOpen} aria-label="Main">
     <span class="mark" aria-hidden="true">Vigil</span>
-    {#each items as item (item.href)}
+    {#each items as item, i (item.href)}
       {@const Icon = item.icon}
+      {#if i === 0 || items[i - 1]?.group !== item.group}
+        <span class="group" aria-hidden="true">{item.group}</span>
+      {/if}
       <a
         class="rail-link"
         class:active={item.match(page.url.pathname)}
@@ -170,6 +176,17 @@
     color: var(--ink-muted);
     text-decoration: none;
     transition: color 100ms ease-out, background 100ms ease-out;
+  }
+
+  .group {
+    display: block;
+    height: 1px;
+    margin: var(--space-2) var(--space-2);
+    background: var(--hairline);
+    font-size: 0;
+  }
+  .mark + .group {
+    display: none;
   }
 
   .text {
@@ -315,6 +332,18 @@
     .text {
       display: inline;
     }
+    .mark + .group {
+      display: block;
+    }
+    .group {
+      height: auto;
+      margin: var(--space-3) var(--space-3) var(--space-1);
+      background: none;
+      font-size: 11px;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--ink-muted);
+    }
     .badge {
       top: 50%;
       right: var(--space-3);
@@ -351,6 +380,18 @@
     }
     .text {
       display: inline;
+    }
+    .mark + .group {
+      display: block;
+    }
+    .group {
+      height: auto;
+      margin: var(--space-3) var(--space-3) var(--space-1);
+      background: none;
+      font-size: 11px;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--ink-muted);
     }
     .badge {
       top: 50%;

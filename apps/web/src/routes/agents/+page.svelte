@@ -9,6 +9,7 @@
   import { formatStamp } from "$lib/format";
   import { refreshOnLive } from "$lib/live";
   import { describeTrigger, lastRunByAgent, statusDot } from "$lib/schedule";
+  import { bannerFor } from "$lib/settings-form";
   import StatusDot from "$lib/components/StatusDot.svelte";
 
   let agents = $state<Agent[]>([]);
@@ -19,6 +20,12 @@
   let loaded = $state(false);
   let error = $state("");
   let adding = $state<string | null>(null);
+  let find = $state("");
+  const shownGroups = $derived(
+    groupTemplates(templates)
+      .map((g) => ({ ...g, items: g.items.filter((t) => find.trim() === "" || `${t.title} ${t.summary}`.toLowerCase().includes(find.trim().toLowerCase())) }))
+      .filter((g) => g.items.length > 0),
+  );
 
   const last = $derived(lastRunByAgent(runs));
 
@@ -46,7 +53,7 @@
     return refreshOnLive(refreshRuns, ["run"], 3000);
   });
 
-  const llmReady = $derived(llm !== null && llm.model !== null && (llm.provider === "ollama" || llm.hasKey));
+  const llmReady = $derived(llm !== null && bannerFor(llm, null) === null);
 
   async function add(id: string): Promise<void> {
     adding = id;
@@ -78,7 +85,8 @@
     <section class="empty">
       <Illustration kind="lantern" />
       <p class="empty-title">No agents yet</p>
-      <p class="muted">Pick one below. It stays off until you turn it on.</p>
+      <p class="muted">Describe what you want and a model drafts it, or start from a ready-made one below. Agents stay off until you turn them on.</p>
+      <p><a class="primary-link" href="/agents/new">Create an agent</a></p>
     </section>
   {:else}
     <ul class="ledger" aria-label="Agents">
@@ -99,8 +107,9 @@
 
   {#if loaded}
     <section class="gallery" aria-labelledby="gallery-title">
-      <h2 id="gallery-title">Add an agent</h2>
-      {#each groupTemplates(templates) as g (g.id)}
+      <h2 id="gallery-title">Ready-made agents</h2>
+      <input type="search" class="find" bind:value={find} placeholder="Find one, for example recall or digest" aria-label="Find a ready-made agent" />
+      {#each shownGroups as g (g.id)}
         <h3 class="group">{g.title}{#if g.blurb}<span class="blurb"> · {g.blurb}</span>{/if}</h3>
         <ul class="ledger">
           {#each g.items as t (t.id)}
@@ -109,7 +118,7 @@
                 <span class="name">{t.title}</span>
                 <span class="summary">{t.summary}</span>
                 <span class="needs">
-                  {#if t.needs.includes("llm")}{llmReady ? "Model: ready." : "Model: not set up yet, see Settings."}{/if}
+                  {#if t.needs.includes("llm") && !llmReady}<a href="/settings#models">Connect a model first</a>.{/if}
                   {#if t.needs.includes("web")} Web: you choose the allowed sites.{/if}
                 </span>
               </div>
@@ -119,12 +128,24 @@
             </li>
           {/each}
         </ul>
+      {:else}
+        <p class="muted">Nothing matches "{find}".</p>
       {/each}
     </section>
   {/if}
 </main>
 
 <style>
+  .find {
+    padding: var(--space-2) var(--space-3);
+    margin-bottom: var(--space-3);
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius);
+    background: var(--surface);
+    color: var(--ink);
+    font: inherit;
+    max-width: 24rem;
+  }
   .titlebar {
     display: flex;
     flex-wrap: wrap;

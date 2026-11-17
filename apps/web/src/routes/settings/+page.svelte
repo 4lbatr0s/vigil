@@ -83,6 +83,17 @@
 <main class="page">
   <h1>Settings</h1>
   {#if loadError}<p class="error" role="alert">{loadError}</p>{/if}
+  <nav class="jump" aria-label="Jump to a section">
+    <a href="#models">AI models</a>
+    <a href="#look">Appearance</a>
+    <a href="#study-settings">Study</a>
+    <a href="#mcp-settings">Other agents</a>
+    <a href="#pictures">Pictures</a>
+    <a href="#perm">Permissions</a>
+    <a href="#use">Usage</a>
+  </nav>
+
+  <ModelsSettings />
 
   <section aria-labelledby="look">
     <h2 id="look">Appearance</h2>
@@ -155,8 +166,6 @@
     </section>
   {/if}
 
-  <ModelsSettings />
-
   <section aria-labelledby="use">
     <h2 id="use">Usage this month</h2>
     {#if usage}
@@ -216,7 +225,40 @@
   h2 {
     font-size: var(--text-ui);
     font-weight: 600;
-    margin: var(--space-8) 0 var(--space-2);
+    margin: 0 0 var(--space-2);
+  }
+  /* Every section, including the ones other components draw: a rule above, room around, the same heading. */
+  .page :global(section) {
+    margin-top: var(--space-6);
+    padding-top: var(--space-6);
+    border-top: 1px solid var(--hairline);
+  }
+  .page :global(section h2) {
+    font-size: var(--text-ui);
+    font-weight: 600;
+    margin: 0 0 var(--space-2);
+  }
+  .jump {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    padding: var(--space-2) 0;
+    background: var(--bg);
+  }
+  .jump a {
+    padding: var(--space-1) var(--space-3);
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius);
+    color: var(--ink-muted);
+    font-size: var(--text-label);
+    text-decoration: none;
+  }
+  .jump a:hover {
+    color: var(--ink);
+    background: var(--surface-hover);
   }
   .muted,
   .why {

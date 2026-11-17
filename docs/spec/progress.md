@@ -232,6 +232,10 @@ Chosen from the research (spaced repetition tied to notes, active processing ove
 - [ ] Not tried: opening a saved board in real Obsidian (owner list), a phone, text-card editing and group drag checked only by code and unit tests, not by hand in the browser
 - [ ] Not done: agents reading or writing boards, "open a note as a canvas", send graph selection to a canvas, image cards
 
+## UI pass (owner request 2026-11-17)
+- [x] Audit and fixes recorded in `docs/design/ui-audit.md`: grouped nav, Tools page, Settings order and spacing, Agents page search and empty state
+- [ ] Not done: Notes, Today, Chat and Approvals layouts, phone and light-theme re-check, collapsing sections on the agent page
+
 ## WP13: after v1 (ordered backlog, do not start before the release)
 
 

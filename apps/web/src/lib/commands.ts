@@ -19,6 +19,7 @@ const FIXED: Command[] = [
   { id: "cmd:ask", label: "Ask your notes", group: "Commands", hint: "answers with sources", action: { type: "goto", href: "/ask" } },
   { id: "cmd:gap", label: "Gap check", group: "Commands", hint: "compare a text with your notes", action: { type: "goto", href: "/gap" } },
   { id: "cmd:canvas", label: "Open Canvas", group: "Commands", hint: "boards", action: { type: "goto", href: "/canvas" } },
+  { id: "cmd:tools", label: "Open Tools", group: "Commands", hint: "ask, gap check, recall", action: { type: "goto", href: "/tools" } },
   { id: "cmd:chat", label: "New chat", group: "Commands", action: { type: "goto", href: "/chat?new=1" } },
   { id: "cmd:graph", label: "Open Graph", group: "Commands", action: { type: "goto", href: "/graph" } },
   { id: "cmd:agents", label: "Open Agents", group: "Commands", action: { type: "goto", href: "/agents" } },
