@@ -164,7 +164,7 @@ Chosen from the research (spaced repetition tied to notes, active processing ove
 
 ## Image paste (ADR-0021, owner delegated the choice 2026-11-17)
 - [x] `POST/GET /api/attachments` (bytes-sniffed PNG/JPEG/GIF/WebP, 5 MB, hash names in `vault/attachments/`), threat model T19
-- [x] Paste or drop in the editor, picture shown in place of its markdown, preview rewrites the link
+- [x] Paste or drop in the editor, picture shown in place of its markdown, preview rewrites the link. Checked in the browser: a pasted PNG uploaded, showed in place, loaded at full size, and the note saved with the link
 - [ ] Clean-up of pictures no note links to
 
 ## WP13: after v1 (ordered backlog, do not start before the release)
