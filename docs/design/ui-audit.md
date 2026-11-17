@@ -11,8 +11,13 @@ Owner feedback: "the ui is terrible, it is not useful". Method: screenshots of t
 - **Agents page repeated "Model: ready." on every template** and had no way to find one. Now it says something only when a model is missing, and has a search box.
 - **The graph could not be edited.** A Canvas now exists (see ADR-0027).
 
+## Second round (same day)
+- **Notes:** the new-note title box was cut to a few letters beside two buttons; it now has a full row.
+- **Chat:** the empty state was one grey line ("Add an agent first"); it now says what chat is and links to Create an agent.
+- **Approvals:** reviewed, fine as it is (clear empty state).
+- **Canvas in the light theme:** checked with colored cards, a group and an arrow label; readable.
+
 ## Seen, not fixed yet
-- Notes page and Today were not redesigned; they were only given the new nav.
-- Chat and Approvals pages were not reviewed in this pass.
-- Phone widths, the light theme and keyboard-only use of the new pages (wizard, canvas toolbar) were not checked.
+- Today was not redesigned beyond "Start here" and Capture.
+- Phone widths (the browser window here cannot be resized) and keyboard-only use of the wizard and canvas toolbar were not checked.
 - The agent page is long; sections could collapse.

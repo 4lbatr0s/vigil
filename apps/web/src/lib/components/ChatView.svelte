@@ -207,7 +207,7 @@
           <div class="row"><button type="submit" class="act primary">Start</button><button type="button" class="act" onclick={() => (picking = false)}>Cancel</button></div>
         </form>
       {/if}
-      {#if agents.length === 0}<p class="muted small">Add an agent first.</p>{/if}
+      {#if agents.length === 0}<p class="muted small">Chat needs an agent. <a href="/agents/new">Create one</a>.</p>{/if}
     </div>
     <ul>
       {#each threads as t (t.id)}
@@ -223,7 +223,16 @@
 
   <section class="conversation" aria-label="Conversation">
     {#if !id}
-      <p class="empty">Pick a chat, or start a new one with an agent.</p>
+      <div class="empty">
+        {#if agents.length === 0}
+          <p><strong>Chat talks to an agent.</strong></p>
+          <p class="muted">Create one in a minute: say what you want it to do and a model drafts it.</p>
+          <p><a class="act primary" href="/agents/new">Create an agent</a></p>
+        {:else}
+          <p><strong>Pick a chat on the left, or start a new one.</strong></p>
+          <p class="muted">A chat is a conversation with one of your agents. Everything it does to your notes can be undone.</p>
+        {/if}
+      </div>
     {:else if !thread}
       <p class="empty muted">{error || "Loading…"}</p>
     {:else}
@@ -345,7 +354,17 @@
   }
   .empty {
     margin: auto;
+    max-width: 28rem;
+    text-align: center;
+    display: grid;
+    gap: var(--space-2);
+  }
+  .empty .muted {
     color: var(--ink-muted);
+  }
+  .empty a.act {
+    display: inline-block;
+    text-decoration: none;
   }
   .head {
     display: flex;

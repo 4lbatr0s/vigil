@@ -562,13 +562,14 @@
 
   .create {
     display: flex;
+    flex-wrap: wrap;
     gap: var(--space-2);
     padding: var(--space-3) var(--space-4);
     border-top: 1px solid var(--hairline);
   }
 
   .input {
-    flex: 1;
+    flex: 1 1 100%;
     min-width: 0;
     padding: var(--space-2) var(--space-3);
     background: var(--surface);
