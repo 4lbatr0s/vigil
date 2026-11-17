@@ -2,13 +2,16 @@
   import Illustration from "$lib/components/Illustration.svelte";
   import { onMount, tick } from "svelte";
   import { page } from "$app/state";
-  import { answerStudyCard, getDecks, getDueCards, getStudyStats, undoStudyAnswer, type Answer, type DeckStats, type StudyStats } from "$lib/api";
+  import { answerStudyCard, getDecks, getDueCards, getStudyHistory, getStudyStats, undoStudyAnswer, type Answer, type DayCount, type DeckStats, type StudyStats } from "$lib/api";
   import { refreshStudyDue } from "$lib/study-state";
   import { ANSWER_KEYS, answer, current, isFinished, remaining, reveal, startSession, type Session } from "$lib/study-session";
 
   let session = $state<Session | null>(null);
   let stats = $state<StudyStats | null>(null);
   let decks = $state<DeckStats[]>([]);
+  let history = $state<DayCount[]>([]);
+  const peak = $derived(Math.max(1, ...history.map((d) => d.count)));
+  const weekTotal = $derived(history.slice(-7).reduce((n, d) => n + d.count, 0));
   let loadError = $state("");
   let saveError = $state("");
   let typed = $state("");
@@ -28,10 +31,11 @@
   async function load(): Promise<void> {
     loadError = "";
     try {
-      const [cards, st, d] = await Promise.all([getDueCards(noteId ? { note: noteId } : {}), getStudyStats(noteId ?? undefined), getDecks().catch(() => [] as DeckStats[])]);
+      const [cards, st, d, h] = await Promise.all([getDueCards(noteId ? { note: noteId } : {}), getStudyStats(noteId ?? undefined), getDecks().catch(() => [] as DeckStats[]), getStudyHistory().catch(() => [] as DayCount[])]);
       session = startSession(cards);
       stats = st;
       decks = d;
+      history = h;
       await tick();
       focusCard();
     } catch (err) {
@@ -186,6 +190,18 @@
       {#if before && lastAnswer}<p class="undo">Answered {lastAnswer}. <button type="button" class="linkbtn" onclick={() => void undo()}>Take it back <kbd>{inUndoBox ? `${modKey} Z` : "Z"}</kbd></button></p>{/if}
       <p class="source"><a href={`/?note=${encodeURIComponent(card.noteId)}`}>From {card.noteId}</a></p>
     </div>
+  {/if}
+
+  {#if history.some((d) => d.count > 0)}
+    <section class="history" aria-labelledby="recent">
+      <h2 id="recent">Last 14 days</h2>
+      <ol class="bars" aria-label={`${weekTotal} answers in the last 7 days`}>
+        {#each history as d (d.day)}
+          <li title={`${d.day}: ${d.count} ${d.count === 1 ? "answer" : "answers"}`}><span style={`height: ${Math.max(d.count ? 8 : 2, Math.round((d.count / peak) * 100))}%`} class:zero={d.count === 0}></span></li>
+        {/each}
+      </ol>
+      <p class="count">{weekTotal} {weekTotal === 1 ? "answer" : "answers"} this week</p>
+    </section>
   {/if}
 
   {#if decks.length > 0}
@@ -368,6 +384,43 @@
 
   .source a {
     color: var(--ink-muted);
+  }
+
+  .history h2 {
+    margin-bottom: var(--space-2);
+    font-size: var(--text-label);
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    font-weight: 500;
+    color: var(--ink-muted);
+  }
+
+  .bars {
+    display: flex;
+    align-items: flex-end;
+    gap: 4px;
+    height: 48px;
+    margin: 0 0 var(--space-2);
+    padding: 0;
+    list-style: none;
+  }
+
+  .bars li {
+    flex: 1;
+    height: 100%;
+    display: flex;
+    align-items: flex-end;
+  }
+
+  .bars span {
+    display: block;
+    width: 100%;
+    border-radius: 3px;
+    background: var(--ink-muted);
+  }
+
+  .bars span.zero {
+    background: var(--hairline);
   }
 
   .decks h2 {

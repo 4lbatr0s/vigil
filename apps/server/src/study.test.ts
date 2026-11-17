@@ -125,3 +125,19 @@ describe("study", () => {
     expect(new Date(first).getTime()).toBeGreaterThan(Date.now() - 1000);
   });
 });
+
+describe("study history", () => {
+  it("lists 14 days, oldest first, with today's answers counted", async () => {
+    await note("hist", "Q1 :: A1\n\nQ2 :: A2\n");
+    const due = await j("GET", "/api/study/due");
+    const ids = (due.body.data as { id: string }[]).map((c) => c.id);
+    for (const id of ids) await j("POST", "/api/study/review", { cardId: id, answer: "good" });
+    const res = await j("GET", "/api/study/history");
+    expect(res.status).toBe(200);
+    const days = res.body.data as { day: string; count: number }[];
+    expect(days).toHaveLength(14);
+    expect(days[13]?.count).toBe(ids.length);
+    expect(days.slice(0, 13).every((d) => d.count === 0)).toBe(true);
+    expect(days.map((d) => d.day)).toEqual(days.map((d) => d.day).slice().sort());
+  });
+});

@@ -740,6 +740,11 @@ export function reviewCountsSince(since: string): { total: number; again: number
   return row;
 }
 
+/** Timestamps (ISO) of every review at or after `since`, oldest first. */
+export function reviewTimesSince(since: string): string[] {
+  return (open().prepare("SELECT reviewed_at FROM reviews WHERE reviewed_at >= ? ORDER BY reviewed_at").all(since) as { reviewed_at: string }[]).map((r) => r.reviewed_at);
+}
+
 /** Reviews per note, for the retention line on a note: [total, answered again]. */
 export function reviewCountsForNote(noteId: string): { total: number; again: number } {
   return open().prepare("SELECT COUNT(*) AS total, COALESCE(SUM(rating = 1), 0) AS again FROM reviews WHERE note_id = ?").get(noteId) as { total: number; again: number };

@@ -4,6 +4,7 @@
 
 A note app first, with agents inside it.
 
+- Study: a quiet 14-day strip of how many cards you answered each day (plain counts, no streaks).
 - Responsive layout: labelled navigation on wide screens, icon rail in the middle, drawer and slide-over list on narrow screens; the top strip is a search field.
 - Note list: filter box with full-text hits, snippets, relative times, tag chips (frontmatter and inline `#tags`), pins (stored by the server, outside the note files) and a sort menu.
 - Writing: formatting shortcuts, floating selection toolbar, `/` menu for blocks, tables, callouts, dividers, tag pills, inline-editable title, word count.

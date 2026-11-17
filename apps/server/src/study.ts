@@ -1,7 +1,7 @@
 import { AppError } from "./errors";
 import { cardsForNote, listCards, type IndexedCard } from "./index-db";
 import { ANSWERS, isDue, newCardState, review, type Answer, type CardState } from "./srs";
-import { allCardStates, getCardState, reviewCountsByNote, reviewCountsForNote, reviewCountsSince, saveReview, undoLastReview } from "./state-db";
+import { allCardStates, getCardState, reviewCountsByNote, reviewCountsForNote, reviewCountsSince, reviewTimesSince, saveReview, undoLastReview } from "./state-db";
 
 /** New cards offered per request beyond the ones already due, so a big note never buries the day. */
 export const NEW_PER_SESSION = 10;
@@ -94,4 +94,28 @@ export function undoAnswer(): string {
   const id = undoLastReview();
   if (id === null) throw new AppError("nothing-to-undo", "There is no answer to take back.", 409);
   return id;
+}
+
+export type DayCount = { day: string; count: number };
+
+const localDay = (d: Date): string => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+/** Answers per local day for the last `days` days (oldest first, today last), zeros included. */
+export function studyHistory(now: Date, days = 14): DayCount[] {
+  const start = new Date(now);
+  start.setHours(0, 0, 0, 0);
+  start.setDate(start.getDate() - (days - 1));
+  const counts = new Map<string, number>();
+  for (const t of reviewTimesSince(start.toISOString())) {
+    const k = localDay(new Date(t));
+    counts.set(k, (counts.get(k) ?? 0) + 1);
+  }
+  const out: DayCount[] = [];
+  for (let i = 0; i < days; i++) {
+    const d = new Date(start);
+    d.setDate(start.getDate() + i);
+    const k = localDay(d);
+    out.push({ day: k, count: counts.get(k) ?? 0 });
+  }
+  return out;
 }
