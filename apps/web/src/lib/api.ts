@@ -113,6 +113,10 @@ export const stopRecall = (noteId: string) => request<{ ok: true }>(`/api/recall
 export const recordRecall = (noteId: string, result: RecallResult) => request<RecallItem>(`/api/recall/${seg(noteId)}/result`, json("POST", { result }));
 export const startRecallCheck = (noteId: string, recall: string) => request<Run>(`/api/notes/${seg(noteId)}/recall-check`, json("POST", { recall }));
 export const startOutline = (source: string) => request<Run>("/api/outline", json("POST", { source }));
+export type Misconception = { id: string; noteId: string; text: string; createdAt: string };
+export const listMisconceptions = (noteId: string) => request<Misconception[]>(`/api/misconceptions?note=${encodeURIComponent(noteId)}`);
+export const addMisconceptions = (noteId: string, texts: string[]) => request<Misconception[]>("/api/misconceptions", json("POST", { noteId, texts }));
+export const resolveMisconception = (id: string) => request<{ id: string }>(`/api/misconceptions/${seg(id)}/resolve`, json("POST", {}));
 export type McpSettings = { enabled: boolean; write: boolean };
 export const getMcpSettings = () => request<McpSettings>("/api/mcp/settings");
 export const putMcpSettings = (s: McpSettings) => request<McpSettings>("/api/mcp/settings", json("PUT", s));

@@ -190,6 +190,11 @@ Chosen from the research (spaced repetition tied to notes, active processing ove
 - [x] Tests: off by default, write only with its own switch, read tools, write as an undoable run, 30 writes per minute, size cap, Origin check
 - [ ] Not checked with a real MCP client (Claude Code or Claude Desktop); only our own JSON-RPC tests. Clients that speak only stdio need a bridge
 
+## Misconception ledger (same plan, 2026-11-17, ADR-0023)
+- [x] State migration 13 `misconceptions`; `GET/POST /api/misconceptions`, `POST /api/misconceptions/:id/resolve`; `checkItems` reads the checker's "Check" bullets; recall page: keep/untick/add your own, "You mixed these up before" with "I have this now"; card-maker task gets SHAKY START/END; `learner_status` lists open items
+- [x] Checked in the browser: the list shows on the write step. Live 4B run: the checker misread a recall (listed the mix-up as remembered, "None" under Check), so a hand-added entry exists for that case; a good checker model is untested
+- [ ] Not verified: saving after a rating in the browser end to end, and a card-maker run that uses SHAKY lines
+
 ## WP13: after v1 (ordered backlog, do not start before the release)
 
 

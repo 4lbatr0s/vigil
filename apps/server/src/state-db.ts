@@ -196,6 +196,17 @@ export const MIGRATIONS: readonly string[] = [
     updated_at TEXT NOT NULL
   );
   `,
+  `
+  -- migration 13: things the learner got wrong in a recall check, to watch for next time (ADR-0023)
+  CREATE TABLE misconceptions (
+    id TEXT PRIMARY KEY,
+    note_id TEXT NOT NULL,
+    text TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    resolved_at TEXT
+  );
+  CREATE INDEX misconceptions_note ON misconceptions(note_id, resolved_at);
+  `,
 ];
 
 let current: { key: string; db: Database.Database } | null = null;
@@ -851,4 +862,25 @@ export function saveRecall(row: RecallRow, now: Date): void {
 
 export function removeRecall(noteId: string): boolean {
   return open().prepare("DELETE FROM note_recall WHERE note_id = ?").run(noteId).changes > 0;
+}
+
+// ---- Misconceptions (ADR-0023): what the learner got wrong, kept until they say it is sorted ----
+
+export type MisconceptionRow = { id: string; noteId: string; text: string; createdAt: string };
+
+export function listMisconceptions(noteId?: string): MisconceptionRow[] {
+  const rows = (noteId === undefined
+    ? open().prepare("SELECT id, note_id, text, created_at FROM misconceptions WHERE resolved_at IS NULL ORDER BY created_at DESC")
+    : open().prepare("SELECT id, note_id, text, created_at FROM misconceptions WHERE resolved_at IS NULL AND note_id = ? ORDER BY created_at DESC")
+  ).all(...(noteId === undefined ? [] : [noteId])) as { id: string; note_id: string; text: string; created_at: string }[];
+  return rows.map((r) => ({ id: r.id, noteId: r.note_id, text: r.text, createdAt: r.created_at }));
+}
+
+export function insertMisconception(row: MisconceptionRow): void {
+  open().prepare("INSERT INTO misconceptions (id, note_id, text, created_at) VALUES (?, ?, ?, ?)").run(row.id, row.noteId, row.text, row.createdAt);
+}
+
+/** True when an open item was resolved; false when there is none with that id. */
+export function resolveMisconception(id: string, now: Date): boolean {
+  return open().prepare("UPDATE misconceptions SET resolved_at = ? WHERE id = ? AND resolved_at IS NULL").run(now.toISOString(), id).changes > 0;
 }

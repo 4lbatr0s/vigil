@@ -3,6 +3,7 @@ import { z } from "zod";
 import { checkAccess, type Access } from "./access";
 import { handleAuth } from "./auth";
 import { serveStatic } from "./static";
+import { AddBodySchema, addMisconceptions, resolveOne, shakyBlock } from "./misconceptions";
 import { McpSettingsSchema, handleMcp, mcpSettings, saveMcpSettings } from "./mcp";
 import { AskBodySchema, askTask, findPassages } from "./ask";
 import { AppError, isAppError } from "./errors";
@@ -35,7 +36,7 @@ import { ResultBodySchema, enroll, recordResult } from "./recall";
 import { GoalBodySchema, goalStatuses, validGoalDay } from "./goals";
 import { StudySettingsSchema, answerCard, deckStats, dueCards, saveStudySettings, studyForecast, stuckCards, studyHistory, studySettings, studyStats, undoAnswer } from "./study";
 import { cardsForNote } from "./index-db";
-import { addPin, approvalsForRun, clearHeartbeat, decideApproval, getApproval, listApprovals, listChatThreads, getAgent, getHeartbeat, getRun, getSchedule, listAgents, listEvents, listPins, listRuns, putAgent, listRecall, putSchedule, removeGoal, removePin, removeRecall, setGoal } from "./state-db";
+import { addPin, approvalsForRun, clearHeartbeat, decideApproval, getApproval, listApprovals, listChatThreads, getAgent, getHeartbeat, getRun, getSchedule, listAgents, listEvents, listPins, listRuns, putAgent, listMisconceptions, listRecall, putSchedule, removeGoal, removePin, removeRecall, setGoal } from "./state-db";
 import { createNote, deleteNote, getNote as vaultGetNote, slugify, updateNote, validateId } from "./vault";
 
 const MAX_BODY_BYTES = 2 * 1024 * 1024;
@@ -294,7 +295,7 @@ const routes: { method: string; pattern: RegExp; keys: string[]; handler: Handle
       // The note travels in the task, so the agent needs no tool at all (and a weak model has no tool call to get wrong).
       const note = indexGetNote(id);
       const text = (note?.body ?? "").slice(0, 20_000);
-      const run = startRun("card-maker", `Make study cards from this note (id ${id}, title "${note?.title ?? id}").\n\nNOTE START\n${text}\nNOTE END`, "manual");
+      const run = startRun("card-maker", `Make study cards from this note (id ${id}, title "${note?.title ?? id}").\n\nNOTE START\n${text}\nNOTE END${shakyBlock(id)}`, "manual");
       send(res, 202, { data: run });
     },
   },
@@ -398,6 +399,32 @@ const routes: { method: string; pattern: RegExp; keys: string[]; handler: Handle
       const parsed = McpSettingsSchema.safeParse(await readJsonBody(req));
       if (!parsed.success) throw new AppError("invalid-body", "Body must be { enabled: boolean, write: boolean }", 400);
       send(res, 200, { data: saveMcpSettings(parsed.data) });
+    },
+  },
+  {
+    method: "GET",
+    pattern: /^\/api\/misconceptions$/,
+    keys: [],
+    handler: async (_req, res, _params, url) => send(res, 200, { data: listMisconceptions(url.searchParams.get("note") ?? undefined) }),
+  },
+  {
+    method: "POST",
+    pattern: /^\/api\/misconceptions$/,
+    keys: [],
+    handler: async (req, res) => {
+      const parsed = AddBodySchema.safeParse(await readJsonBody(req));
+      if (!parsed.success) throw new AppError("invalid-body", "Body must be { noteId, texts: 1 to 5 strings of 3 to 300 characters }", 400);
+      if (indexGetNote(parsed.data.noteId) === null) throw new AppError("note-not-found", `Note not found: ${parsed.data.noteId}`, 404);
+      send(res, 201, { data: addMisconceptions(parsed.data.noteId, parsed.data.texts, new Date()) });
+    },
+  },
+  {
+    method: "POST",
+    pattern: /^\/api\/misconceptions\/([^/]+)\/resolve$/,
+    keys: ["id"],
+    handler: async (_req, res, params) => {
+      resolveOne(params["id"] ?? "", new Date());
+      send(res, 200, { data: { id: params["id"] } });
     },
   },
   {

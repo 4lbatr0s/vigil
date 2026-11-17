@@ -2,10 +2,11 @@ import { daysLeft, goalStatuses } from "./goals";
 import { listNotes } from "./index-db";
 import { dueRecall } from "./recall";
 import { deckStats, stuckCards, studySettings, studyStats } from "./study";
-import { listRecall } from "./state-db";
+import { listMisconceptions, listRecall } from "./state-db";
 
 const MAX_NOTES = 25;
 const MAX_STUCK = 8;
+const MAX_SHAKY = 10;
 
 /**
  * What Vigil knows about the learner's memory, as plain text an agent can read: totals, exam dates, notes with
@@ -52,6 +53,12 @@ export function learnerReport(now: Date, noteId?: string): string {
     for (const r of recall.slice(0, MAX_NOTES)) {
       lines.push(`- ${name(r.noteId)}: rung ${r.step}, last ${r.lastResult ?? "none yet"}, ${due.has(r.noteId) ? "due now" : `next ${r.due.slice(0, 10)}`}`);
     }
+  }
+
+  const shaky = listMisconceptions(noteId).slice(0, MAX_SHAKY);
+  if (shaky.length > 0) {
+    lines.push("", "Things the learner got wrong in recall checks and has not sorted out yet:");
+    for (const m of shaky) lines.push(`- ${name(m.noteId)}: ${m.text}`);
   }
 
   if (lines.length === 1 && stats.due + stats.new + stats.reviewedToday === 0) lines.push("", "No cards or recall checks yet.");
