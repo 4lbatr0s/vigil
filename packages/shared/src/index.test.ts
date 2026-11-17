@@ -112,6 +112,23 @@ describe("note text helpers", () => {
 });
 
 describe("extractCards", () => {
+  it("keeps the same question under different headings as separate cards, and drops a repeat under the same heading", () => {
+    const cards = extractCards("## A\nWhat does it make? :: ATP\nWhat does it make? :: again\n## B\nWhat does it make? :: Sugar");
+    expect(cards.map((c) => [c.context, c.back])).toEqual([["A", "ATP"], ["B", "Sugar"]]);
+    expect(new Set(cards.map((c) => c.id)).size).toBe(2);
+    expect(extractCards("What does it make? :: ATP")[0]?.id).toBe(cards[0]?.id);
+  });
+
+  it("remembers the nearest heading above each card, and ignores headings in code", () => {
+    const body = "Before? :: none\n# Bio\n## The cell\nWhat is ATP? :: energy\n```\n# not a heading\n```\nWhere is DNA? :: nucleus\n### Cells #\nThe {{nucleus}} holds DNA.";
+    expect(extractCards(body).map((c) => [c.front, c.context])).toEqual([
+      ["Before?", ""],
+      ["What is ATP?", "The cell"],
+      ["Where is DNA?", "The cell"],
+      ["The […] holds DNA.", "Cells"],
+    ]);
+  });
+
   it("reads question and answer lines, with list and quote marks before them", () => {
     const cards = extractCards("# Bio\n\nWhat is ATP? :: The cell's energy currency\n- Where is DNA kept? :: In the nucleus\n> Quoted? :: yes");
     expect(cards.map((c) => [c.kind, c.front, c.back, c.line])).toEqual([

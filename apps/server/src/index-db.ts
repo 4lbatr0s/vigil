@@ -19,7 +19,7 @@ export function dbPath(): string {
  * Bump when a table changes. The index is disposable (ADR-0001), so a different version drops every
  * table and the server rebuilds from the vault on start (`isEmpty` then `rebuildAll`).
  */
-const SCHEMA_VERSION = 5;
+const SCHEMA_VERSION = 6;
 
 function migrate(db: Database.Database): void {
   const version = db.pragma("user_version", { simple: true }) as number;
@@ -55,6 +55,7 @@ function migrate(db: Database.Database): void {
       front TEXT NOT NULL,
       back TEXT NOT NULL,
       line INTEGER NOT NULL,
+      context TEXT NOT NULL DEFAULT '',
       PRIMARY KEY (note_id, id)
     );
     CREATE INDEX IF NOT EXISTS cards_id ON cards(id);
@@ -148,8 +149,8 @@ export function reindexNote(note: Note): void {
     );
   }
   db.prepare("DELETE FROM cards WHERE note_id = ?").run(note.id);
-  const addCard = db.prepare("INSERT OR IGNORE INTO cards (id, note_id, kind, front, back, line) VALUES (?, ?, ?, ?, ?, ?)");
-  for (const c of extractCards(note.body)) addCard.run(c.id, note.id, c.kind, c.front, c.back, c.line);
+  const addCard = db.prepare("INSERT OR IGNORE INTO cards (id, note_id, kind, front, back, line, context) VALUES (?, ?, ?, ?, ?, ?, ?)");
+  for (const c of extractCards(note.body)) addCard.run(c.id, note.id, c.kind, c.front, c.back, c.line, c.context);
   db.prepare("DELETE FROM links WHERE src = ?").run(note.id);
   const insert = db.prepare("INSERT INTO links (src, dst) VALUES (?, ?)");
   for (const dst of extractLinks(note.body)) {
@@ -313,14 +314,14 @@ export function isFtsAvailable(): boolean {
 
 export type IndexedCard = Card & { noteId: string };
 
-type CardRow = { id: string; note_id: string; kind: string; front: string; back: string; line: number };
-const toCard = (r: CardRow): IndexedCard => ({ id: r.id, noteId: r.note_id, kind: r.kind === "cloze" ? "cloze" : "qa", front: r.front, back: r.back, line: r.line });
+type CardRow = { id: string; note_id: string; kind: string; front: string; back: string; line: number; context: string };
+const toCard = (r: CardRow): IndexedCard => ({ id: r.id, noteId: r.note_id, kind: r.kind === "cloze" ? "cloze" : "qa", front: r.front, back: r.back, line: r.line, context: r.context });
 
 /** Every card in the vault, in note then line order. */
 export function listCards(): IndexedCard[] {
-  return (open().db.prepare("SELECT id, note_id, kind, front, back, line FROM cards ORDER BY note_id, line").all() as CardRow[]).map(toCard);
+  return (open().db.prepare("SELECT id, note_id, kind, front, back, line, context FROM cards ORDER BY note_id, line").all() as CardRow[]).map(toCard);
 }
 
 export function cardsForNote(noteId: string): IndexedCard[] {
-  return (open().db.prepare("SELECT id, note_id, kind, front, back, line FROM cards WHERE note_id = ? ORDER BY line").all(noteId) as CardRow[]).map(toCard);
+  return (open().db.prepare("SELECT id, note_id, kind, front, back, line, context FROM cards WHERE note_id = ? ORDER BY line").all(noteId) as CardRow[]).map(toCard);
 }

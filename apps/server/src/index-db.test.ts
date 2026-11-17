@@ -152,7 +152,7 @@ describe("index details", () => {
     // Reopening sees the old version, drops every table and stamps the new version.
     expect(isEmpty()).toBe(true);
     const raw = new Database(dbFile, { readonly: true });
-    expect(raw.pragma("user_version", { simple: true })).toBe(5);
+    expect(raw.pragma("user_version", { simple: true })).toBe(6);
     raw.close();
     expect(await rebuildAll()).toBe(1);
     const fetched = getNote("digest");

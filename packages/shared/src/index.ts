@@ -198,6 +198,8 @@ export type Card = {
   back: string;
   /** 1-based line in the note body. */
   line: number;
+  /** Text of the nearest heading above the card, to tell apart cards that read alike; empty when there is none. */
+  context: string;
 };
 
 /** 32-bit FNV-1a, hex. Enough to tell cards in one vault apart; not a security hash. */
@@ -216,10 +218,12 @@ const norm = (t: string): string => t.replace(/\s+/g, " ").trim().toLowerCase();
  * Cards written in a note: `Question :: Answer` on one line, and cloze sentences with `{{hidden}}`.
  * Fenced code is ignored, and so are list markers and quote marks before a card. A cloze card shows the
  * sentence with the hidden parts as `[…]` on the front and the full sentence on the back. The same front
- * text twice in one note gives one card.
+ * text twice in one note gives one card, unless the two sit under different headings.
  */
 export function extractCards(body: string): Card[] {
   const cards: Card[] = [];
+  let heading = "";
+  const contextOf = new Map<string, string>();
   const seen = new Set<string>();
   let fence: string | null = null;
   body.split("\n").forEach((raw, i) => {
@@ -229,9 +233,14 @@ export function extractCards(body: string): Card[] {
       return;
     }
     if (fence !== null) return;
+    const h = /^#{1,6}\s+(.+?)\s*#*\s*$/.exec(raw);
+    if (h?.[1]) {
+      heading = h[1].trim().slice(0, 120);
+      return;
+    }
     const text = raw.replace(/^\s*(?:[-*+]\s+|\d+[.)]\s+|>\s*)+/, "").trim();
     if (text === "") return;
-    let card: Omit<Card, "id" | "line"> | null = null;
+    let card: Omit<Card, "id" | "line" | "context"> | null = null;
     const cloze = text.match(/\{\{([^{}]+)\}\}/g);
     if (cloze) {
       card = { kind: "cloze", front: text.replace(/\{\{([^{}]+)\}\}/g, "[…]"), back: text.replace(/\{\{([^{}]+)\}\}/g, "$1") };
@@ -240,10 +249,13 @@ export function extractCards(body: string): Card[] {
       if (at > 0 && at < text.length - 4) card = { kind: "qa", front: text.slice(0, at).trim(), back: text.slice(at + 4).trim() };
     }
     if (!card || card.front === "" || card.back === "") return;
-    const id = fnv1a(`${card.kind}:${norm(card.front)}`);
+    let id = fnv1a(`${card.kind}:${norm(card.front)}`);
+    // The same question under another heading is another card ("What does it make?" under Mitochondria and under Chloroplast).
+    if (seen.has(id) && contextOf.get(id) !== heading) id = fnv1a(`${card.kind}:${norm(card.front)}|${norm(heading)}`);
     if (seen.has(id)) return;
     seen.add(id);
-    cards.push({ ...card, id, line: i + 1 });
+    contextOf.set(id, heading);
+    cards.push({ ...card, id, line: i + 1, context: heading });
   });
   return cards;
 }

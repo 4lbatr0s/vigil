@@ -210,6 +210,9 @@ Chosen from the research (spaced repetition tied to notes, active processing ove
 - [x] `POST /api/gap` (`topWords` of the pasted text, matching note lines, no-tool `gap-checker` template with SOURCE and NOTES markers), `/gap` page, palette command
 - [x] Checked live (Ollama 4B): it listed the two points missing from the notes (a refrigerator example and Gibbs free energy) correctly, said nothing disagreed, and crossed two line numbers in the "In your notes" part. Marks there are not checked by the page the way `/ask` marks are
 
+## Heading context on cards (same plan, 2026-11-17)
+- [x] `extractCards` records the nearest heading (`context`, headings inside code fences ignored); the same front under a different heading is its own card (a different id, the first keeps its old id, so scheduling is not reset); index schema 6 (`cards.context`); Study shows the heading above the question. Checked in the browser
+
 ## WP13: after v1 (ordered backlog, do not start before the release)
 
 

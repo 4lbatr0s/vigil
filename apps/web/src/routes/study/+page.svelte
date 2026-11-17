@@ -174,6 +174,7 @@
   {:else if card}
     <div class="stage" tabindex="-1" bind:this={stage}>
       <p class="kind">{card.kind === "cloze" ? "Fill in the blank" : "Question"}{card.isNew ? " · new" : ""}</p>
+      {#if card.context}<p class="context">{card.context}</p>{/if}
       <p class="front">{card.front}</p>
       {#if !session.revealed}
         {#if typeFirst}
@@ -319,6 +320,10 @@
     color: var(--ink-muted);
   }
 
+  .context {
+    color: var(--ink-muted);
+    font-size: var(--text-label);
+  }
   .front {
     font-family: var(--font-serif);
     font-size: var(--text-h2);
