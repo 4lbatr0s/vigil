@@ -10,6 +10,7 @@ Only you can do these (a decision, an account, a real device, or publishing). Ti
 
 ## Real devices and real tools (tell the agent what you saw)
 - [ ] **Phone:** open the app on a real phone; report layout problems (the browser window here cannot be resized).
+- [ ] **Share to Vigil:** install Vigil as an app on your phone, share a link or text to it from another app, and report whether it arrives in the Capture page.
 - [ ] **Anki:** import a file from Study, "Download cards", into real Anki; report any problem.
 - [ ] **MCP:** switch it on in Settings and connect Claude Code or Claude Desktop to `/api/mcp`; report what works.
 - [ ] **A larger model:** try a model bigger than the local 4B on filing (Inbox), the weekly study review, recall checks and Ask your notes; tell the agent the model name and how it did.
