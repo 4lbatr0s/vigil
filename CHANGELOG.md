@@ -5,6 +5,7 @@
 A note app first, with agents inside it.
 
 - Notes: "From text" turns pasted text into an empty outline of headings and questions for you to answer in your own words, and there is a Cornell-style note template.
+- Canvas v2 (ADR-0027 amendment): copy, cut, paste, duplicate, right-click menus, lock, group with Ctrl/Cmd+G, Space to pan and scroll to move, paste or drop a link or picture; a Map button that turns a note's headings into a board; Tab and Shift+Enter to grow a mind map; checklists with progress that can be ticked on the board; align, space evenly, tidy as tree or grid, snapping guides; arrowheads and line styles; show only one heading of a note on a card; an icon dock, a keys panel, a learning-path and a mind-map starter, board duplicate, and export as PNG.
 - Agents: ready-made agents show tags (when it runs, what it touches, whether it uses the web) and the gallery search matches them. The agent page folds model, budget and instructions under "Advanced". The Today empty state is centred.
 - Study: a "Keeps slipping" list of cards you have forgotten again and again.
 - Study: a "Coming up" strip of reviews due over the next 14 days, settings for new cards per day and the remembering target, and sessions that take turns between notes.

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { goto } from "$app/navigation";
-  import { ApiError, createCanvas, deleteCanvas, listCanvases, saveCanvas, type CanvasSummary } from "$lib/api";
+  import { ApiError, createCanvas, deleteCanvas, getCanvas, listCanvases, saveCanvas, type CanvasSummary } from "$lib/api";
   import { starterBoard } from "$lib/canvas-layout";
   import { relativeTime } from "$lib/note-list";
 
@@ -51,6 +51,19 @@
     }
   }
 
+  /** A copy of a board under a new name; the cards are copied, the notes they show are not. */
+  async function duplicate(id: string): Promise<void> {
+    error = "";
+    try {
+      const from = await getCanvas(id);
+      const made = await createCanvas(`${id} copy`);
+      await saveCanvas(made.id, from.canvas, made.updatedAt);
+      await load();
+    } catch (err) {
+      error = err instanceof ApiError ? err.detail : err instanceof Error ? err.message : "Could not copy it";
+    }
+  }
+
   async function remove(id: string): Promise<void> {
     try {
       await deleteCanvas(id);
@@ -96,6 +109,7 @@
             <button type="button" class="ghost danger" onclick={() => void remove(c.id)}>Delete</button>
             <button type="button" class="ghost" onclick={() => (confirmDelete = null)}>Keep</button>
           {:else}
+            <button type="button" class="ghost" onclick={() => void duplicate(c.id)}>Duplicate</button>
             <button type="button" class="ghost" onclick={() => (confirmDelete = c.id)}>Delete</button>
           {/if}
         </li>

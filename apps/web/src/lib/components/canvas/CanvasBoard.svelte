@@ -1,8 +1,8 @@
 <script lang="ts">
-  import { setContext, untrack } from "svelte";
-  import { Background, BackgroundVariant, ConnectionMode, Controls, MarkerType, MiniMap, Panel, SvelteFlow, useSvelteFlow, type Edge, type Node } from "@xyflow/svelte";
+  import { setContext, tick, untrack } from "svelte";
+  import { Background, BackgroundVariant, ConnectionMode, Controls, MarkerType, MiniMap, Panel, SvelteFlow, getViewportForBounds, useSvelteFlow, type Edge, type Node } from "@xyflow/svelte";
   import { getNote, listNotes, uploadImage } from "$lib/api";
-  import { EDGE_STYLE_FIELD, EDGE_STYLES, History, LOCK_FIELD, PRESETS, PRESET_NAMES, SIZES, cssColor, checklistProgress, edgeStyleOf, excerpt, headingsOf, imageNameOf, isLocked, lockProps, newId, noteFile, noteIdOf, snapshot, toBoard, toFile, type BoardEdge, type BoardNode, type CanvasFile, type CanvasSide, type CardData, type CardKind } from "$lib/canvas";
+  import { EDGE_STYLE_FIELD, EDGE_STYLES, History, LOCK_FIELD, PRESETS, PRESET_NAMES, SIZES, cssColor, edgeStyleOf, headingsOf, imageNameOf, isLocked, lockProps, newId, noteFile, noteIdOf, snapshot, toBoard, toFile, type BoardEdge, type BoardNode, type CanvasFile, type CanvasSide, type CardData, type CardKind } from "$lib/canvas";
   import { boundsOf, copySelection, groupAround, pasteClip, restack, type Clip } from "$lib/canvas-clipboard";
   import { alignBoxes, distributeBoxes, matchedSize, snapToObjects, type AlignHow, type Box } from "$lib/canvas-guides";
   import { refreshOnLive } from "$lib/live";
@@ -15,6 +15,18 @@
   import AlignStartHorizontal from "@lucide/svelte/icons/align-start-horizontal";
   import AlignStartVertical from "@lucide/svelte/icons/align-start-vertical";
   import AlignVerticalDistributeCenter from "@lucide/svelte/icons/align-vertical-distribute-center";
+  import DownloadIcon from "@lucide/svelte/icons/download";
+  import FileText from "@lucide/svelte/icons/file-text";
+  import ImageIcon from "@lucide/svelte/icons/image";
+  import Keyboard from "@lucide/svelte/icons/keyboard";
+  import LinkIcon from "@lucide/svelte/icons/link";
+  import ListTree from "@lucide/svelte/icons/list-tree";
+  import Magnet from "@lucide/svelte/icons/magnet";
+  import Maximize from "@lucide/svelte/icons/maximize";
+  import Redo2 from "@lucide/svelte/icons/redo-2";
+  import SquareDashed from "@lucide/svelte/icons/square-dashed";
+  import TypeIcon from "@lucide/svelte/icons/type";
+  import Undo2 from "@lucide/svelte/icons/undo-2";
   import MoveHorizontal from "@lucide/svelte/icons/move-horizontal";
   import MoveVertical from "@lucide/svelte/icons/move-vertical";
   import type { NoteSummary } from "@vigil/shared";
@@ -44,6 +56,7 @@
   let pickQuery = $state("");
   let notes = $state<NoteSummary[]>([]);
   let help = $state(false);
+  let exporting = $state(false);
   let menu = $state<{ x: number; y: number; items: MenuItem[] } | null>(null);
   /** The card the board wants to start editing; the card itself notices and begins (see `wantsEdit`). */
   let editTarget = $state<string | null>(null);
@@ -90,10 +103,11 @@
   /** A change is finished: save it and make it one undo step. */
   function commit(): void {
     const b = asBoard();
-    history.push(snapshot(b.nodes, b.edges));
+    const file = toFile(b.nodes, b.edges);
+    history.push(JSON.stringify(file));
     canUndo = history.canUndo;
     canRedo = history.canRedo;
-    onChange(toFile(b.nodes, b.edges));
+    onChange(file);
   }
 
   function load(text: string): void {
@@ -228,6 +242,38 @@
     const size = matchedSize(boxes, dim);
     nodes = nodes.map((n) => (boxes.some((b) => b.id === n.id) ? { ...n, [dim]: size } : n));
     commit();
+  }
+
+  /**
+   * The whole board as a picture (PNG), like Obsidian's export. The library that draws it loads only now, so it costs
+   * nothing until used. Every card is drawn for that moment (the board normally draws only what is on screen).
+   */
+  async function exportPng(): Promise<void> {
+    if (nodes.length === 0 || exporting) return;
+    exporting = true;
+    imageError = "";
+    try {
+      await tick();
+      await new Promise((r) => requestAnimationFrame(() => r(null)));
+      const { toPng } = await import("html-to-image");
+      const el = document.querySelector<HTMLElement>(".canvas-wrap .svelte-flow__viewport");
+      if (!el) throw new Error("The board is not on screen");
+      const bounds = flow.getNodesBounds(nodes);
+      const long = Math.max(bounds.width, bounds.height) + 120;
+      const scale = Math.min(2, 4096 / long);
+      const width = Math.round((bounds.width + 120) * scale);
+      const height = Math.round((bounds.height + 120) * scale);
+      const view = getViewportForBounds(bounds, width, height, 0.05, 4, 0.06);
+      const url = await toPng(el, { backgroundColor: getComputedStyle(document.body).backgroundColor, width, height, style: { width: `${width}px`, height: `${height}px`, transform: `translate(${view.x}px, ${view.y}px) scale(${view.zoom})` } });
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "canvas.png";
+      a.click();
+    } catch (err) {
+      imageError = `Could not make the picture: ${err instanceof Error ? err.message : "unknown error"}`;
+    } finally {
+      exporting = false;
+    }
   }
 
   // ---- copy, cut, paste, duplicate ----
@@ -731,6 +777,7 @@
     bind:edges
     {nodeTypes}
     fitView
+    onlyRenderVisibleElements={!exporting}
     minZoom={0.1}
     maxZoom={2.5}
     snapGrid={snapOn && !spaceDown ? [10, 10] : undefined}
@@ -761,22 +808,7 @@
     <Controls showLock={false} />
     <MiniMap pannable zoomable />
 
-    <Panel position="top-left">
-      <div class="bar" role="toolbar" aria-label="Canvas tools">
-        <button type="button" onclick={() => add("text")} title="A card for your own words (or double-click the board)">Text</button>
-        <button type="button" onclick={() => void openPicker()} aria-expanded={picking} title="Put a note on the board">Note…</button>
-        <button type="button" onclick={() => fileInput?.click()} title="A picture from your computer">Image…</button>
-        <button type="button" onclick={() => add("link")} title="A web address">Link</button>
-        <button type="button" onclick={() => add("group")} title="A box to gather cards in">Group</button>
-        <span class="sep" aria-hidden="true"></span>
-        <button type="button" disabled={!canUndo} onclick={undo} title="Undo (Ctrl or Cmd + Z)">Undo</button>
-        <button type="button" disabled={!canRedo} onclick={redo} title="Redo (Shift + Ctrl or Cmd + Z)">Redo</button>
-        <span class="sep" aria-hidden="true"></span>
-        <button type="button" aria-pressed={snapOn} onclick={toggleSnap} title="Snap cards to the grid and to each other (hold Space while dragging to turn it off)">Snap</button>
-        <button type="button" aria-pressed={outline} onclick={() => (outline = !outline)} title="A list of everything on the board, for the keyboard">Outline</button>
-        <button type="button" aria-pressed={help} onclick={() => (help = !help)} title="Keys and mouse">Keys</button>
-      </div>
-      <input type="file" accept="image/png,image/jpeg,image/gif,image/webp" class="hidden" bind:this={fileInput} onchange={(e) => { void addImage(e.currentTarget.files?.[0]); e.currentTarget.value = ""; }} aria-label="Choose a picture" />
+    <Panel position="bottom-center">
       {#if imageError}<p class="img-err" role="alert">{imageError}</p>{/if}
       {#if picking}
         <div class="picker" role="dialog" aria-label="Choose a note">
@@ -791,6 +823,26 @@
           </ul>
         </div>
       {/if}
+      <div class="bar dock" role="toolbar" aria-label="Canvas tools">
+        <button type="button" class="icon" aria-label="Text card" onclick={() => add("text")} title="Text card (or double-click the board)"><TypeIcon size={18} strokeWidth={1.5} /></button>
+        <button type="button" class="icon" aria-label="Note card" aria-expanded={picking} onclick={() => void openPicker()} title="Put a note on the board"><FileText size={18} strokeWidth={1.5} /></button>
+        <button type="button" class="icon" aria-label="Picture card" onclick={() => fileInput?.click()} title="A picture from your computer"><ImageIcon size={18} strokeWidth={1.5} /></button>
+        <button type="button" class="icon" aria-label="Link card" onclick={() => add("link")} title="A web address"><LinkIcon size={18} strokeWidth={1.5} /></button>
+        <button type="button" class="icon" aria-label="Group" onclick={() => add("group")} title="A box to gather cards in (Ctrl/Cmd G groups the selection)"><SquareDashed size={18} strokeWidth={1.5} /></button>
+        <span class="sep" aria-hidden="true"></span>
+        <button type="button" class="icon" aria-label="Undo" disabled={!canUndo} onclick={undo} title="Undo (Ctrl or Cmd + Z)"><Undo2 size={18} strokeWidth={1.5} /></button>
+        <button type="button" class="icon" aria-label="Redo" disabled={!canRedo} onclick={redo} title="Redo (Shift + Ctrl or Cmd + Z)"><Redo2 size={18} strokeWidth={1.5} /></button>
+        <span class="sep" aria-hidden="true"></span>
+        <button type="button" class="icon" aria-label="Fit everything" onclick={() => void flow.fitView({ duration: 200, padding: 0.15 })} title="Fit everything (Shift 1)"><Maximize size={18} strokeWidth={1.5} /></button>
+        <button type="button" class="icon" aria-label="Export as picture" disabled={nodes.length === 0 || exporting} onclick={() => void exportPng()} title="Save the whole board as a PNG picture"><DownloadIcon size={18} strokeWidth={1.5} /></button>
+        <button type="button" class="icon" aria-label="Snap" aria-pressed={snapOn} onclick={toggleSnap} title="Snap cards to the grid and to each other (hold Space while dragging to turn it off)"><Magnet size={18} strokeWidth={1.5} /></button>
+        <button type="button" class="icon" aria-label="Outline" aria-pressed={outline} onclick={() => (outline = !outline)} title="A list of everything on the board, for the keyboard"><ListTree size={18} strokeWidth={1.5} /></button>
+        <button type="button" class="icon" aria-label="Keys and mouse" aria-pressed={help} onclick={() => (help = !help)} title="Keys and mouse"><Keyboard size={18} strokeWidth={1.5} /></button>
+      </div>
+      <input type="file" accept="image/png,image/jpeg,image/gif,image/webp" class="hidden" bind:this={fileInput} onchange={(e) => { void addImage(e.currentTarget.files?.[0]); e.currentTarget.value = ""; }} aria-label="Choose a picture" />
+    </Panel>
+
+    <Panel position="top-left">
       {#if selectedNodes.length + selectedEdges.length > 0}
         <div class="bar sel" role="toolbar" aria-label="Selected">
           <span class="muted">{selectedNodes.length + selectedEdges.length} selected</span>
@@ -870,7 +922,7 @@
     <CanvasMenu x={menu.x} y={menu.y} items={menu.items} onclose={() => (menu = null)} />
   {/if}
   {#if nodes.length === 0}
-    <p class="empty">An empty board. Double-click anywhere to write a card, or use <strong>Note…</strong> to bring in a note.</p>
+    <p class="empty">An empty board. Double-click to write a card, right-click for more, paste a link or a picture, or use the note button below to bring in a note. Press the keyboard button for all the keys.</p>
   {/if}
 </div>
 
@@ -888,7 +940,7 @@
     --xy-edge-label-color-default: var(--ink);
     --xy-edge-label-background-color-default: var(--bg);
     --xy-node-border-radius-default: var(--radius);
-    --xy-handle-background-color-default: var(--ink);
+    --xy-handle-background-color-default: var(--canvas-5);
     --xy-handle-border-color-default: var(--bg);
     --xy-selection-background-color-default: color-mix(in srgb, var(--ink) 8%, transparent);
     --xy-selection-border-default: 1px dotted var(--ink-muted);
@@ -898,7 +950,7 @@
     --xy-controls-button-background-color-hover-default: var(--surface-hover);
     --xy-controls-button-color-default: var(--ink);
     --xy-controls-button-border-color-default: var(--hairline);
-    --xy-resize-background-color-default: var(--ink);
+    --xy-resize-background-color-default: var(--canvas-5);
     --xy-minimap-node-background-color-default: var(--ink-muted);
     --xy-minimap-node-stroke-color-default: var(--ink-muted);
   }
@@ -909,14 +961,24 @@
     box-shadow: none;
     color: var(--ink);
   }
+  .canvas-wrap :global(.svelte-flow__node > div:not(.svelte-flow__resize-control)) {
+    box-shadow: 0 1px 3px color-mix(in srgb, var(--ink) 14%, transparent);
+    transition: box-shadow 120ms ease;
+  }
+  .canvas-wrap :global(.svelte-flow__node:hover > div:not(.svelte-flow__resize-control)) {
+    box-shadow: 0 2px 8px color-mix(in srgb, var(--ink) 22%, transparent);
+  }
   .canvas-wrap :global(.svelte-flow__node.selected) > :global(div:not(.svelte-flow__resize-control)) {
-    outline: 2px solid var(--ink);
+    outline: 2px solid var(--canvas-5);
     outline-offset: 1px;
   }
   .canvas-wrap :global(.svelte-flow__handle) {
     opacity: 0;
-    width: 10px;
-    height: 10px;
+    width: 8px;
+    height: 8px;
+    min-width: 0;
+    min-height: 0;
+    transition: opacity 120ms ease;
   }
   .canvas-wrap :global(.svelte-flow__node:hover .svelte-flow__handle),
   .canvas-wrap :global(.svelte-flow__node.selected .svelte-flow__handle) {
@@ -945,8 +1007,14 @@
     color: var(--err-ink);
     font-size: var(--text-label);
   }
-  .sel {
-    margin-top: var(--space-2);
+  .dock {
+    margin: 0 auto var(--space-3);
+    width: max-content;
+    max-width: 100%;
+    gap: var(--space-1);
+  }
+  .picker {
+    margin: 0 auto var(--space-2);
   }
   .bar button {
     padding: var(--space-1) var(--space-3);

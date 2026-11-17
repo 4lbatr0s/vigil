@@ -21,3 +21,6 @@ Only you can do these (a decision, an account, a real device, or publishing). Ti
 - [ ] **Embedding model (optional):** if you want Ask to find notes by meaning and not only by words, run `ollama pull nomic-embed-text` (a download of a few hundred MB). Then tell the agent, which will measure full-text search against embeddings on a temp vault before building anything.
 - [ ] **A real hosted key:** add an OpenAI, Anthropic or DeepSeek connection in Settings, press Test and list models, and run an agent; tell the agent what broke (it never sees your key).
 - [ ] **Canvas in Obsidian:** open a `.canvas` file made by Vigil in Obsidian (copy it into a vault) and tell the agent whether it shows correctly; also decide whether to keep the small "Svelte Flow" attribution on the board.
+
+- [ ] **Canvas v2 in real Obsidian.** Open a board saved by Vigil (one with locked cards and a right-angle arrow) in Obsidian and check it opens, nothing is lost, and the Vigil fields (`vigilLock`, `vigilStyle`) cause no complaint.
+- [ ] **Canvas on a phone.** Touch gestures (long-press menu, pinch) are not built; check what the board does on a real device.
