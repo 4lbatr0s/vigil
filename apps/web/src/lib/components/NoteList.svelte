@@ -4,7 +4,11 @@
   import Pin from "@lucide/svelte/icons/pin";
   import Search from "@lucide/svelte/icons/search";
   import X from "@lucide/svelte/icons/x";
-  import { putNote, searchNotes } from "$lib/api";
+  import { goto } from "$app/navigation";
+  import CalendarIcon from "@lucide/svelte/icons/calendar";
+  import Calendar from "$lib/components/Calendar.svelte";
+  import { getStudyHistory, putNote, searchNotes } from "$lib/api";
+  import { parseDay } from "$lib/daily";
   import { relativeTime, tagCounts, viewNotes, type SortKey } from "$lib/note-list";
   import { ROW_HEIGHT, VIRTUALIZE_ABOVE, visibleWindow } from "$lib/window";
 
@@ -27,6 +31,23 @@
     oncreated: (note: Note) => void;
     ontogglepin: (id: string, pinned: boolean) => void;
   } = $props();
+
+  let calendarOpen = $state(false);
+  let studyDays = $state(new Set<string>());
+  const noteDays = $derived(new Set(notes.filter((n) => parseDay(n.id)).map((n) => n.id)));
+  const selectedDay = $derived(selectedId && parseDay(selectedId) ? selectedId : null);
+  async function toggleCalendar(): Promise<void> {
+    calendarOpen = !calendarOpen;
+    if (!calendarOpen) return;
+    try {
+      studyDays = new Set((await getStudyHistory(90)).filter((d) => d.count > 0).map((d) => d.day));
+    } catch {
+      studyDays = new Set(); // the calendar still works without the study dots
+    }
+  }
+  function openDay(day: string): void {
+    void goto(`/?daily=${day}`);
+  }
 
   let newTitle = $state("");
   let creating = $state(false);
@@ -147,11 +168,15 @@
     </label>
     <div class="tools">
       <span class="count" aria-live="polite">{shown.length} {shown.length === 1 ? "note" : "notes"}</span>
+      <button type="button" class="calbtn" aria-expanded={calendarOpen} aria-controls="note-calendar" aria-label="Calendar" title="Calendar of daily notes" onclick={() => void toggleCalendar()}><CalendarIcon size={14} strokeWidth={1.5} /></button>
       <select class="sort" aria-label="Sort notes" value={sort} onchange={(e) => setSort(e.currentTarget.value === "title" ? "title" : "modified")}>
         <option value="modified">Recently changed</option>
         <option value="title">Title</option>
       </select>
     </div>
+    {#if calendarOpen}
+      <div id="note-calendar"><Calendar {noteDays} {studyDays} {selectedDay} onpick={openDay} /></div>
+    {/if}
     {#if tags.length > 0}
       <div class="chips" role="group" aria-label="Filter by tag">
         <button type="button" class="chip" class:on={tag === null} aria-pressed={tag === null} onclick={() => (tag = null)}>All</button>
@@ -283,6 +308,22 @@
   }
 
   .clear:hover {
+    background: var(--surface-hover);
+    color: var(--ink);
+  }
+
+  .calbtn {
+    margin-left: auto;
+    border: 0;
+    background: transparent;
+    color: var(--ink-muted);
+    border-radius: var(--radius);
+    padding: var(--space-1);
+    cursor: pointer;
+    display: inline-flex;
+  }
+  .calbtn:hover,
+  .calbtn[aria-expanded="true"] {
     background: var(--surface-hover);
     color: var(--ink);
   }

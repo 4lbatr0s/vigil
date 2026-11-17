@@ -140,4 +140,10 @@ describe("study history", () => {
     expect(days.slice(0, 13).every((d) => d.count === 0)).toBe(true);
     expect(days.map((d) => d.day)).toEqual(days.map((d) => d.day).slice().sort());
   });
+
+  it("takes a day count, capped at 90", async () => {
+    expect(((await j("GET", "/api/study/history?days=30")).body.data as unknown[]).length).toBe(30);
+    expect(((await j("GET", "/api/study/history?days=5000")).body.data as unknown[]).length).toBe(90);
+    expect(((await j("GET", "/api/study/history?days=abc")).body.data as unknown[]).length).toBe(14);
+  });
 });

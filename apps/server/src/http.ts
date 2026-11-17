@@ -181,8 +181,10 @@ const routes: { method: string; pattern: RegExp; keys: string[]; handler: Handle
     method: "GET",
     pattern: /^\/api\/study\/history$/,
     keys: [],
-    handler: (_req, res) => {
-      send(res, 200, { data: studyHistory(new Date()) });
+    handler: (_req, res, _params, url) => {
+      const asked = Number(url.searchParams.get("days") ?? 14);
+      const days = Number.isInteger(asked) ? Math.min(90, Math.max(1, asked)) : 14;
+      send(res, 200, { data: studyHistory(new Date(), days) });
     },
   },
   {
