@@ -10,6 +10,8 @@ Start with `AGENTS.md` at the repo root if you are a coding agent. This page lis
 | `spec/progress.md` | **What is done and what is next**: one checkbox per task. | Live, update with every task |
 | `spec/architecture.md` | How the parts fit: processes, stores, module map, sequences, failure modes. | Live |
 | `spec/threat-model.md` | What we protect, from whom, with which controls, and what stays risky. | Live |
+| `todo-agent.md` | What the agent can do alone, in order. | Live, tick with every item |
+| `todo-owner.md` | What only the owner can do (decisions, real devices, publishing). | Live |
 | `spec/open-questions.md` | Decisions that still need the owner, and questions raised while building. | Live |
 | `design/ui.md` | Design tokens and component stances ("Quiet Instrument"). | Accepted (ADR-0005) |
 | `design/ux-spec.md` | Every screen: layout, states, copy, keyboard, motion, accessibility, icons, app mark. | Live, required for UI tasks |

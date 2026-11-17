@@ -70,3 +70,5 @@ Model settings for manual runs (environment only): `VIGIL_LLM_PROVIDER=ollama|op
 ## Where things stand
 
 See `docs/spec/progress.md` (the single source of truth for status) and `docs/spec/roadmap.md` (milestones M0 to M6). M0 (notes) and M1 (agent runtime, server only) are built. Everything else is planned in detail.
+
+Open work is split in two: `docs/todo-agent.md` (what you can do alone: take the first unchecked item) and `docs/todo-owner.md` (what needs the owner; do not do these).
