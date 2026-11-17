@@ -20,7 +20,7 @@ import { chatTurn, chatWithMessages, newChat, removeChat, saveChatAsNote, type C
 import { cronError, nextTickAfter } from "./cron";
 import { buildGraphData } from "./graph";
 import { attachStream } from "./events";
-import { resumeRun, startRun, undoRun } from "./runs";
+import { bodyBeforeRun, resumeRun, startRun, undoRun } from "./runs";
 import { getPermissions, putPermissions } from "./permissions";
 import { planRename, renameNote } from "./rename";
 import { refreshSchedule } from "./scheduler";
@@ -426,6 +426,14 @@ const routes: { method: string; pattern: RegExp; keys: string[]; handler: Handle
         "cache-control": "private, max-age=31536000, immutable",
       });
       res.end(bytes);
+    },
+  },
+  {
+    method: "GET",
+    pattern: /^\/api\/runs\/([^/]+)\/before\/([^/]+)$/,
+    keys: ["id", "noteId"],
+    handler: async (_req, res, params) => {
+      send(res, 200, { data: await bodyBeforeRun(params["id"] ?? "", params["noteId"] ?? "") });
     },
   },
   {

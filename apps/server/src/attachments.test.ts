@@ -49,7 +49,7 @@ afterEach(async () => {
   await rm(root, { recursive: true, force: true });
 });
 
-const upload = (body: Buffer, type = "image/png") => fetch(`${base}/api/attachments`, { method: "POST", headers: { "content-type": type }, body });
+const upload = (body: Buffer, type = "image/png") => fetch(`${base}/api/attachments`, { method: "POST", headers: { "content-type": type }, body: new Uint8Array(body) });
 
 describe("attachments API", () => {
   it("stores an image under its hash and serves it back as an inert image", async () => {

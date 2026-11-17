@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { diffLines, diffStats } from "./diff";
+import { diffLines, diffStats, revertChange, segments } from "./diff";
 
 const render = (d: ReturnType<typeof diffLines>) => d.map((l) => `${l.kind === "add" ? "+" : l.kind === "del" ? "-" : " "}${l.text}`);
 
@@ -27,5 +27,27 @@ describe("diffLines", () => {
     const other = Array.from({ length: 2500 }, (_, i) => `other ${i}`).join("\n");
     const d = diffLines(big, other);
     expect(diffStats(d)).toEqual({ added: 2500, removed: 2500 });
+  });
+});
+
+describe("segments and revertChange", () => {
+  const before = "one\ntwo\nthree\nfour\nfive\n";
+  const after = "one\nTWO\nthree\nfour\nfive\nsix\n";
+  it("finds each change separately", () => {
+    const changes = segments(diffLines(before, after)).filter((s) => s.kind === "change");
+    expect(changes).toEqual([
+      { kind: "change", id: 0, del: ["two"], add: ["TWO"] },
+      { kind: "change", id: 1, del: [], add: ["six"] },
+    ]);
+  });
+  it("puts back one change and keeps the others", () => {
+    expect(revertChange(before, after, 0)).toBe("one\ntwo\nthree\nfour\nfive\nsix\n");
+    expect(revertChange(before, after, 1)).toBe("one\nTWO\nthree\nfour\nfive\n");
+  });
+  it("reverting a pure removal brings the lines back", () => {
+    expect(revertChange("a\nb\nc\n", "a\nc\n", 0)).toBe("a\nb\nc\n");
+  });
+  it("an id that matches nothing changes nothing", () => {
+    expect(revertChange(before, after, 9)).toBe(after);
   });
 });

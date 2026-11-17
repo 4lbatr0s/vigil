@@ -21,6 +21,7 @@
   import StudyWith from "$lib/components/StudyWith.svelte";
   import Illustration from "$lib/components/Illustration.svelte";
   import NoteActivity from "$lib/components/NoteActivity.svelte";
+  import ChangeReview from "$lib/components/ChangeReview.svelte";
   import ProvenanceBar from "$lib/components/ProvenanceBar.svelte";
   import { runsForNote, undoableRun } from "$lib/note-activity";
 
@@ -43,6 +44,8 @@
   let studyOpen = $state(false);
   /** Bumped when the note changed on disk behind the editor, so the editor is rebuilt from the saved text. */
   let reloadKey = $state(0);
+  /** The run whose changes are being reviewed hunk by hunk, for the open note only. */
+  let review = $state<{ runId: string; noteId: string; agent: string } | null>(null);
   let askSelection = $state<string | null>(null);
   const current = $derived(notes.find((n) => n.id === selectedId));
   const noteRuns = $derived(selectedId ? runsForNote(runs, selectedId) : []);
@@ -387,7 +390,10 @@
         <p class="title-hint" id="title-hint">The file name stays the same. Use Rename to change it.</p>
       {/if}
 
-      <ProvenanceBar agentName={current?.author === "agent" ? current.agentName : undefined} writtenAt={current?.updatedAt} run={writerRun} pending={pendingHere} onundone={() => void onUndone()} />
+      <ProvenanceBar agentName={current?.author === "agent" ? current.agentName : undefined} writtenAt={current?.updatedAt} run={writerRun} pending={pendingHere} onundone={() => void onUndone()} onreview={() => (review = writerRun && selectedId ? { runId: writerRun.id, noteId: selectedId, agent: current?.agentName ?? "The agent" } : null)} />
+      {#if review && review.noteId === selectedId}
+        <ChangeReview runId={review.runId} noteId={review.noteId} agentName={review.agent} onclose={() => (review = null)} onchanged={() => void onUndone()} />
+      {/if}
 
       {#if pendingCreate}
         <div class="prompt" role="alertdialog" aria-label="Create note">

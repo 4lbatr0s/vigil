@@ -17,6 +17,7 @@ import {
   hasRunning,
   listChildRuns,
   listWaitingRunIds,
+  getSnapshot,
   listSnapshots,
   listSnapshotsInOrder,
   markUndone,
@@ -24,7 +25,7 @@ import {
   setRunStatus,
   readSnapshotFile,
 } from "./state-db";
-import { deleteNote, getNote, restoreNoteFile } from "./vault";
+import { bodyOfRaw, deleteNote, getNote, restoreNoteFile } from "./vault";
 
 type Deps = { runner: AgentRunner; makeModel: ModelFactory };
 
@@ -244,4 +245,16 @@ async function undoLocked(runId: string): Promise<Run> {
   }
   for (const member of family) markUndone(member.id);
   return getRun(runId) as Run;
+}
+
+/**
+ * What a note said before this run wrote it: the body of its snapshot, or null when the run created the
+ * note. Lets the editor show the run's change hunk by hunk.
+ */
+export async function bodyBeforeRun(runId: string, noteId: string): Promise<{ existed: boolean; body: string | null }> {
+  const snap = getSnapshot(runId, noteId);
+  if (!snap) throw new AppError("snapshot-not-found", "This run did not change that note.", 404);
+  if (snap.expired) throw new AppError("undo-expired", "This run is too old to show its changes.", 410);
+  if (!snap.existed || !snap.file) return { existed: false, body: null };
+  return { existed: true, body: bodyOfRaw(await readSnapshotFile(snap.file), noteId) };
 }

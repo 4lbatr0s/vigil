@@ -157,6 +157,7 @@ export const listRuns = (opts: { agent?: string; limit?: number } = {}) => {
 /** `after` returns only events with a larger sequence number, so a live log can append. */
 export const getRun = (id: string, after?: number) =>
   request<{ run: Run; events: RunEvent[] }>(`/api/runs/${seg(id)}${after ? `?after=${after}` : ""}`);
+export const getBodyBeforeRun = (runId: string, noteId: string) => request<{ existed: boolean; body: string | null }>(`/api/runs/${seg(runId)}/before/${seg(noteId)}`);
 export const undoRun = (id: string) => request<Run>(`/api/runs/${seg(id)}/undo`, json("POST"));
 
 // ---- Session ----

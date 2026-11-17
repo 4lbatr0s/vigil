@@ -9,6 +9,7 @@
     run,
     pending = [],
     onundone,
+    onreview,
   }: {
     agentName: string | undefined;
     /** The note's last change, when an agent wrote it. */
@@ -18,6 +19,8 @@
     /** Pending approvals that would change this note. */
     pending?: ApprovalItem[];
     onundone: () => void;
+    /** Opens the change-by-change review for the run. */
+    onreview?: () => void;
   } = $props();
 
   let asking = $state(false);
@@ -47,6 +50,7 @@
         <span class="dot" aria-hidden="true"></span>
         <span class="text">Written by <strong>{agentName}</strong>{writtenAt ? `, ${relativeTime(writtenAt)}` : ""}</span>
         {#if run}<a class="act" href={`/runs/${encodeURIComponent(run.id)}`}>View run</a>{/if}
+        {#if run && onreview}<button type="button" class="act" onclick={onreview}>Review changes</button>{/if}
         {#if run && !asking}
           <button type="button" class="act" onclick={() => ((asking = true), (error = ""))}>Undo this run</button>
         {:else if run}

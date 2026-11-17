@@ -96,6 +96,11 @@ async function writeAtomic(file: string, content: string): Promise<Date> {
   return (await stat(file)).mtime;
 }
 
+/** The note body inside raw file text (frontmatter removed), for showing what an older copy said. */
+export function bodyOfRaw(raw: string, id: string): string {
+  return parse(raw, id, new Date(0)).body;
+}
+
 async function readNote(file: string, id: string): Promise<Note> {
   const [raw, info] = await Promise.all([readFile(file, "utf8"), stat(file)]);
   return parse(raw, id, info.mtime);
