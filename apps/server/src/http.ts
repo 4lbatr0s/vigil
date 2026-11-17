@@ -7,7 +7,7 @@ import { ImageSettingsSchema, imageSettings, picturesFor, saveImageSettings } fr
 import { CaptureBodySchema, capture } from "./capture";
 import { AddBodySchema, addMisconceptions, resolveOne, shakyBlock } from "./misconceptions";
 import { McpSettingsSchema, handleMcp, mcpSettings, saveMcpSettings } from "./mcp";
-import { AskBodySchema, askTask, findPassages } from "./ask";
+import { AskBodySchema, GapBodySchema, askTask, findPassages, gapPassages, gapTask } from "./ask";
 import { AppError, isAppError } from "./errors";
 import { healthPayload } from "./health";
 import {
@@ -342,6 +342,22 @@ const routes: { method: string; pattern: RegExp; keys: string[]; handler: Handle
       if (!agent.enabled) throw new AppError("agent-disabled", "The Study outliner agent is switched off. Turn it on from the Agents page.", 409);
       const run = startRun("outliner", `Make a study outline from this material.\n\nSOURCE START\n${parsed.data.source}\nSOURCE END`, "manual");
       send(res, 202, { data: run });
+    },
+  },
+  {
+    // Gap check: what a pasted text says that your notes lack or contradict. The agent has no tools.
+    method: "POST",
+    pattern: /^\/api\/gap$/,
+    keys: [],
+    handler: async (req, res) => {
+      const parsed = GapBodySchema.safeParse(await readJsonBody(req));
+      if (!parsed.success) throw new AppError("invalid-body", "Body must be { source: string } of 40 to 12000 characters", 400);
+      const agent = getAgent("gap-checker");
+      if (!agent) throw new AppError("agent-not-found", "Add the Gap checker agent first (Agents, then the Gap checker template).", 404);
+      if (!agent.enabled) throw new AppError("agent-disabled", "The Gap checker agent is switched off. Turn it on from the Agents page.", 409);
+      const passages = gapPassages(parsed.data.source);
+      const run = startRun("gap-checker", gapTask(parsed.data.source, passages), "manual");
+      send(res, 202, { data: { run, passages } });
     },
   },
   {

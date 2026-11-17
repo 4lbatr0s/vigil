@@ -4,7 +4,7 @@ import { createServer, type Server } from "node:http";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { accessFromEnv } from "./access";
-import { askTask, findPassages, questionWords } from "./ask";
+import { askTask, findPassages, gapPassages, gapTask, questionWords, topWords } from "./ask";
 import { createHandler } from "./http";
 import { closeDb } from "./index-db";
 import { closeState } from "./state-db";
@@ -106,5 +106,34 @@ describe("POST /api/ask", () => {
   it("refuses a missing or too short question", async () => {
     expect((await j("POST", "/api/ask", { question: "x" })).status).toBe(400);
     expect((await j("POST", "/api/ask", {})).status).toBe(400);
+  });
+});
+
+describe("gap check", () => {
+  const source = "Entropy measures disorder. The second law of thermodynamics says entropy never decreases in an isolated system. Enthalpy is heat content at constant pressure, and entropy matters for enthalpy too.";
+
+  it("picks the words the text is about, most repeated first", () => {
+    expect(topWords(source, 3)).toEqual(["entropy", "enthalpy", "constant"]);
+  });
+
+  it("finds the note lines that share those words", async () => {
+    await note("thermo", "Entropy is a measure of disorder.\nUnrelated lunch plan.");
+    const found = gapPassages(source);
+    expect(found.map((p) => p.text)).toEqual(["Entropy is a measure of disorder."]);
+    expect(gapTask(source, found)).toContain("NOTES START\n[1] (thermo) Entropy is a measure of disorder.\nNOTES END");
+    expect(gapTask(source, [])).toContain("NOTES START\n(none)\nNOTES END");
+  });
+
+  it("POST /api/gap needs the agent, then starts it; short text is refused", async () => {
+    await note("thermo", "Entropy is a measure of disorder.");
+    expect((await j("POST", "/api/gap", { source })).body.error?.code).toBe("agent-not-found");
+    const agent = (await j("POST", "/api/agents/from-template/gap-checker", {})).body.data;
+    expect((await j("POST", "/api/gap", { source })).body.error?.code).toBe("agent-disabled");
+    await j("PUT", "/api/agents/gap-checker", { ...agent, enabled: true });
+    const r = await j("POST", "/api/gap", { source });
+    expect(r.status).toBe(202);
+    expect(r.body.data.run.agent).toBe("gap-checker");
+    expect(r.body.data.passages).toHaveLength(1);
+    expect((await j("POST", "/api/gap", { source: "too short" })).status).toBe(400);
   });
 });

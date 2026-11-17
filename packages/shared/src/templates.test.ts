@@ -4,7 +4,7 @@ import { TEMPLATES } from "./templates";
 
 describe("agent templates", () => {
   it("ships the v1 templates and the card maker with unique ids", () => {
-    expect(TEMPLATES.map((t) => t.id)).toEqual(["morning-digest", "weekly-review", "inbox-triager", "backlink-gardener", "research-scout", "card-maker", "socratic-tutor", "explain-it-back", "quiz-master", "recall-checker", "outliner", "study-review", "note-asker"]);
+    expect(TEMPLATES.map((t) => t.id)).toEqual(["morning-digest", "weekly-review", "inbox-triager", "backlink-gardener", "research-scout", "card-maker", "socratic-tutor", "explain-it-back", "quiz-master", "recall-checker", "outliner", "study-review", "note-asker", "gap-checker"]);
     expect(new Set(TEMPLATES.map((t) => t.id)).size).toBe(TEMPLATES.length);
   });
 

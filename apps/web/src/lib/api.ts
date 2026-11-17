@@ -121,6 +121,7 @@ export type Misconception = { id: string; noteId: string; text: string; createdA
 export const listMisconceptions = (noteId: string) => request<Misconception[]>(`/api/misconceptions?note=${encodeURIComponent(noteId)}`);
 export const addMisconceptions = (noteId: string, texts: string[]) => request<Misconception[]>("/api/misconceptions", json("POST", { noteId, texts }));
 export const resolveMisconception = (id: string) => request<{ id: string }>(`/api/misconceptions/${seg(id)}/resolve`, json("POST", {}));
+export const startGap = (source: string) => request<{ run: Run; passages: Passage[] }>("/api/gap", json("POST", { source }));
 export type McpSettings = { enabled: boolean; write: boolean };
 export const getMcpSettings = () => request<McpSettings>("/api/mcp/settings");
 export const putMcpSettings = (s: McpSettings) => request<McpSettings>("/api/mcp/settings", json("PUT", s));

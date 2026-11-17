@@ -206,6 +206,10 @@ Chosen from the research (spaced repetition tied to notes, active processing ove
 - [x] Checked live (Ollama qwen3.5 4B, vision): a note that held only a picture with the words "The mitochondria makes ATP" produced a correct card. The first try gave an empty reply because Ollama's 4,096-token window was full; the window fix removed that (this probably explains several earlier odd "None" answers from the 4B model)
 - [ ] Not done: tutors and quiz master with pictures, an empty model reply from a no-tool agent now fails the run with a clear message (`noEmptyAnswer`)
 
+## Gap check (same plan, 2026-11-17)
+- [x] `POST /api/gap` (`topWords` of the pasted text, matching note lines, no-tool `gap-checker` template with SOURCE and NOTES markers), `/gap` page, palette command
+- [x] Checked live (Ollama 4B): it listed the two points missing from the notes (a refrigerator example and Gibbs free energy) correctly, said nothing disagreed, and crossed two line numbers in the "In your notes" part. Marks there are not checked by the page the way `/ask` marks are
+
 ## WP13: after v1 (ordered backlog, do not start before the release)
 
 
