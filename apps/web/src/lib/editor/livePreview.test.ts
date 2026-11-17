@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { EditorSelection, EditorState } from "@codemirror/state";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
-import { buildDecorations, fencedCodeAt, isSafeUrl, linkUrlAt, toggleTask, wikilinkAt } from "./livePreview";
+import { bodyStart, buildDecorations, fencedCodeAt, isSafeUrl, linkUrlAt, toggleTask, wikilinkAt } from "./livePreview";
 
 const DOC = ["# Title", "", "Some **bold** and [a link](https://example.com) and [[Other note]].", "", "- [ ] open task", "- [x] done task", "- plain item", "", "```", "[[Inside code]]", "```"].join("\n");
 
@@ -259,5 +259,20 @@ describe("code blocks and callouts", () => {
     expect(classesOf(state(doc, doc.length))).toContain("cm-task-done");
     expect(classesOf(state(doc, 8))).toContain("cm-task-done");
     expect(classesOf(state("- [ ] open only", 0))).not.toContain("cm-task-done");
+  });
+});
+
+describe("bodyStart", () => {
+  it("starts the caret after a first-line title that repeats the page title", () => {
+    expect(bodyStart("# Study guide\n\nIntro", "Study guide")).toBe(15);
+    expect(bodyStart("# study guide\nIntro", "Study guide")).toBe(14);
+  });
+  it("starts at the top for any other note", () => {
+    expect(bodyStart("# Other\n\nIntro", "Study guide")).toBe(0);
+    expect(bodyStart("Intro", "Study guide")).toBe(0);
+    expect(bodyStart("# Study guide\n\nIntro", undefined)).toBe(0);
+  });
+  it("stays inside a note that is only the title", () => {
+    expect(bodyStart("# Study guide", "Study guide")).toBe(13);
   });
 });

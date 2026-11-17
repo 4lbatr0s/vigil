@@ -534,3 +534,16 @@ export function livePreview(options: { onOpenWikilink?: (title: string) => void;
     }),
   ];
 }
+
+/**
+ * Where the caret starts in a note that opens with a `# Title` line repeating the page title: just after that line
+ * (and the blank line below it), so focusing the editor does not make the hidden title line pop into view and push
+ * the text under the pointer. 0 for any other note.
+ */
+export function bodyStart(doc: string, title: string | undefined): number {
+  const first = /^(#\s+(.*?)\s*#*\s*)(?:\n|$)/.exec(doc);
+  if (!first || title === undefined || (first[2] ?? "").trim().toLowerCase() !== title.trim().toLowerCase()) return 0;
+  let at = first[0].length;
+  while (doc[at] === "\n") at += 1;
+  return Math.min(at, doc.length);
+}

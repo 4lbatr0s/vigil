@@ -1,18 +1,26 @@
 <script lang="ts">
   import { untrack } from "svelte";
-  import { EditorState, Prec } from "@codemirror/state";
+  import { Compartment, EditorState, Prec } from "@codemirror/state";
   import { EditorView, drawSelection, keymap, placeholder } from "@codemirror/view";
   import { minimalSetup } from "codemirror";
+  import { search, searchKeymap } from "@codemirror/search";
   import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
   import { languages } from "@codemirror/language-data";
   import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
   import { tags } from "@lezer/highlight";
-  import { livePreview } from "$lib/editor/livePreview";
+  import { bodyStart, livePreview } from "$lib/editor/livePreview";
   import { addImageFiles, imageDrop } from "$lib/editor/images";
   import { uploadImage } from "$lib/api";
   import { wikilinkCompletion } from "$lib/editor/wikilinkComplete";
   import { boldCommand, clozeCommand, codeCommand, headingCommand, indentCommand, italicCommand, lineCommand, linkCommand, outdentCommand, strikeCommand } from "$lib/editor/format";
   import SelectionToolbar from "$lib/components/SelectionToolbar.svelte";
+  import Code from "@lucide/svelte/icons/code";
+  import Focus from "@lucide/svelte/icons/focus";
+  import ListTree from "@lucide/svelte/icons/list-tree";
+  import { focusMode } from "$lib/editor/focus";
+  import { outlineOf, type OutlineItem } from "$lib/editor/outline";
+  import { linkPaste } from "$lib/editor/paste";
+  import { tabInTable } from "$lib/editor/table";
   import PopupMenu, { type MenuItem } from "$lib/components/PopupMenu.svelte";
   import { blockHandle, moveBlockByKey } from "$lib/editor/blockHandle";
   import { blocksOf, deleteBlock, duplicateBlock, moveBlock, movedBlockStart, turnInto, type TurnInto } from "$lib/editor/blocks";
@@ -53,6 +61,42 @@
   let wrap = $state<HTMLDivElement | undefined>(undefined);
   let menu = $state<{ x: number; y: number; items: MenuItem[] } | null>(null);
   let fileInput = $state<HTMLInputElement | undefined>(undefined);
+
+  // Modes the person can switch: the raw markdown (no live preview), focus on one block, and the outline list.
+  const previewSlot = new Compartment();
+  const focusSlot = new Compartment();
+  let raw = $state(false);
+  let focused = $state(false);
+  let outlineOpen = $state(false);
+  let outline = $state<OutlineItem[]>([]);
+
+  function toggleRaw(): void {
+    raw = !raw;
+    view?.dispatch({ effects: previewSlot.reconfigure(raw ? [] : preview()) });
+  }
+  function toggleFocus(): void {
+    focused = !focused;
+    view?.dispatch({ effects: focusSlot.reconfigure(focused ? focusMode : []) });
+  }
+  function toggleOutline(): void {
+    outlineOpen = !outlineOpen;
+    if (outlineOpen && view) outline = outlineOf(view.state);
+  }
+  function jumpTo(item: OutlineItem): void {
+    const v = view;
+    if (!v) return;
+    outlineOpen = false;
+    v.dispatch({ selection: { anchor: item.from }, effects: EditorView.scrollIntoView(item.from, { y: "start", yMargin: 80 }) });
+    v.focus();
+  }
+
+  /** Tab in a table moves between cells; anywhere else it is the list indent (see the keymap). */
+  const tabCommand = (dir: 1 | -1) => (v: EditorView): boolean => {
+    const spec = tabInTable(v.state, v.state.selection.main.head, dir);
+    if (!spec) return false;
+    v.dispatch(spec);
+    return true;
+  };
 
   /** The `/image` block: choose a picture, it is uploaded and put at the caret like a pasted one. */
   async function pickedImages(files: FileList | null): Promise<void> {
@@ -160,8 +204,9 @@
       { key: "Mod-Shift-9", run: lineCommand("task") },
       { key: "Alt-ArrowUp", run: (v) => moveBlockByKey(v, -1) },
       { key: "Alt-ArrowDown", run: (v) => moveBlockByKey(v, 1) },
-      { key: "Tab", run: indentCommand },
-      { key: "Shift-Tab", run: outdentCommand },
+      { key: "Tab", run: (v) => tabCommand(1)(v) || indentCommand(v) },
+      { key: "Shift-Tab", run: (v) => tabCommand(-1)(v) || outdentCommand(v) },
+      { key: "Mod-Shift-o", run: () => (toggleOutline(), true) },
     ]),
   );
 
@@ -219,6 +264,16 @@
     ".cm-tooltip-autocomplete .cm-completionDetail": { marginLeft: "var(--space-3)", color: "var(--ink-muted)", fontStyle: "normal", fontFamily: "var(--font-mono)", fontSize: "var(--text-label)", order: "3" },
     ".cm-tooltip-autocomplete .cm-completionSection": { display: "block", padding: "var(--space-2) var(--space-2) var(--space-1)", color: "var(--ink-muted)", fontSize: "var(--text-label)", textTransform: "uppercase", letterSpacing: "0.05em" },
     ".cm-slashicon": { flex: "none", color: "var(--ink-muted)", order: "-1" },
+    ".cm-panels": { backgroundColor: "transparent", color: "var(--ink)", border: "none" },
+    ".cm-panels.cm-panels-top": { borderBottom: "none" },
+    ".cm-search": { display: "flex", flexWrap: "wrap", alignItems: "center", gap: "var(--space-2)", margin: "var(--space-2) 0", padding: "var(--space-2)", border: "1px solid var(--hairline)", borderRadius: "var(--radius)", backgroundColor: "var(--surface)", fontFamily: "var(--font-chrome)", fontSize: "var(--text-label)" },
+    ".cm-search input, .cm-search button": { fontFamily: "inherit", fontSize: "inherit", color: "var(--ink)", border: "1px solid var(--hairline)", borderRadius: "var(--radius)", backgroundColor: "var(--bg)", padding: "2px var(--space-2)" },
+    ".cm-search button": { cursor: "pointer", backgroundColor: "transparent" },
+    ".cm-search button:hover": { backgroundColor: "var(--surface-hover)" },
+    ".cm-search label": { display: "inline-flex", alignItems: "center", gap: "4px", color: "var(--ink-muted)" },
+    ".cm-search [name=close]": { marginLeft: "auto", border: "none" },
+    ".cm-searchMatch": { backgroundColor: "color-mix(in srgb, var(--canvas-3) 30%, transparent)", borderRadius: "2px" },
+    ".cm-searchMatch.cm-searchMatch-selected": { backgroundColor: "color-mix(in srgb, var(--canvas-5) 45%, transparent)" },
     ".cm-blockhandle": { position: "absolute", left: "-64px", display: "none", alignItems: "center", gap: "2px", zIndex: "3" },
     ".cm-blockhandle.on": { display: "flex" },
     ".cm-blockhandle button": { display: "inline-flex", alignItems: "center", justifyContent: "center", width: "24px", height: "24px", padding: "0", border: "0", borderRadius: "var(--radius)", background: "transparent", color: "var(--ink-muted)", cursor: "pointer" },
@@ -232,6 +287,8 @@
     "&.cm-focused": { outline: "none" },
   });
 
+  const preview = () => livePreview({ onOpenWikilink: (title) => onOpenWikilink?.(title), getTitle: () => getTitle?.() });
+
   $effect(() => {
     // Recreate the editor when the note changes; never while typing.
     const id = noteId;
@@ -240,6 +297,7 @@
     const instance = new EditorView({
       state: EditorState.create({
         doc: initial,
+        selection: { anchor: bodyStart(initial, getTitle?.()) },
         extensions: [
           formatKeys,
           minimalSetup,
@@ -253,7 +311,12 @@
             onAsk ? () => onAsk(instance ? selectedText(instance) : "") : undefined,
             () => fileInput?.click(),
           ),
-          livePreview({ onOpenWikilink: (title) => onOpenWikilink?.(title), getTitle: () => getTitle?.() }),
+          previewSlot.of(preview()),
+          focusSlot.of([]),
+          linkPaste,
+          search({ top: true }),
+          keymap.of(searchKeymap),
+          EditorView.contentAttributes.of({ spellcheck: "true", autocapitalize: "sentences" }),
           imageDrop(async (file) => (await uploadImage(file)).name, (m) => onProblem?.(m)),
           EditorView.lineWrapping,
           theme,
@@ -266,6 +329,9 @@
       parent: host,
     });
     view = instance;
+    raw = false;
+    focused = false;
+    outlineOpen = false;
     void id;
     return () => {
       instance.destroy();
@@ -276,6 +342,20 @@
 </script>
 
 <div class="wrap" bind:this={wrap}>
+  <div class="modes" role="toolbar" aria-label="Writing view">
+    <button type="button" aria-pressed={outlineOpen} onclick={toggleOutline} title="Headings of this note (Ctrl or Cmd + Shift + O)"><ListTree size={15} strokeWidth={1.5} /> Outline</button>
+    <button type="button" aria-pressed={focused} onclick={toggleFocus} title="Dim everything except the paragraph you are writing"><Focus size={15} strokeWidth={1.5} /> Focus</button>
+    <button type="button" aria-pressed={raw} onclick={toggleRaw} title="Show the markdown as it is saved"><Code size={15} strokeWidth={1.5} /> Markdown</button>
+    {#if outlineOpen}
+      <div class="outline" role="region" aria-label="Headings">
+        {#each outline as item (item.from)}
+          <button type="button" class="item" style:padding-left={`${(item.level - 1) * 14 + 8}px`} onclick={() => jumpTo(item)}>{item.title}</button>
+        {:else}
+          <p class="none">No headings yet. Start a line with # to make one.</p>
+        {/each}
+      </div>
+    {/if}
+  </div>
   <div class="editor" bind:this={host}></div>
   {#if bar && view}
     <SelectionToolbar {view} left={bar.left} top={bar.top} onask={onAsk ? () => onAsk(selectedText(view!)) : undefined} />
@@ -292,5 +372,65 @@
   }
   .hidden {
     display: none;
+  }
+  .modes {
+    position: relative;
+    display: flex;
+    gap: var(--space-1);
+    justify-content: flex-end;
+    margin-bottom: var(--space-1);
+  }
+  .modes > button {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    padding: 2px var(--space-2);
+    border: 1px solid transparent;
+    border-radius: var(--radius);
+    background: transparent;
+    color: var(--ink-muted);
+    font-family: var(--font-chrome);
+    font-size: var(--text-label);
+    cursor: pointer;
+  }
+  .modes > button:hover,
+  .modes > button[aria-pressed="true"] {
+    color: var(--ink);
+    background: var(--surface-hover);
+  }
+  .outline {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    z-index: 20;
+    display: grid;
+    width: 18rem;
+    max-height: 50vh;
+    overflow: auto;
+    padding: var(--space-1);
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius);
+    background: var(--surface);
+    box-shadow: var(--shadow-pop);
+  }
+  .outline .item {
+    padding: var(--space-1) var(--space-2);
+    border: 0;
+    border-radius: var(--radius);
+    background: transparent;
+    color: var(--ink);
+    font-family: var(--font-chrome);
+    font-size: var(--text-ui);
+    text-align: left;
+    cursor: pointer;
+  }
+  .outline .item:hover {
+    background: var(--surface-hover);
+  }
+  .outline .none {
+    margin: 0;
+    padding: var(--space-2);
+    color: var(--ink-muted);
+    font-size: var(--text-label);
   }
 </style>
