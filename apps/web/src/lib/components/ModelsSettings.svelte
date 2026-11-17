@@ -25,7 +25,8 @@
     results[c.id] = "Testing…";
     try {
       const r = await probeConnection({ kind: c.kind, baseUrl: c.baseUrl, ...(c.readOnly ? {} : { connectionId: c.id }) });
-      results[c.id] = r.ok ? `Reachable. ${r.models.length} models.` : (r.error ?? "Not reachable.");
+      const at = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      results[c.id] = `${r.ok ? `Reachable, ${r.models.length} ${r.models.length === 1 ? "model" : "models"}.` : (r.error ?? "Not reachable.")} Tested ${at}.`;
     } catch (err) {
       results[c.id] = err instanceof Error ? err.message : "Could not test";
     }

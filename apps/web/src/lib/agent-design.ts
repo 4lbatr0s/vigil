@@ -74,3 +74,11 @@ export function designToAgent(input: { design: Design; tools: ToolGrant[]; trigg
     ...(input.connection ? { connection: input.connection } : {}),
   });
 }
+
+/** A switched-off copy of an agent under a free name (`name-copy`, `name-copy-2`...), for "Duplicate". */
+export function duplicateAgent(base: Agent, taken: readonly string[]): Agent {
+  const stem = `${base.name.slice(0, 50)}-copy`;
+  let name = stem;
+  for (let n = 2; taken.includes(name) && n < 1000; n++) name = `${stem}-${n}`;
+  return { ...base, name, enabled: false };
+}

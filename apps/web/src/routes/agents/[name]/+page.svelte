@@ -3,7 +3,8 @@
   import { goto } from "$app/navigation";
   import { page } from "$app/state";
   import { AgentNameSchema, type Agent, type PermissionSettings, type Run, type ToolGrant } from "@vigil/shared";
-  import { ApiError, createChat, getAgent, listConnections, probeConnection, type Connection, getPermissions, getSchedule, listRuns, putAgent, runAgent, type Schedule } from "$lib/api";
+  import { ApiError, createChat, getAgent, listAgents, listConnections, probeConnection, type Connection, getPermissions, getSchedule, listRuns, putAgent, runAgent, type Schedule } from "$lib/api";
+  import { duplicateAgent } from "$lib/agent-design";
   import { TOOL_LABELS, addHost, agentToForm, describeGrants, formToAgent, noHostsWarning, riskyCombination, triggerProblem, type AgentForm } from "$lib/agent-form";
   import { describeCheck, formatStamp } from "$lib/format";
   import { refreshOnLive } from "$lib/live";
@@ -142,6 +143,20 @@
   function removeHost(host: string): void {
     if (form) form.allowedHosts = form.allowedHosts.filter((h) => h !== host);
   }
+
+  /** A switched-off copy with its own name, opened right away: a quick way to start a variation. */
+  async function duplicate(): Promise<void> {
+    if (!agent) return;
+    try {
+      const copy = await putAgent(duplicateAgent(agent, (await listAgents()).map((a) => a.name)));
+      await goto(`/agents/${copy.name}`);
+    } catch (err) {
+      runError = err instanceof ApiError ? err.detail : err instanceof Error ? err.message : "Could not duplicate";
+    }
+  }
+
+  /** The agent names a connection that was removed: its runs would fail, so say so before they do. */
+  const missingConnection = $derived(form !== null && form.connection !== "" && connections.length > 0 && !connections.some((c) => c.id === form?.connection) ? form.connection : null);
 
   async function startChatWith(): Promise<void> {
     try {
@@ -311,12 +326,16 @@
         <span>Token budget per run</span>
         <input type="text" inputmode="numeric" bind:value={form.tokenBudget} class="narrow mono" />
       </label>
+      {#if missingConnection}
+        <p class="warn" role="alert">This agent uses the connection "{missingConnection}", which no longer exists, so its runs will fail. Pick another connection below.</p>
+      {/if}
       {#if connections.length > 0}
         <label class="field">
           <span>Model connection</span>
           <select bind:value={form.connection} onchange={() => void loadModels()}>
             <option value="">Default connection</option>
             {#each connections as c (c.id)}<option value={c.id}>{c.name}</option>{/each}
+            {#if missingConnection}<option value={missingConnection}>{missingConnection} (removed)</option>{/if}
           </select>
         </label>
       {/if}
@@ -346,6 +365,7 @@
         <button type="button" class="primary" disabled={busy || !dirty || problem !== null} onclick={() => void save()}>Save</button>
         <button type="button" class="ghost" disabled={running} onclick={() => void runNow()}>{running ? "Running…" : "Run now"}</button>
         <button type="button" class="ghost" onclick={() => void startChatWith()}>Chat</button>
+        <button type="button" class="ghost" onclick={() => void duplicate()}>Duplicate</button>
         {#if notice && !dirty}<span class="muted" aria-live="polite">{notice}</span>{/if}
       </div>
       {#if runError}<p class="error" role="alert">{runError}</p>{/if}

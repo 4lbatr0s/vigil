@@ -18,5 +18,5 @@ Nothing here needs the owner. The agent works top to bottom, one item per commit
 ## Added 2026-11-17 (after the connections, agents, canvas and UI work)
 - [ ] 13. **Canvas follow-ups.** Open a note as a canvas, send a graph selection to a canvas, image cards (reuse `attachments/`), and a hand check of text-card editing and group drag in the browser.
 - [ ] 14. **UI pass, second round.** Notes, Today, Chat and Approvals layouts; phone width and light theme; collapse long sections on the agent page; keyboard-only check of the wizard and canvas toolbar.
-- [ ] 15. **Agents.** Duplicate an agent, template tags, and a test run inside the new-agent wizard.
-- [ ] 16. **Connections.** A per-agent model list refresh, a "last tested" line, and a warning when an agent names a removed connection.
+- [ ] 15. **Agents.** *Duplicate is done (switched-off copy `name-copy`).* Still open: template tags and a test run inside the new-agent wizard.
+- [x] 16. **Connections.** *Done: a "Tested HH:MM" line after Test, and a warning on the agent page when it names a removed connection (the model list reloads when the connection changes).*
