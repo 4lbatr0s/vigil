@@ -2,9 +2,10 @@
   import Illustration from "$lib/components/Illustration.svelte";
   import { onMount } from "svelte";
   import type { Run } from "@vigil/shared";
-  import { ApiError, captureLine, createFromTemplate, getGoals, getRecall, getStudyStats, listAgents, listApprovals, listNotes, listRuns, putAgent, runAgent, undoRun, type ApprovalItem, type Goal, type RecallItem, type StudyStats } from "$lib/api";
+  import { ApiError, captureLine, getStuckCards, createFromTemplate, getGoals, getRecall, getStudyStats, listAgents, listApprovals, listNotes, listRuns, putAgent, runAgent, undoRun, type ApprovalItem, type Goal, type RecallItem, type StuckCard, type StudyStats } from "$lib/api";
   import StatusDot from "$lib/components/StatusDot.svelte";
   import { refreshOnLive } from "$lib/live";
+  import { startHere } from "$lib/focus";
   import { goalLine, nextGoal } from "$lib/goals";
   import { relativeTime } from "$lib/note-list";
   import { canUndo } from "$lib/run-log";
@@ -17,7 +18,9 @@
   let study = $state<StudyStats | null>(null);
   let goals = $state<Goal[]>([]);
   let recallDue = $state<RecallItem[]>([]);
+  let stuck = $state<StuckCard[]>([]);
   const exam = $derived(nextGoal(goals));
+  const focus = $derived(startHere({ goals, recallDue, studyDue: study?.due ?? 0, newOffered: study?.newOffered ?? 0, stuck, pendingApprovals: pending.length, titles }));
   let since = $state<string | null>(null);
   let loading = $state(true);
   let loadError = $state("");
@@ -36,6 +39,7 @@
     try {
       const [r, a, notes, st] = await Promise.all([listRuns({ limit: 100 }), listApprovals("pending"), listNotes(), getStudyStats()]);
       goals = await getGoals().catch(() => [] as Goal[]);
+      stuck = await getStuckCards().catch(() => [] as StuckCard[]);
       recallDue = (await getRecall().catch(() => [] as RecallItem[])).filter((r) => r.isDue);
       runs = r;
       pending = a;
@@ -123,6 +127,16 @@
   {:else if loading}
     <p class="muted">Loading…</p>
   {:else}
+    {#if focus.length > 0}
+      <section aria-labelledby="first">
+        <h2 id="first">Start here</h2>
+        <ul class="first">
+          {#each focus as f (f.key)}
+            <li><span>{f.text}</span> <a class="btn" href={f.href}>{f.label}</a></li>
+          {/each}
+        </ul>
+      </section>
+    {/if}
     <section aria-labelledby="capture">
       <h2 id="capture">Capture</h2>
       <form class="capture" onsubmit={addCapture}>
@@ -232,6 +246,19 @@
 </div>
 
 <style>
+  .first {
+    display: grid;
+    gap: var(--space-2);
+    list-style: none;
+    padding: 0;
+  }
+  .first li {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    align-items: center;
+    justify-content: space-between;
+  }
   .capture {
     display: flex;
     flex-wrap: wrap;
