@@ -175,6 +175,12 @@ Chosen from the research (spaced repetition tied to notes, active processing ove
 - [x] Template `study-review` (Sunday 18:00, reads and writes notes): what you studied, what is slipping, a small plan; uses only numbers the tool gave
 - [x] Ran `study-review` live (Ollama 4B, temp vault): the tool calls worked, but run 1 wrote nothing and run 2 misread a number ("2 due" for 0 due), invented a target (80%) and time estimates, and linked its own title. Prompt tightened (copy numbers exactly, no targets or times, no self-link); the write waited for approval and was rejected. A 4B model is too weak to trust here; a larger model is untested
 
+## Ask your notes, with proof (same plan, 2026-11-17)
+- [x] `POST /api/ask`: `findPassages` (`apps/server/src/ask.ts`, FTS OR search then best lines by shared words, at most 10, numbered) goes to the no-tool `note-asker` template between LINES START/END. No matching line means no model call (`run: null`)
+- [x] `/ask` page and palette command: answer with `[n]` marks, "Where it comes from" quotes the line with note link and line number; `verdict` flags no marks and marks to lines never given (`lib/citations.ts`)
+- [x] Checked live (Ollama 4B, temp vault): correct cited answer on the second and third try; the first try failed with a stream error from the model server, and one run took 66 s. A 4B thinking model is slow here
+- [ ] Not done: open the note at the cited line, vector search, "gap check" against pasted text
+
 ## WP13: after v1 (ordered backlog, do not start before the release)
 
 

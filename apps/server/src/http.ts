@@ -3,6 +3,7 @@ import { z } from "zod";
 import { checkAccess, type Access } from "./access";
 import { handleAuth } from "./auth";
 import { serveStatic } from "./static";
+import { AskBodySchema, askTask, findPassages } from "./ask";
 import { AppError, isAppError } from "./errors";
 import { healthPayload } from "./health";
 import {
@@ -337,6 +338,27 @@ const routes: { method: string; pattern: RegExp; keys: string[]; handler: Handle
       if (!agent.enabled) throw new AppError("agent-disabled", "The Study outliner agent is switched off. Turn it on from the Agents page.", 409);
       const run = startRun("outliner", `Make a study outline from this material.\n\nSOURCE START\n${parsed.data.source}\nSOURCE END`, "manual");
       send(res, 202, { data: run });
+    },
+  },
+  {
+    // Ask your notes: the matching lines go to the Note asker agent, which has no tools. With no matching line
+    // the agent is not asked at all and `run` is null, so nothing can be made up.
+    method: "POST",
+    pattern: /^\/api\/ask$/,
+    keys: [],
+    handler: async (req, res) => {
+      const parsed = AskBodySchema.safeParse(await readJsonBody(req));
+      if (!parsed.success) throw new AppError("invalid-body", "Body must be { question: string } of 3 to 500 characters", 400);
+      const passages = findPassages(parsed.data.question);
+      if (passages.length === 0) {
+        send(res, 200, { data: { run: null, passages } });
+        return;
+      }
+      const agent = getAgent("note-asker");
+      if (!agent) throw new AppError("agent-not-found", "Add the Note asker agent first (Agents, then the Note asker template).", 404);
+      if (!agent.enabled) throw new AppError("agent-disabled", "The Note asker agent is switched off. Turn it on from the Agents page.", 409);
+      const run = startRun("note-asker", askTask(parsed.data.question, passages), "manual");
+      send(res, 202, { data: { run, passages } });
     },
   },
   {

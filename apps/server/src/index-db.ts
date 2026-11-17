@@ -291,6 +291,22 @@ export function searchNotes(query: string): SearchHit[] {
   }));
 }
 
+/** Ids of the notes that contain ANY of the words, best match first (a question is not an exact phrase). */
+export function searchNotesAny(words: string[], limit: number): string[] {
+  const { db, fts } = open();
+  const clean = words.filter((w) => w.length > 0);
+  if (clean.length === 0) return [];
+  if (fts) {
+    const match = clean.map((w) => `"${w.replaceAll('"', "")}"`).join(" OR ");
+    const rows = db.prepare("SELECT id FROM notes_fts WHERE notes_fts MATCH ? ORDER BY rank LIMIT ?").all(match, limit) as { id: string }[];
+    return rows.map((r) => r.id);
+  }
+  const where = clean.map(() => "(n.title LIKE ? OR b.body LIKE ?)").join(" OR ");
+  const args = clean.flatMap((w) => [`%${w}%`, `%${w}%`]);
+  const rows = db.prepare(`SELECT n.id AS id FROM notes n LEFT JOIN notes_body b ON b.id = n.id WHERE ${where} LIMIT ?`).all(...args, limit) as { id: string }[];
+  return rows.map((r) => r.id);
+}
+
 export function isFtsAvailable(): boolean {
   return open().fts;
 }

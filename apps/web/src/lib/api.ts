@@ -113,6 +113,8 @@ export const stopRecall = (noteId: string) => request<{ ok: true }>(`/api/recall
 export const recordRecall = (noteId: string, result: RecallResult) => request<RecallItem>(`/api/recall/${seg(noteId)}/result`, json("POST", { result }));
 export const startRecallCheck = (noteId: string, recall: string) => request<Run>(`/api/notes/${seg(noteId)}/recall-check`, json("POST", { recall }));
 export const startOutline = (source: string) => request<Run>("/api/outline", json("POST", { source }));
+export type Passage = { n: number; noteId: string; title: string; line: number; text: string };
+export const startAsk = (question: string) => request<{ run: Run | null; passages: Passage[] }>("/api/ask", json("POST", { question }));
 export type StudySettings = { newPerDay: number; retention: number };
 export const getStudySettings = () => request<StudySettings>("/api/study/settings");
 export const putStudySettings = (s: StudySettings) => request<StudySettings>("/api/study/settings", json("PUT", s));
