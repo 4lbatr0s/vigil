@@ -24,3 +24,4 @@ Only you can do these (a decision, an account, a real device, or publishing). Ti
 
 - [ ] **Canvas v2 in real Obsidian.** Open a board saved by Vigil (one with locked cards and a right-angle arrow) in Obsidian and check it opens, nothing is lost, and the Vigil fields (`vigilLock`, `vigilStyle`) cause no complaint.
 - [ ] **Canvas on a phone.** Touch gestures (long-press menu, pinch) are not built; check what the board does on a real device.
+- [ ] **Note editor v2, your eye.** Open a few real notes and say what still feels off (taste: spacing, colours, the block handle, the `/` menu). Not built on purpose yet: folding headings, a hover preview of `[[wikilinks]]`, `![[note]]` embeds, `#tag` completion, a real grid for tables (tables are lined-up text with Tab between cells), and phone layout.
