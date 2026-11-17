@@ -173,7 +173,7 @@ Chosen from the research (spaced repetition tied to notes, active processing ove
 ## Learner status for agents (owner approved the AI-native plan, 2026-11-17)
 - [x] `learner_status` tool (read-only, under the `read_notes` grant, optional note id) built from `learnerReport` in `apps/server/src/learner.ts`: totals, exam dates, per-note cards/due/new/recall rate, slipping cards, recall ladder. No card answers, capped at 8000 characters
 - [x] Template `study-review` (Sunday 18:00, reads and writes notes): what you studied, what is slipping, a small plan; uses only numbers the tool gave
-- [ ] Run `study-review` on a real model against a temp vault and record the result (rubric: only tool numbers, no invented scores, no rewritten notes)
+- [x] Ran `study-review` live (Ollama 4B, temp vault): the tool calls worked, but run 1 wrote nothing and run 2 misread a number ("2 due" for 0 due), invented a target (80%) and time estimates, and linked its own title. Prompt tightened (copy numbers exactly, no targets or times, no self-link); the write waited for approval and was rejected. A 4B model is too weak to trust here; a larger model is untested
 
 ## WP13: after v1 (ordered backlog, do not start before the release)
 
