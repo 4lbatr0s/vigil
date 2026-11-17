@@ -7,7 +7,7 @@ import { redact, type ModelFactory } from "./llm";
 import { randomUUID } from "node:crypto";
 import { effectiveAgent } from "./permissions";
 import { getCheckpointer } from "./checkpoints";
-import { trimHistory } from "./history";
+import { MIN_BUDGET_FOR_SUMMARY, RESUMMARIZE_AFTER_CHARS, SUMMARY_MAX_TOKENS, SUMMARY_PROMPT, droppedMessages, summaries, summaryNote, transcriptOf, trimHistory } from "./history";
 import { addEvent, createApproval, createRun, finishRun, getAgent, getRun, hasRunning, setTokensUsed } from "./state-db";
 import { getNote as vaultGetNote, slugify, validateId } from "./vault";
 
@@ -125,7 +125,35 @@ export const runAgent: AgentRunner = async ({ agent, task, runId, makeModel, dep
       stop = "failed";
       return {};
     }
-    const sent = trimHistory(state.messages);
+    let sent = trimHistory(state.messages);
+    // A long chat loses its oldest turns from the prompt; a short summary of them goes in their place, made when
+    // enough has slid out since the last one and the run can afford it.
+    if (chat && sent.length < state.messages.length) {
+      const dropped = droppedMessages(state.messages, sent);
+      const known = summaries.get(chat.threadId);
+      const fresh = dropped.slice(known?.covered ?? 0);
+      const freshChars = fresh.reduce((n, m) => n + (typeof m.content === "string" ? m.content.length : JSON.stringify(m.content).length), 0);
+      if (dropped.length > 0 && freshChars >= RESUMMARIZE_AFTER_CHARS && remaining >= MIN_BUDGET_FOR_SUMMARY) {
+        try {
+          const input = `${known ? `Earlier summary:\n${known.text}\n\nNewer messages:\n` : ""}${transcriptOf(fresh)}`;
+          const summarizer = makeModel([], { model: agent.model, maxTokens: Math.min(remaining, SUMMARY_MAX_TOKENS) });
+          const made = await summarizer.invoke([new SystemMessage(SUMMARY_PROMPT), new HumanMessage(input)]);
+          const text = messageText(made).trim();
+          const cost = made.usage_metadata?.total_tokens ?? estimateTokens([new HumanMessage(input)], made);
+          used += cost;
+          setTokensUsed(runId, used);
+          if (text !== "") {
+            summaries.set(chat.threadId, { covered: dropped.length, text });
+            addEvent(runId, "note", `summarized ${fresh.length} older messages (${cost} tokens)`);
+          }
+        } catch (err) {
+          // The chat goes on with the plain trim; say so in the log instead of hiding it.
+          addEvent(runId, "note", `could not summarize older messages: ${redact(err instanceof Error ? err.message : "error")}`);
+        }
+      }
+      const summary = summaries.get(chat.threadId);
+      if (summary) sent = [...sent.slice(0, sent[0] instanceof SystemMessage ? 1 : 0), new SystemMessage(summaryNote(summary.text)), ...sent.slice(sent[0] instanceof SystemMessage ? 1 : 0)];
+    }
     const model = makeModel(tools, { model: agent.model, maxTokens: remaining });
     // Wait for the model, but let a cancel win at once instead of after the (possibly long) call.
     let streamed = false;

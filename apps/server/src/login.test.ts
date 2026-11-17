@@ -129,6 +129,11 @@ describe("login", () => {
     const owner = Date.now();
     expect((await from("88.8.8.8", TOKEN)).status).toBe(200);
     expect(Date.now() - owner).toBeLessThan(300);
+    // The lane has a small shared budget: past it, even a known address queues like everyone else.
+    for (let i = 0; i < 12; i++) await from("88.8.8.8", TOKEN); // each right guess clears the per-address count
+    const queued = Date.now();
+    expect((await from("88.8.8.8", TOKEN)).status).toBe(200);
+    expect(Date.now() - queued).toBeGreaterThanOrEqual(300);
     // The known address is still limited to five wrong guesses a minute.
     const wrong = [];
     for (let i = 0; i < 6; i++) wrong.push((await from("88.8.8.8", "wrong")).status);

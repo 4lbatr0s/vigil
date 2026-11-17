@@ -17,6 +17,7 @@ A note app first, with agents inside it.
 - Today: a Capture box adds a line to your Inbox note, and "File my inbox" asks the Inbox triager where each line belongs. Its writes wait under "Needs you" for your yes, and filed lines are marked `- [x]` instead of removed.
 - Recall: after a check you can keep the points you got wrong (the checker's list, or your own). The next check on that note shows them first, the card maker writes cards on them, and the weekly study review sees them. You cross each one off yourself.
 - Other agents (MCP, ADR-0022): switch it on in Settings and tools like Claude Code or Claude Desktop can search and read your notes at `/api/mcp`, and, with a second switch, write notes. Each write is a run you can undo. Off by default.
+- Chat: a long conversation keeps a short summary of the turns that no longer fit instead of forgetting them (it costs one small model call now and then, shown in the run log).
 - Security: during a login spray from many addresses, an address you signed in from in the last week is no longer held in the slow queue.
 - Security: logging out now ends every session, so a copied cookie stops working (it signs out every device).
 - Notes: nested tags (`work/launch`) show as a tree: top-level chips, and the tags under the one you picked on a second row.

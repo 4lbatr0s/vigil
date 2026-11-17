@@ -9,6 +9,8 @@ const MAX_FAILURES = 5;
 const WINDOW_MS = 60_000;
 /** Across all addresses: a spray from many addresses (or forged ones) still runs into this. */
 const GLOBAL_MAX_FAILURES = 40;
+/** Attempts per minute the known-address lane lets past the queue, all known addresses together. */
+const KNOWN_LANE_PER_MINUTE = 10;
 /** How long an address that signed in counts as known. */
 const KNOWN_MS = 7 * 24 * 3600 * 1000;
 
@@ -50,6 +52,20 @@ export class LoginLimiter {
   isKnown(ip: string, now: number = Date.now()): boolean {
     const at = this.known.get(ip);
     return at !== undefined && now - at < KNOWN_MS;
+  }
+
+  private knownLane: number[] = [];
+
+  /**
+   * The known-address lane has one small budget shared by all known addresses (a minute at a time), so a few known
+   * addresses together, or an attacker who shares one (a NAT, a café), still run into a cap and then queue like everyone.
+   */
+  useKnownLane(ip: string, now: number = Date.now()): boolean {
+    if (!this.isKnown(ip, now)) return false;
+    this.knownLane = this.knownLane.filter((t) => now - t < WINDOW_MS);
+    if (this.knownLane.length >= KNOWN_LANE_PER_MINUTE) return false;
+    this.knownLane.push(now);
+    return true;
   }
 
   private globalFailures: number[] = [];
@@ -96,6 +112,7 @@ export class LoginLimiter {
   reset(): void {
     this.seen.clear();
     this.known.clear();
+    this.knownLane = [];
     this.globalFailures = [];
     this.nextFree = 0;
     this.queued = 0;
@@ -226,7 +243,7 @@ export async function handleAuth(req: IncomingMessage, res: ServerResponse, path
     // parallel requests cannot all pass it; a correct token takes its count back below.
     const pressured = limiter.globalBlocked();
     limiter.globalFail();
-    if (pressured && !limiter.isKnown(ip) && !(await limiter.slot(ip))) {
+    if (pressured && !limiter.useKnownLane(ip) && !(await limiter.slot(ip))) {
       throw new AppError("too-many-attempts", "Too many tries. Wait a minute and try again.", 429);
     }
     const body = await readBody(req);
