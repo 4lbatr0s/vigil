@@ -27,6 +27,7 @@ import { refreshSchedule } from "./scheduler";
 import { llmStatus } from "./llm-status";
 import { usage } from "./usage";
 import { getRunResult } from "./state-db";
+import { exportTsv } from "./anki-export";
 import { ResultBodySchema, enroll, recordResult } from "./recall";
 import { GoalBodySchema, goalStatuses, validGoalDay } from "./goals";
 import { NEW_PER_SESSION, answerCard, deckStats, dueCards, studyHistory, studyStats, undoAnswer } from "./study";
@@ -187,6 +188,21 @@ const routes: { method: string; pattern: RegExp; keys: string[]; handler: Handle
       const asked = Number(url.searchParams.get("days") ?? 14);
       const days = Number.isInteger(asked) ? Math.min(90, Math.max(1, asked)) : 14;
       send(res, 200, { data: studyHistory(new Date(), days) });
+    },
+  },
+  {
+    method: "GET",
+    pattern: /^\/api\/study\/export$/,
+    keys: [],
+    handler: (_req, res, _params, url) => {
+      const body = exportTsv(url.searchParams.get("note") ?? undefined);
+      res.writeHead(200, {
+        "content-type": "text/tab-separated-values; charset=utf-8",
+        "content-disposition": 'attachment; filename="vigil-cards.txt"',
+        "content-length": Buffer.byteLength(body),
+        "cache-control": "no-store",
+      });
+      res.end(body);
     },
   },
   {

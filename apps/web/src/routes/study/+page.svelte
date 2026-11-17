@@ -203,6 +203,11 @@
     </div>
   {/if}
 
+  <p class="muted tools">
+    <a href={`/api/study/export${noteId ? `?note=${encodeURIComponent(noteId)}` : ""}`} download>Download cards</a> as text for Anki ·
+    <a href="/import">Import cards</a>
+  </p>
+
   <ExamDates initialNote={noteId} onchange={() => void refreshStudyDue()} />
 
   {#if history.some((d) => d.count > 0)}
@@ -389,6 +394,10 @@
     color: var(--ink);
     text-decoration: underline;
     text-underline-offset: 2px;
+  }
+
+  .tools a {
+    color: var(--ink-muted);
   }
 
   .stuck {

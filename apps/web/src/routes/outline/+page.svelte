@@ -2,7 +2,8 @@
   import { onDestroy } from "svelte";
   import { goto } from "$app/navigation";
   import { slugify } from "@vigil/shared";
-  import { ApiError, createFromTemplate, getRun, getRunResult, listAgents, putAgent, putNote, startOutline } from "$lib/api";
+  import { freeId } from "$lib/free-id";
+  import { ApiError, listNotes, createFromTemplate, getRun, getRunResult, listAgents, putAgent, putNote, startOutline } from "$lib/api";
 
   type Step = "paste" | "running" | "review" | "error";
 
@@ -66,7 +67,8 @@
     if (name === "" || busy) return;
     busy = true;
     try {
-      const note = await putNote(slugify(name), { title: name, body: noteBody });
+      const id = freeId(slugify(name), (await listNotes()).map((n) => n.id));
+      const note = await putNote(id, { title: name, body: noteBody });
       await goto(`/?note=${encodeURIComponent(note.id)}`);
     } catch (err) {
       message = err instanceof ApiError ? err.detail : err instanceof Error ? err.message : "Could not save the note";
