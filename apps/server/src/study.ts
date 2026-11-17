@@ -90,7 +90,8 @@ function dueWithGoals(noteId: string, s: CardState, now: Date, goals: GoalRow[])
   return isDue(goal ? { ...s, due: capDue(s.due, goal.day, now) } : s, now);
 }
 
-export type StudyStats = { total: number; due: number; new: number; reviewedToday: number; againToday: number };
+/** `newOffered` is how many of the unseen cards a session offers (the new-cards-per-day setting). */
+export type StudyStats = { total: number; due: number; new: number; newOffered: number; reviewedToday: number; againToday: number };
 
 export function studyStats(now: Date, noteId?: string): StudyStats {
   const states = allCardStates();
@@ -106,7 +107,7 @@ export function studyStats(now: Date, noteId?: string): StudyStats {
   const dayStart = new Date(now);
   dayStart.setHours(0, 0, 0, 0);
   const today = reviewCountsSince(dayStart.toISOString());
-  return { total: cards.length, due, new: fresh, reviewedToday: today.total, againToday: today.again };
+  return { total: cards.length, due, new: fresh, newOffered: Math.min(fresh, studySettings().newPerDay), reviewedToday: today.total, againToday: today.again };
 }
 
 /** Lifetime answers for a note and the share that was "again" (a plain count, not a score). */

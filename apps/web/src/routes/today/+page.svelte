@@ -86,12 +86,12 @@
   {:else if loading}
     <p class="muted">Loading…</p>
   {:else}
-    {#if study && study.due + study.new > 0}
+    {#if study && study.due + study.newOffered > 0}
       <section aria-labelledby="study">
         <h2 id="study">Study</h2>
         <div class="card">
           <div class="line">
-            <strong>{study.due > 0 ? `${study.due} ${study.due === 1 ? "card is" : "cards are"} ready to review` : `${Math.min(study.new, 10)} new ${study.new === 1 ? "card" : "cards"} to learn`}</strong>
+            <strong>{study.due > 0 ? `${study.due} ${study.due === 1 ? "card is" : "cards are"} ready to review` : `${study.newOffered} new ${study.newOffered === 1 ? "card" : "cards"} to learn`}</strong>
             {#if study.reviewedToday > 0}<span class="state">{study.reviewedToday} done today</span>{/if}
           </div>
           {#if exam}<p>{goalLine(exam)}</p>{/if}

@@ -178,6 +178,7 @@ describe("pace, mixing and forecast", () => {
     await note("many", Array.from({ length: 8 }, (_, i) => `Q${i} :: A${i}`).join("\n\n"));
     await j("PUT", "/api/study/settings", { newPerDay: 3, retention: 0.9 });
     expect(((await j("GET", "/api/study/due")).body.data as unknown[]).length).toBe(3);
+    expect((await j("GET", "/api/study/stats")).body.data).toMatchObject({ new: 8, newOffered: 3 });
   });
   it("forecast lists 14 days and counts answered cards on the day they come back", async () => {
     await note("fc", "Q1 :: A1\n\nQ2 :: A2\n");
