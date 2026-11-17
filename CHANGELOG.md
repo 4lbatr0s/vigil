@@ -13,6 +13,7 @@ A note app first, with agents inside it.
 - Study: card hints (long answer, a list, yes or no, several blanks, front not a question) when the card maker proposes cards, and a prompt on cards you have forgotten six times.
 - Agents: on a note an agent wrote, "Review changes" shows each change with the line around it and lets you put the old text back one change at a time ("Undo this run" still undoes everything).
 - Settings: remove pictures that no note uses any more (after a confirm).
+- Settings, Pictures: let the card maker and the recall checker see the pictures in a note (off by default; needs a model that reads images). Ollama is now asked for a 16,384-token window so a note plus a picture plus a thinking model no longer ends in an empty answer.
 - Today: a Capture box adds a line to your Inbox note, and "File my inbox" asks the Inbox triager where each line belongs. Its writes wait under "Needs you" for your yes, and filed lines are marked `- [x]` instead of removed.
 - Recall: after a check you can keep the points you got wrong (the checker's list, or your own). The next check on that note shows them first, the card maker writes cards on them, and the weekly study review sees them. You cross each one off yourself.
 - Other agents (MCP, ADR-0022): switch it on in Settings and tools like Claude Code or Claude Desktop can search and read your notes at `/api/mcp`, and, with a second switch, write notes. Each write is a run you can undo. Off by default.

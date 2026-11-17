@@ -44,7 +44,7 @@ export async function waitForRuns(): Promise<void> {
 }
 
 /** Starts a run in the background and returns at once with the new `running` row. */
-export function startRun(agentName: string, task?: string, trigger: Run["trigger"] = "manual"): Run {
+export function startRun(agentName: string, task?: string, trigger: Run["trigger"] = "manual", images?: { mime: string; data: string }[]): Run {
   const stored = getAgent(agentName);
   if (!stored) throw new AppError("agent-not-found", `Agent not found: ${agentName}`, 404);
   // What the run may do is decided now, from the owner's instance settings: later changes do not touch it.
@@ -53,7 +53,7 @@ export function startRun(agentName: string, task?: string, trigger: Run["trigger
     throw new AppError("agent-busy", `Agent ${agentName} already has a run in progress`, 409);
   }
   const run = createRun(randomUUID(), agent.name, agent.tokenBudget, trigger);
-  launch(run.id, agent, task ?? agent.defaultTask);
+  launch(run.id, agent, task ?? agent.defaultTask, undefined, images);
   return run;
 }
 
@@ -82,7 +82,7 @@ function settleFailure(runId: string, err: unknown): void {
 }
 
 /** Runs the agent in the background. A run that stops at `waiting-approval` is not finished: it waits for the owner. */
-function launch(runId: string, agent: Agent, task: string, resume?: { decisions: Record<string, "approve" | "reject"> }): void {
+function launch(runId: string, agent: Agent, task: string, resume?: { decisions: Record<string, "approve" | "reject"> }, images?: { mime: string; data: string }[]): void {
   const threadId = resume ? chatThreadForRun(runId) : null;
   const work = (async () => {
     try {
@@ -92,6 +92,7 @@ function launch(runId: string, agent: Agent, task: string, resume?: { decisions:
         runId,
         makeModel: deps.makeModel,
         ...(resume ? { resume } : {}),
+        ...(images && images.length > 0 ? { images } : {}),
         ...(threadId ? { chat: { threadId, first: false } } : {}),
       });
       settle(runId, outcome);

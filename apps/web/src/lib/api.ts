@@ -114,6 +114,9 @@ export const recordRecall = (noteId: string, result: RecallResult) => request<Re
 export const startRecallCheck = (noteId: string, recall: string) => request<Run>(`/api/notes/${seg(noteId)}/recall-check`, json("POST", { recall }));
 export const startOutline = (source: string) => request<Run>("/api/outline", json("POST", { source }));
 export const captureLine = (text: string) => request<{ id: string; line: string }>("/api/capture", json("POST", { text }));
+export type ImageSettings = { agentsSeePictures: boolean };
+export const getImageSettings = () => request<ImageSettings>("/api/images/settings");
+export const putImageSettings = (s: ImageSettings) => request<ImageSettings>("/api/images/settings", json("PUT", s));
 export type Misconception = { id: string; noteId: string; text: string; createdAt: string };
 export const listMisconceptions = (noteId: string) => request<Misconception[]>(`/api/misconceptions?note=${encodeURIComponent(noteId)}`);
 export const addMisconceptions = (noteId: string, texts: string[]) => request<Misconception[]>("/api/misconceptions", json("POST", { noteId, texts }));

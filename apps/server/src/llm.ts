@@ -12,6 +12,9 @@ export type ChatModel = {
   stream?(messages: BaseMessage[], options?: { signal?: AbortSignal }): Promise<AsyncIterable<AIMessageChunk>>;
 };
 
+/** Context window asked of Ollama (tokens). */
+export const DEFAULT_OLLAMA_CTX = 16384;
+
 export type ModelFactory = (
   tools: StructuredToolInterface[],
   options: { model: string | undefined; maxTokens: number },
@@ -31,6 +34,9 @@ export function modelFactoryFromEnv(env: NodeJS.ProcessEnv = process.env): Model
         model: name,
         baseUrl: env.VIGIL_LLM_BASE_URL ?? "http://127.0.0.1:11434",
         numPredict: maxTokens,
+        // Ollama's default window is 4096 tokens, shared by the prompt, a thinking model's reasoning and the answer;
+        // a note or a picture plus reasoning can fill it and leave an empty reply. VIGIL_LLM_NUM_CTX overrides.
+        numCtx: Number(env.VIGIL_LLM_NUM_CTX) > 0 ? Number(env.VIGIL_LLM_NUM_CTX) : DEFAULT_OLLAMA_CTX,
       });
       return tools.length > 0 ? (chat.bindTools(tools) as unknown as ChatModel) : (chat as unknown as ChatModel);
     }

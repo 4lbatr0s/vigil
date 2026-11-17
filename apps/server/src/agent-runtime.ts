@@ -24,6 +24,8 @@ export type AgentRunner = (input: {
   resume?: { decisions: Record<string, "approve" | "reject"> };
   /** A chat turn: the conversation lives in the checkpoint under this thread id, so a later turn sees earlier ones. */
   chat?: { threadId: string; first: boolean };
+  /** Pictures to show the model with the task (base64, no `data:` prefix). Only for a model that can see images. */
+  images?: { mime: string; data: string }[];
   /** Aborting stops the run at the next step (or at once while waiting for the model): outcome `failed`, error `cancelled`. */
   signal?: AbortSignal;
   /** Live progress for a streaming caller: the model's reply text and tool activity. Never carries keys. */
@@ -63,7 +65,7 @@ export const REJECTED_TEXT = "error: the owner rejected this write";
 
 type PendingCall = { id: string; name: string; args: Record<string, unknown> };
 
-export const runAgent: AgentRunner = async ({ agent, task, runId, makeModel, depth = 0, resume, chat, signal, onEvent }) => {
+export const runAgent: AgentRunner = async ({ agent, task, runId, makeModel, depth = 0, resume, chat, images, signal, onEvent }) => {
   // A resumed run continues its token count; it never starts from zero.
   let used = resume ? (getRun(runId)?.tokensUsed ?? 0) : 0;
   let finalText = "";
@@ -273,8 +275,10 @@ export const runAgent: AgentRunner = async ({ agent, task, runId, makeModel, dep
         addEvent(runId, "prompt", truncate(redact(`Message: ${task}`), 2000), { tools: [...byName.keys()] });
         result = await graph.invoke({ messages: [new HumanMessage(task)] }, config);
       } else {
-        addEvent(runId, "prompt", truncate(redact(`${system}\n\n${chat ? "Message" : "Task"}: ${task}`), 2000), { tools: [...byName.keys()] });
-        result = await graph.invoke({ messages: [new SystemMessage(system), new HumanMessage(task)] }, config);
+        const pictures = images ?? [];
+        addEvent(runId, "prompt", truncate(redact(`${system}\n\n${chat ? "Message" : "Task"}: ${task}${pictures.length > 0 ? `\n[+ ${pictures.length} ${pictures.length === 1 ? "picture" : "pictures"}]` : ""}`), 2000), { tools: [...byName.keys()] });
+        const human = pictures.length === 0 ? new HumanMessage(task) : new HumanMessage({ content: [{ type: "text", text: task }, ...pictures.map((p) => ({ type: "image_url" as const, image_url: { url: `data:${p.mime};base64,${p.data}` } }))] });
+        result = await graph.invoke({ messages: [new SystemMessage(system), human] }, config);
       }
     }
     if (isInterrupted(result)) {

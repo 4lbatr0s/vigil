@@ -3,6 +3,7 @@ import { z } from "zod";
 import { checkAccess, type Access } from "./access";
 import { handleAuth } from "./auth";
 import { serveStatic } from "./static";
+import { ImageSettingsSchema, imageSettings, picturesFor, saveImageSettings } from "./note-images";
 import { CaptureBodySchema, capture } from "./capture";
 import { AddBodySchema, addMisconceptions, resolveOne, shakyBlock } from "./misconceptions";
 import { McpSettingsSchema, handleMcp, mcpSettings, saveMcpSettings } from "./mcp";
@@ -287,7 +288,7 @@ const routes: { method: string; pattern: RegExp; keys: string[]; handler: Handle
     method: "POST",
     pattern: /^\/api\/notes\/([^/]+)\/card-proposals$/,
     keys: ["id"],
-    handler: (_req, res, params) => {
+    handler: async (_req, res, params) => {
       const id = params["id"] ?? "";
       if (indexGetNote(id) === null) throw new AppError("note-not-found", `Note not found: ${id}`, 404);
       const agent = getAgent("card-maker");
@@ -296,7 +297,7 @@ const routes: { method: string; pattern: RegExp; keys: string[]; handler: Handle
       // The note travels in the task, so the agent needs no tool at all (and a weak model has no tool call to get wrong).
       const note = indexGetNote(id);
       const text = (note?.body ?? "").slice(0, 20_000);
-      const run = startRun("card-maker", `Make study cards from this note (id ${id}, title "${note?.title ?? id}").\n\nNOTE START\n${text}\nNOTE END${shakyBlock(id)}`, "manual");
+      const run = startRun("card-maker", `Make study cards from this note (id ${id}, title "${note?.title ?? id}").\n\nNOTE START\n${text}\nNOTE END${shakyBlock(id)}`, "manual", await picturesFor(text));
       send(res, 202, { data: run });
     },
   },
@@ -441,6 +442,22 @@ const routes: { method: string; pattern: RegExp; keys: string[]; handler: Handle
   },
   {
     method: "GET",
+    pattern: /^\/api\/images\/settings$/,
+    keys: [],
+    handler: async (_req, res) => send(res, 200, { data: imageSettings() }),
+  },
+  {
+    method: "PUT",
+    pattern: /^\/api\/images\/settings$/,
+    keys: [],
+    handler: async (req, res) => {
+      const parsed = ImageSettingsSchema.safeParse(await readJsonBody(req));
+      if (!parsed.success) throw new AppError("invalid-body", "Body must be { agentsSeePictures: boolean }", 400);
+      send(res, 200, { data: saveImageSettings(parsed.data) });
+    },
+  },
+  {
+    method: "GET",
     pattern: /^\/api\/recall$/,
     keys: [],
     handler: (_req, res) => {
@@ -491,7 +508,7 @@ const routes: { method: string; pattern: RegExp; keys: string[]; handler: Handle
       if (!agent) throw new AppError("agent-not-found", "Add the Recall checker agent first (Agents, then the Recall checker template).", 404);
       if (!agent.enabled) throw new AppError("agent-disabled", "The Recall checker agent is switched off. Turn it on from the Agents page.", 409);
       const text = (note.body ?? "").slice(0, 20_000);
-      const run = startRun("recall-checker", `Check what I remember of this note (id ${id}, title "${note.title}").\n\nNOTE START\n${text}\nNOTE END\n\nRECALL START\n${parsed.data.recall}\nRECALL END`, "manual");
+      const run = startRun("recall-checker", `Check what I remember of this note (id ${id}, title "${note.title}").\n\nNOTE START\n${text}\nNOTE END\n\nRECALL START\n${parsed.data.recall}\nRECALL END`, "manual", await picturesFor(text));
       send(res, 202, { data: run });
     },
   },

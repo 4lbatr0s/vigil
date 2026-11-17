@@ -1,22 +1,34 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { ApiError, getUnusedImages, tidyImages } from "$lib/api";
+  import { ApiError, getImageSettings, getUnusedImages, putImageSettings, tidyImages } from "$lib/api";
 
   let unused = $state<{ count: number; bytes: number } | null>(null);
   let asking = $state(false);
   let notice = $state("");
   let error = $state("");
   let busy = $state(false);
+  let sees = $state(false);
 
   const size = (bytes: number): string => (bytes >= 1_048_576 ? `${(bytes / 1_048_576).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`);
 
   onMount(async () => {
     try {
       unused = await getUnusedImages();
+      sees = (await getImageSettings()).agentsSeePictures;
     } catch (err) {
       error = err instanceof Error ? err.message : "Could not check your pictures";
     }
   });
+
+  async function setSees(on: boolean): Promise<void> {
+    error = "";
+    try {
+      sees = (await putImageSettings({ agentsSeePictures: on })).agentsSeePictures;
+    } catch (err) {
+      sees = !on;
+      error = err instanceof ApiError ? err.detail : err instanceof Error ? err.message : "Could not save";
+    }
+  }
 
   async function tidy(): Promise<void> {
     busy = true;
@@ -37,6 +49,10 @@
 {#if unused}
   <section aria-labelledby="pictures">
     <h2 id="pictures">Pictures</h2>
+    <label class="sees">
+      <input type="checkbox" checked={sees} onchange={(e) => void setSees(e.currentTarget.checked)} />
+      <span>Let the card maker and recall checker see the pictures in a note. Needs a model that can read images; the pictures go to your model provider.</span>
+    </label>
     {#if unused.count === 0}
       <p class="muted">{notice || "Every picture in your vault is used by a note."}</p>
     {:else}
@@ -83,5 +99,13 @@
   }
   .error {
     color: var(--err-ink);
+  }
+  .sees {
+    display: flex;
+    gap: var(--space-3);
+    align-items: baseline;
+    margin-bottom: var(--space-3);
+    font-size: var(--text-label);
+    color: var(--ink-muted);
   }
 </style>
