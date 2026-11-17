@@ -57,6 +57,15 @@ export function startRun(agentName: string, task?: string, trigger: Run["trigger
   return run;
 }
 
+/**
+ * An agent with no tools exists only to give an answer. An empty one (a thinking model that ran out of room, or a
+ * model that said nothing) is a failure to tell the person about, not a success with nothing to read.
+ */
+export function noEmptyAnswer(agent: Agent, outcome: RunOutcome): RunOutcome {
+  if (outcome.status !== "succeeded" || agent.tools.length > 0 || (outcome.finalText ?? "").trim() !== "") return outcome;
+  return { ...outcome, status: "failed", error: "The model sent an empty reply. It may have run out of room: try again, or use a model with a larger context." };
+}
+
 /** Records how a run ended: a run waiting for approval is not finished; a chat turn also leaves its reply in the thread. */
 function settle(runId: string, outcome: RunOutcome): void {
   // Keep the whole answer before the run is announced as finished, so a client that sees "succeeded" can read it.
@@ -95,7 +104,7 @@ function launch(runId: string, agent: Agent, task: string, resume?: { decisions:
         ...(images && images.length > 0 ? { images } : {}),
         ...(threadId ? { chat: { threadId, first: false } } : {}),
       });
-      settle(runId, outcome);
+      settle(runId, noEmptyAnswer(agent, outcome));
     } catch (err) {
       settleFailure(runId, err);
     }

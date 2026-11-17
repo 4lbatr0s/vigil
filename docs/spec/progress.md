@@ -203,7 +203,7 @@ Chosen from the research (spaced repetition tied to notes, active processing ove
 ## Pictures the agents can see (same plan, 2026-11-17, ADR-0025)
 - [x] `images` setting (off by default), `picturesFor` (own attachments only, 4 pictures, 8 MB), pictures sent as image content to the card maker and recall checker, `[+ N pictures]` in the run log, Settings, Pictures checkbox; Ollama context window 16,384 (`VIGIL_LLM_NUM_CTX`)
 - [x] Checked live (Ollama qwen3.5 4B, vision): a note that held only a picture with the words "The mitochondria makes ATP" produced a correct card. The first try gave an empty reply because Ollama's 4,096-token window was full; the window fix removed that (this probably explains several earlier odd "None" answers from the 4B model)
-- [ ] Not done: tutors and quiz master with pictures, an empty model reply still counts as a succeeded run
+- [ ] Not done: tutors and quiz master with pictures, an empty model reply from a no-tool agent now fails the run with a clear message (`noEmptyAnswer`)
 
 ## WP13: after v1 (ordered backlog, do not start before the release)
 
