@@ -401,7 +401,7 @@
         <section class="pane editor-pane">
           <!-- The editor (CodeMirror) is the heavy part: load it after the shell and list. -->
           {#await import("$lib/components/Editor.svelte") then { default: Editor }}
-            {#key reloadKey}<Editor value={draft.body} noteId={selectedId ?? ""} onDocChange={onDocChange} onOpenWikilink={(t) => void openWikilink(t)} getTitles={() => notes.map((n) => n.title)} getTitle={() => draft?.title} onAsk={(sel) => ((askSelection = sel), (askOpen = true))} />{/key}
+            {#key reloadKey}<Editor value={draft.body} noteId={selectedId ?? ""} onDocChange={onDocChange} onOpenWikilink={(t) => void openWikilink(t)} getTitles={() => notes.map((n) => n.title)} getTitle={() => draft?.title} onProblem={(m) => (status = m)} onAsk={(sel) => ((askSelection = sel), (askOpen = true))} />{/key}
           {/await}
         </section>
       </div>

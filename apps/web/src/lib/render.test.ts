@@ -27,3 +27,13 @@ describe("renderMarkdown sanitising", () => {
     expect(html).not.toContain("javascript:");
   });
 });
+
+describe("renderMarkdown vault images", () => {
+  it("points a vault image at the API", () => {
+    expect(renderMarkdown("![shot](attachments/0123456789abcdef.png)")).toContain('src="/api/attachments/0123456789abcdef.png"');
+  });
+  it("leaves other image links alone", () => {
+    const html = renderMarkdown("![x](attachments/../../etc/passwd)");
+    expect(html).not.toContain("/api/attachments/");
+  });
+});

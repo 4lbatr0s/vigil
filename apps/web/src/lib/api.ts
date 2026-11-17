@@ -52,6 +52,12 @@ const json = (method: string, body?: unknown): RequestInit => ({
   body: JSON.stringify(body ?? {}),
 });
 
+// ---- Images ----
+
+/** Stores a pasted or dropped image in the vault and returns its file name (use it as `attachments/<name>`). */
+export const uploadImage = (file: Blob) =>
+  request<{ name: string; bytes: number }>("/api/attachments", { method: "POST", headers: { "content-type": file.type || "application/octet-stream" }, body: file });
+
 // ---- Notes ----
 
 /** The list view: no bodies. A note opens in full with getNote. */

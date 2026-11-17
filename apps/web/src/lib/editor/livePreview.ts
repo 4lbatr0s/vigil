@@ -1,5 +1,6 @@
 import { ensureSyntaxTree, syntaxTree } from "@codemirror/language";
 import { type EditorState, type Extension, type Range } from "@codemirror/state";
+import { attachmentSrc } from "./images";
 import { Decoration, type DecorationSet, EditorView, ViewPlugin, type ViewUpdate, WidgetType } from "@codemirror/view";
 
 /** Only these schemes open from a Cmd/Ctrl+click: a note must not be able to run script. */
@@ -21,6 +22,29 @@ class CheckboxWidget extends WidgetType {
     box.className = "cm-task";
     box.setAttribute("aria-label", this.checked ? "Done" : "Not done");
     return box;
+  }
+  override ignoreEvent(): boolean {
+    return false;
+  }
+}
+
+class ImageWidget extends WidgetType {
+  constructor(
+    readonly src: string,
+    readonly alt: string,
+  ) {
+    super();
+  }
+  override eq(other: ImageWidget): boolean {
+    return other.src === this.src && other.alt === this.alt;
+  }
+  override toDOM(): HTMLElement {
+    const img = document.createElement("img");
+    img.src = this.src;
+    img.alt = this.alt;
+    img.className = "cm-image";
+    img.loading = "lazy";
+    return img;
   }
   override ignoreEvent(): boolean {
     return false;
@@ -134,6 +158,16 @@ export function buildDecorations(state: EditorState, range?: Range2, title?: str
           codeRanges.push({ from: node.from, to: node.to });
           lineDeco(node.from, node.to, "cm-codeblock");
           return;
+        case "Image": {
+          // Our own pictures (`![](attachments/<name>)`) show as pictures until the cursor is on the line.
+          const url = node.node.getChild("URL");
+          const src = url ? attachmentSrc(doc.sliceString(url.from, url.to)) : null;
+          if (src && !lineActive(node.from)) {
+            const alt = /^!\[([^\]]*)\]/.exec(doc.sliceString(node.from, node.to))?.[1] ?? "";
+            out.push(Decoration.replace({ widget: new ImageWidget(src, alt) }).range(node.from, node.to));
+          }
+          return false;
+        }
         case "Link": {
           const marks = node.node.getChildren("LinkMark");
           const url = node.node.getChild("URL");
@@ -300,6 +334,7 @@ const theme = EditorView.baseTheme({
   ".cm-h4, .cm-h5, .cm-h6": { fontWeight: "600" },
   ".cm-strong": { fontWeight: "700" },
   ".cm-em": { fontStyle: "italic" },
+  ".cm-image": { display: "block", maxWidth: "100%", maxHeight: "480px", margin: "var(--space-2) 0", borderRadius: "var(--radius)" },
   ".cm-strike": { textDecoration: "line-through", color: "var(--ink-muted)" },
   ".cm-code": { fontFamily: "var(--font-mono)", fontSize: "0.9em", backgroundColor: "var(--surface)" },
   ".cm-codeblock": { fontFamily: "var(--font-mono)", fontSize: "0.9em", backgroundColor: "var(--surface)" },

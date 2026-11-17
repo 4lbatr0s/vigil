@@ -162,6 +162,11 @@ Chosen from the research (spaced repetition tied to notes, active processing ove
 - [x] Live check, 2026-11-17, local 4B model: explain-it-back and quiz-master both opened with one question and no facts from the note (first-reply rules hold); recall and outline pages work end to end in the browser
 - [x] "Keeps slipping" list on the Study page (cards forgotten 3 or more times, `GET /api/study/stuck`)
 
+## Image paste (ADR-0021, owner delegated the choice 2026-11-17)
+- [x] `POST/GET /api/attachments` (bytes-sniffed PNG/JPEG/GIF/WebP, 5 MB, hash names in `vault/attachments/`), threat model T19
+- [x] Paste or drop in the editor, picture shown in place of its markdown, preview rewrites the link
+- [ ] Clean-up of pictures no note links to
+
 ## WP13: after v1 (ordered backlog, do not start before the release)
 
 

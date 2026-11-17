@@ -28,6 +28,7 @@ import { llmStatus } from "./llm-status";
 import { usage } from "./usage";
 import { getRunResult } from "./state-db";
 import { exportTsv } from "./anki-export";
+import { MAX_IMAGE_BYTES, readAttachment, saveAttachment } from "./attachments";
 import { ResultBodySchema, enroll, recordResult } from "./recall";
 import { GoalBodySchema, goalStatuses, validGoalDay } from "./goals";
 import { StudySettingsSchema, answerCard, deckStats, dueCards, saveStudySettings, studyForecast, stuckCards, studyHistory, studySettings, studyStats, undoAnswer } from "./study";
@@ -392,6 +393,39 @@ const routes: { method: string; pattern: RegExp; keys: string[]; handler: Handle
       const text = (note.body ?? "").slice(0, 20_000);
       const run = startRun("recall-checker", `Check what I remember of this note (id ${id}, title "${note.title}").\n\nNOTE START\n${text}\nNOTE END\n\nRECALL START\n${parsed.data.recall}\nRECALL END`, "manual");
       send(res, 202, { data: run });
+    },
+  },
+  {
+    // A pasted image: the raw bytes are the body (ADR-0021). The type is decided from the bytes.
+    method: "POST",
+    pattern: /^\/api\/attachments$/,
+    keys: [],
+    handler: async (req, res) => {
+      const chunks: Buffer[] = [];
+      let size = 0;
+      for await (const chunk of req) {
+        size += (chunk as Buffer).length;
+        if (size > MAX_IMAGE_BYTES) throw new AppError("payload-too-large", "Images can be up to 5 MB", 413);
+        chunks.push(chunk as Buffer);
+      }
+      send(res, 201, { data: await saveAttachment(Buffer.concat(chunks)) });
+    },
+  },
+  {
+    method: "GET",
+    pattern: /^\/api\/attachments\/([^/]+)$/,
+    keys: ["name"],
+    handler: async (_req, res, params) => {
+      const { bytes, mime } = await readAttachment(params["name"] ?? "");
+      // Served as an inert image: no sniffing, and a sandboxed empty policy in case it is opened on its own.
+      res.writeHead(200, {
+        "content-type": mime,
+        "content-length": bytes.length,
+        "x-content-type-options": "nosniff",
+        "content-security-policy": "default-src 'none'; sandbox",
+        "cache-control": "private, max-age=31536000, immutable",
+      });
+      res.end(bytes);
     },
   },
   {

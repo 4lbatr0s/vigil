@@ -52,6 +52,7 @@ Scope: a single-user, self-hosted instance (loopback by default, optionally expo
 | T15 | Container escape or root in the container | non-root `node` user; no extra capabilities documented; vault is a mounted volume | planned (WP12) | manual |
 | T17 | A stale approval overwrites a newer human edit | approval stores the note's `updatedAt`; approving after a change answers `409 approval-stale`; apply-anyway needs `force`, snapshot first | built (WP8) | `approvals.test.ts` |
 | T18 | Event stream leaks data or exhausts connections | events carry ids, statuses and counts only (run-event: run id, seq and kind, never text), never bodies, prompts or keys; 20-stream cap; same `checkAccess` | built (WP4-T9) | `events.test.ts` |
+| T19 | A pasted file is not a picture (SVG with script, HTML, an oversized body) or a crafted name reads another file | type decided from the first bytes (PNG, JPEG, GIF, WebP only; SVG refused); 5 MB cap while streaming; stored under a content-hash name; reads accept only `^[a-f0-9]{16}\.(png|jpg|gif|webp)$`; served with `nosniff` and a sandboxed `default-src 'none'` policy; same access checks as every API route | built (Study v2) | `attachments.test.ts` |
 | T16 | Malicious dependency | exact pins for the LangChain family and agent-adjacent libraries; lockfile committed; `pnpm install --frozen-lockfile` in CI | partly built | CI |
 
 ## 5. Residual risks (accepted, stated plainly)

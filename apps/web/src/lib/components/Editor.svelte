@@ -8,6 +8,8 @@
   import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
   import { tags } from "@lezer/highlight";
   import { livePreview } from "$lib/editor/livePreview";
+  import { imageDrop } from "$lib/editor/images";
+  import { uploadImage } from "$lib/api";
   import { wikilinkCompletion } from "$lib/editor/wikilinkComplete";
   import { boldCommand, clozeCommand, codeCommand, headingCommand, indentCommand, italicCommand, lineCommand, linkCommand, outdentCommand, strikeCommand } from "$lib/editor/format";
   import SelectionToolbar from "$lib/components/SelectionToolbar.svelte";
@@ -17,6 +19,7 @@
     noteId = "",
     onDocChange,
     onOpenWikilink,
+    onProblem,
     getTitles,
     getTitle,
     onAsk,
@@ -26,6 +29,8 @@
     onDocChange?: (next: string) => void;
     /** Cmd/Ctrl+click on a [[wikilink]]: the page opens or offers to create that note. */
     onOpenWikilink?: (title: string) => void;
+    /** A short message when a pasted or dropped image cannot be added. */
+    onProblem?: (message: string) => void;
     /** Note titles for `[[` completion, read each time the list opens. */
     getTitles?: () => string[];
     /** The note's title: a first-line `# Title` that repeats it is hidden, the page shows it already. */
@@ -150,6 +155,7 @@
             onAsk ? () => onAsk(instance ? selectedText(instance) : "") : undefined,
           ),
           livePreview({ onOpenWikilink: (title) => onOpenWikilink?.(title), getTitle: () => getTitle?.() }),
+          imageDrop(async (file) => (await uploadImage(file)).name, (m) => onProblem?.(m)),
           EditorView.lineWrapping,
           theme,
           EditorView.updateListener.of((update) => {

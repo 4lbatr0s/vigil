@@ -196,3 +196,22 @@ describe("cloze blanks", () => {
     expect(replaced(state(doc, 8)).filter((t) => t === "{{" || t === "}}")).toHaveLength(0);
   });
 });
+
+describe("vault images", () => {
+  const img = "![shot](attachments/0123456789abcdef.png)";
+  it("shows our own picture in place of its markdown away from the cursor", () => {
+    const doc = `Intro\n\n${img}\n\nEnd`;
+    const s = state(doc, doc.length);
+    expect(replaced(s)).toContain(img);
+  });
+  it("shows the raw text on the line being edited", () => {
+    const doc = `Intro\n\n${img}\n\nEnd`;
+    const s = state(doc, doc.indexOf("![") + 3);
+    expect(replaced(s)).not.toContain(img);
+  });
+  it("does not turn other links into pictures", () => {
+    const other = "![x](https://evil.test/a.png)";
+    const doc = `${other}\n\nEnd`;
+    expect(replaced(state(doc, doc.length))).not.toContain(other);
+  });
+});
