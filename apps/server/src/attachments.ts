@@ -1,9 +1,9 @@
 import { createHash } from "node:crypto";
-import { mkdir, readFile, rename, stat, unlink, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, rename, stat, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { randomBytes } from "node:crypto";
 import { AppError } from "./errors";
-import { vaultDir } from "./vault";
+import { listNotes, vaultDir } from "./vault";
 
 /**
  * Pasted images (ADR-0021). They live in `attachments/` inside the vault so they travel with the notes and
@@ -69,4 +69,33 @@ export async function readAttachment(name: string): Promise<{ bytes: Buffer; mim
   } catch {
     throw new AppError("attachment-not-found", "Image not found", 404);
   }
+}
+
+/** A picture must be this old before it can count as unused: a fresh paste may not be saved into its note yet. */
+export const UNUSED_AFTER_MS = 60 * 60 * 1000;
+
+export type UnusedImage = { name: string; bytes: number };
+
+const LINK = /attachments\/([a-f0-9]{16}\.(?:png|jpg|gif|webp))/g;
+
+/** Pictures in the vault that no note links to and that are over an hour old. */
+export async function unusedAttachments(now: Date): Promise<UnusedImage[]> {
+  const files = await readdir(dir()).catch(() => [] as string[]);
+  if (files.length === 0) return [];
+  const used = new Set<string>();
+  for (const note of await listNotes()) for (const m of note.body.matchAll(LINK)) used.add(m[1] ?? "");
+  const out: UnusedImage[] = [];
+  for (const name of files) {
+    if (!ATTACHMENT_NAME.test(name) || used.has(name)) continue;
+    const info = await stat(path.join(dir(), name));
+    if (now.getTime() - info.mtimeMs >= UNUSED_AFTER_MS) out.push({ name, bytes: info.size });
+  }
+  return out;
+}
+
+/** Deletes the unused pictures and returns what went. Anything a note links to is never touched. */
+export async function tidyAttachments(now: Date): Promise<{ removed: number; bytes: number }> {
+  const unused = await unusedAttachments(now);
+  for (const u of unused) await unlink(path.join(dir(), u.name));
+  return { removed: unused.length, bytes: unused.reduce((n, u) => n + u.bytes, 0) };
 }

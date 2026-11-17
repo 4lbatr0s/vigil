@@ -165,7 +165,7 @@ Chosen from the research (spaced repetition tied to notes, active processing ove
 ## Image paste (ADR-0021, owner delegated the choice 2026-11-17)
 - [x] `POST/GET /api/attachments` (bytes-sniffed PNG/JPEG/GIF/WebP, 5 MB, hash names in `vault/attachments/`), threat model T19
 - [x] Paste or drop in the editor, picture shown in place of its markdown, preview rewrites the link. Checked in the browser: a pasted PNG uploaded, showed in place, loaded at full size, and the note saved with the link
-- [ ] Clean-up of pictures no note links to
+- [x] Settings, Pictures: counts pictures no note links to (over an hour old) and deletes them after a confirm (`GET /api/attachments/unused`, `POST /api/attachments/tidy`)
 
 ## Review changes hunk by hunk (owner delegated, 2026-11-17)
 - [x] `GET /api/runs/:id/before/:noteId` (the body before the run, from its snapshot, no frontmatter), `segments` and `revertChange` in `lib/diff.ts`, a "Review changes" panel on notes an agent wrote with "Put the old text back" per change. Reverting is the owner's own save with `baseUpdatedAt`, so it never overwrites a newer edit. Checked in the browser on a real agent note.

@@ -14,6 +14,6 @@ Learners paste screenshots and diagrams into notes. Markdown stays the source of
 - The vault listing and watcher only read top-level `.md` files, so the folder never shows up as notes.
 
 ## Consequences
-- Pictures are not deleted when a note is deleted or the link is removed (a later clean-up task can list unreferenced files). They are small and never lost by accident.
+- Pictures are not deleted when a note is deleted or a link is removed. Settings, Pictures lists those no note links to (over an hour old, so a fresh paste is safe) and deletes them after a confirm.
 - Pictures are not yet included in agent prompts; agents read note text only.
 - Snapshots and undo cover note text, not pictures.

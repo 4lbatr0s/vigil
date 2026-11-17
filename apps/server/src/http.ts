@@ -28,7 +28,7 @@ import { llmStatus } from "./llm-status";
 import { usage } from "./usage";
 import { getRunResult } from "./state-db";
 import { exportTsv } from "./anki-export";
-import { MAX_IMAGE_BYTES, readAttachment, saveAttachment } from "./attachments";
+import { MAX_IMAGE_BYTES, readAttachment, saveAttachment, tidyAttachments, unusedAttachments } from "./attachments";
 import { ResultBodySchema, enroll, recordResult } from "./recall";
 import { GoalBodySchema, goalStatuses, validGoalDay } from "./goals";
 import { StudySettingsSchema, answerCard, deckStats, dueCards, saveStudySettings, studyForecast, stuckCards, studyHistory, studySettings, studyStats, undoAnswer } from "./study";
@@ -409,6 +409,23 @@ const routes: { method: string; pattern: RegExp; keys: string[]; handler: Handle
         chunks.push(chunk as Buffer);
       }
       send(res, 201, { data: await saveAttachment(Buffer.concat(chunks)) });
+    },
+  },
+  {
+    method: "GET",
+    pattern: /^\/api\/attachments\/unused$/,
+    keys: [],
+    handler: async (_req, res) => {
+      const unused = await unusedAttachments(new Date());
+      send(res, 200, { data: { count: unused.length, bytes: unused.reduce((n, u) => n + u.bytes, 0) } });
+    },
+  },
+  {
+    method: "POST",
+    pattern: /^\/api\/attachments\/tidy$/,
+    keys: [],
+    handler: async (_req, res) => {
+      send(res, 200, { data: await tidyAttachments(new Date()) });
     },
   },
   {

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { mkdtemp, readdir, rm } from "node:fs/promises";
+import { mkdtemp, readdir, rm, utimes } from "node:fs/promises";
 import { createServer, type Server } from "node:http";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -92,5 +92,30 @@ describe("attachments API", () => {
     await fetch(`${base}/api/notes/a`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ title: "A", body: "x" }) });
     const list = (await (await fetch(`${base}/api/notes`)).json()) as { data: { id: string }[] };
     expect(list.data.map((n) => n.id)).toEqual(["a"]);
+  });
+});
+
+describe("tidying unused pictures", () => {
+  const putNote = (id: string, body: string) => fetch(`${base}/api/notes/${id}`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ title: id, body }) });
+  const age = async (name: string, hours: number) => {
+    const t = new Date(Date.now() - hours * 3_600_000);
+    await utimes(path.join(root, "vault", "attachments", name), t, t);
+  };
+  it("counts and removes only old pictures that no note links to", async () => {
+    const used = ((await (await upload(PNG)).json()) as { data: { name: string } }).data.name;
+    const unused = ((await (await upload(JPG)).json()) as { data: { name: string } }).data.name;
+    const fresh = ((await (await upload(GIF)).json()) as { data: { name: string } }).data.name;
+    await putNote("n", `see ![](attachments/${used})`);
+    await age(used, 5);
+    await age(unused, 5);
+    const count = (await (await fetch(`${base}/api/attachments/unused`)).json()) as { data: { count: number } };
+    expect(count.data.count).toBe(1);
+    const done = (await (await fetch(`${base}/api/attachments/tidy`, { method: "POST" })).json()) as { data: { removed: number } };
+    expect(done.data.removed).toBe(1);
+    expect((await readdir(path.join(root, "vault", "attachments"))).sort()).toEqual([used, fresh].sort());
+  });
+  it("does nothing when there is no attachments folder", async () => {
+    const done = (await (await fetch(`${base}/api/attachments/tidy`, { method: "POST" })).json()) as { data: { removed: number } };
+    expect(done.data.removed).toBe(0);
   });
 });

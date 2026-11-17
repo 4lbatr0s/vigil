@@ -58,6 +58,9 @@ const json = (method: string, body?: unknown): RequestInit => ({
 export const uploadImage = (file: Blob) =>
   request<{ name: string; bytes: number }>("/api/attachments", { method: "POST", headers: { "content-type": file.type || "application/octet-stream" }, body: file });
 
+export const getUnusedImages = () => request<{ count: number; bytes: number }>("/api/attachments/unused");
+export const tidyImages = () => request<{ removed: number; bytes: number }>("/api/attachments/tidy", json("POST"));
+
 // ---- Notes ----
 
 /** The list view: no bodies. A note opens in full with getNote. */

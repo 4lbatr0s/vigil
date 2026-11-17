@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { goto } from "$app/navigation";
+  import TidyPictures from "$lib/components/TidyPictures.svelte";
   import StudySettingsSection from "$lib/components/StudySettings.svelte";
   import { ApiError, getLlmStatus, getPermissions, getSession, getUsage, logout, putPermissions, type LlmStatus, type Session, type Usage } from "$lib/api";
   import { applyAppearance, loadAppearance, saveAppearance, type Appearance } from "$lib/appearance";
@@ -119,6 +120,8 @@
   </section>
 
   <StudySettingsSection />
+
+  <TidyPictures />
 
   {#if form}
     <section aria-labelledby="perm">
