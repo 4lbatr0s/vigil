@@ -72,6 +72,11 @@ Learning research is clear that testing yourself and spacing reviews out beat re
 - **Cards live in your notes.** `Question :: Answer` on one line, or `{{hidden words}}` inside a sentence. Plain markdown, readable anywhere.
 - **Spaced review.** The Study page shows what is due, you type your answer first (optional), reveal it, and rate it with keys 1 to 4. Scheduling uses FSRS. There are no streaks or scores.
 - **Make cards.** The Card maker agent proposes cards from a note; you edit, keep or drop each one before anything is saved. It has no tools, so it cannot change or read anything else.
+- **Card hints.** When the card maker proposes cards, Vigil flags ones that are hard to learn from (long answers, lists, yes or no, several blanks). Cards you keep forgetting get their own list so you can reword or split them.
+- **Exam dates.** Give a note or tag a date and reviews are paced to land before it (the best gap depends on when the test is; Cepeda et al. 2008). The pacing steps are a design choice, shown to you, and removed by deleting the date.
+- **Recall checks.** Write what you remember of a whole note, an agent shows what you covered and missed from the note itself, and the note comes back after 1, 3, 7 and 21 days.
+- **Study outline.** Paste text and get headings with a question each, answers left empty for you to write in your own words.
+- **Your data stays yours.** Download your cards as text for Anki, or import an Anki plain-text export (review history is not imported). A calendar helps you find daily notes, and settings let you choose new cards per day and how sure the scheduler should aim to keep you.
 - **Tutors.** A Socratic tutor, an explain-it-back coach and a quiz master ask first, hint second and answer last, using only the note you give them.
 
 No claim is made that this multiplies learning many times over: the research supports a solid, practical gain from better habits, with the busywork taken off your hands.
