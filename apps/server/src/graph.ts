@@ -1,5 +1,6 @@
 import type { Agent } from "@vigil/shared";
-import { allLinks, listNoteSummaries } from "./index-db";
+import { allLinks, listNoteSummaries, noteTagsAll } from "./index-db";
+import { memoryMap, type NoteMemory } from "./memory";
 import { listAgents, recentTouches } from "./state-db";
 
 export const MAX_GRAPH_NODES = 3000;
@@ -15,6 +16,8 @@ export type GraphNode = {
   ghost?: boolean;
   /** Number of edges touching this node (computed here so the client need not). */
   degree: number;
+  /** Study memory for a note that has cards or a recall check (the memory view of the graph). */
+  memory?: NoteMemory;
 };
 export type GraphEdge = { source: string; target: string; kind: "link" | "agent-read" | "agent-wrote"; dangling?: boolean };
 export type GraphData = { nodes: GraphNode[]; edges: GraphEdge[]; truncated: boolean };
@@ -60,6 +63,11 @@ export function buildGraphData(now: Date = new Date(), agents: Agent[] = listAge
     seen.add(key);
     if (dangling && !nodes.has(l.dst)) nodes.set(l.dst, { id: l.dst, title: l.dst, kind: "note", ghost: true, degree: 0 });
     edges.push({ source: l.src, target: l.dst, kind: "link", ...(dangling ? { dangling: true } : {}) });
+  }
+  const memory = memoryMap(now, noteTagsAll);
+  for (const [id, m] of memory) {
+    const node = nodes.get(id);
+    if (node && !node.ghost) node.memory = m;
   }
   const agentNames = new Set(agents.map((a) => a.name));
   for (const a of agents) nodes.set(`agent:${a.name}`, { id: `agent:${a.name}`, title: a.name, kind: "agent", degree: 0 });

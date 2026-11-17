@@ -1,7 +1,10 @@
 import Graph from "graphology";
 
+/** Mirrors `NoteMemory` in apps/server/src/memory.ts. */
+export type NoteMemoryData = { cards: number; reviewed: number; strength: number | null; recallDue: boolean; examDays: number | null };
+
 /** Mirrors GET /api/graph (apps/server/src/graph.ts). */
-export type GraphNodeData = { id: string; title: string; kind: "note" | "agent"; updatedAt?: string; author?: "human" | "agent"; ghost?: boolean; degree: number };
+export type GraphNodeData = { id: string; title: string; kind: "note" | "agent"; updatedAt?: string; author?: "human" | "agent"; ghost?: boolean; degree: number; memory?: NoteMemoryData };
 export type GraphEdgeData = { source: string; target: string; kind: "link" | "agent-read" | "agent-wrote"; dangling?: boolean };
 export type GraphApi = { nodes: GraphNodeData[]; edges: GraphEdgeData[]; truncated: boolean };
 
@@ -52,6 +55,7 @@ export function buildGraph(data: GraphApi, colors: GraphColors): Graph {
       updatedAt: n.updatedAt ?? null,
       author: n.author ?? null,
       degree: n.degree,
+      memory: n.memory ?? null,
     });
   }
   let i = 0;
@@ -112,4 +116,33 @@ export function matchesQuery(title: string, query: string): boolean {
 export function withAlpha(color: string, alpha: number): string {
   const pct = Math.round(Math.max(0, Math.min(1, alpha)) * 100);
   return `color-mix(in srgb, ${color.trim()} ${pct}%, transparent)`;
+}
+
+const HEX = /^#([0-9a-f]{6})$/i;
+
+/** A color `t` of the way from `a` to `b` (both `#rrggbb` tokens); the first color when either is not a hex value. */
+export function mixColor(a: string, b: string, t: number): string {
+  const ma = HEX.exec(a.trim());
+  const mb = HEX.exec(b.trim());
+  if (!ma?.[1] || !mb?.[1]) return a;
+  const k = Math.max(0, Math.min(1, t));
+  const ch = (hex: string, i: number): number => parseInt(hex.slice(i, i + 2), 16);
+  const out = [0, 2, 4].map((i) => Math.round(ch(ma[1]!, i) + (ch(mb[1]!, i) - ch(ma[1]!, i)) * k));
+  return `#${out.map((v) => v.toString(16).padStart(2, "0")).join("")}`;
+}
+
+/** Memory view: red-ish where recall is fading, green where it is strong; notes with nothing answered yet keep `plain`. */
+export function memoryColor(memory: NoteMemoryData | undefined, c: { fading: string; strong: string; plain: string }): string {
+  if (!memory || memory.strength === null) return c.plain;
+  // Below 50% is as bad as it gets on this scale; 95% and above is as good.
+  return mixColor(c.fading, c.strong, (memory.strength - 0.5) / 0.45);
+}
+
+/** One plain line about a note's memory for the side panel. */
+export function memoryLine(m: NoteMemoryData): string {
+  const parts: string[] = [];
+  parts.push(m.strength === null ? `${m.cards} ${m.cards === 1 ? "card" : "cards"}, none answered yet` : `about ${Math.round(m.strength * 100)}% remembered (${m.reviewed} of ${m.cards} cards answered)`);
+  if (m.recallDue) parts.push("recall check is due");
+  if (m.examDays !== null) parts.push(m.examDays === 0 ? "exam today" : `exam in ${m.examDays} ${m.examDays === 1 ? "day" : "days"}`);
+  return parts.join(" · ");
 }

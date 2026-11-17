@@ -75,3 +75,12 @@ export function review(state: CardState, answer: Answer, now: Date, retention: n
 }
 
 export const isDue = (state: CardState, now: Date): boolean => new Date(state.due).getTime() <= now.getTime();
+
+/**
+ * Chance (0 to 1) the learner could answer the card right now, from FSRS's forgetting curve (retention does not
+ * change the curve, so the default scheduler serves). A card nobody has answered has none: `null`.
+ */
+export function retrievability(state: CardState, now: Date): number | null {
+  if (state.state === 0 || state.lastReview === null) return null;
+  return schedulerFor(DEFAULT_RETENTION).retrievability(toFsrs(state), now);
+}

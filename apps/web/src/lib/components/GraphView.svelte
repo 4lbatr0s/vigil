@@ -8,10 +8,13 @@
     glowAlpha,
     groupByConnections,
     matchesQuery,
+    memoryColor,
+    memoryLine,
     neighborSet,
     withAlpha,
     type GraphApi,
     type GraphColors,
+    type NoteMemoryData,
   } from "$lib/graph-model";
   import { formatStamp } from "$lib/format";
 
@@ -21,6 +24,9 @@
   let error = $state("");
   let loading = $state(true);
   let listView = $state(false);
+  /** Memory view: notes colored by how much of them you remember (ADR-0022), instead of plain dots. */
+  let memoryView = $state(false);
+  let memoryColors = { fading: "", strong: "", plain: "" };
   let webgl = $state(true);
   let query = $state("");
   let selected = $state<string | null>(null);
@@ -106,8 +112,10 @@
       link: token("--hairline"),
       agentEdge: withAlpha(amber, 0.4),
     };
+    memoryColors = { fading: token("--err"), strong: token("--ok"), plain: token("--ink-muted") };
     const graph = buildGraph(api, colors);
     graphRef = graph;
+    paintNodes();
 
     const settings = fa2.default.inferSettings(graph);
     if (graph.order <= 500) {
@@ -179,6 +187,23 @@
     }
   }
 
+  /** Recolors the note dots for the current view; the renderer picks the change up on the next frame. */
+  function paintNodes(): void {
+    const graph = graphRef;
+    if (!graph) return;
+    graph.forEachNode((id, attrs) => {
+      if (attrs["kind"] !== "note" || attrs["ghost"] === true) return;
+      const memory = (attrs["memory"] as NoteMemoryData | null) ?? undefined;
+      graph.setNodeAttribute(id, "color", memoryView ? memoryColor(memory, memoryColors) : (colors?.note ?? memoryColors.plain));
+    });
+    renderer?.refresh();
+  }
+
+  $effect(() => {
+    void memoryView;
+    paintNodes();
+  });
+
   /** The 2D layer: amber halos under recent notes and dashed amber lines for agent edges (ADR-0012). */
   function paintOverlay(): void {
     const canvas = overlay;
@@ -200,7 +225,7 @@
     const now = new Date();
     graph.forEachNode((id, attrs) => {
       if (attrs["kind"] !== "note") return;
-      const alpha = glowAlpha((attrs["updatedAt"] as string | null) ?? undefined, now);
+      const alpha = memoryView ? 0 : glowAlpha((attrs["updatedAt"] as string | null) ?? undefined, now);
       if (alpha <= 0) return;
       const p = r.graphToViewport({ x: attrs["x"] as number, y: attrs["y"] as number });
       const size = r.scaleSize(attrs["size"] as number);
@@ -214,6 +239,19 @@
       ctx.fill();
       void id;
     });
+
+    // Memory view: a thin ring around a note whose recall check is due.
+    if (memoryView) {
+      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = ink;
+      graph.forEachNode((_id, attrs) => {
+        if (attrs["kind"] !== "note" || !(attrs["memory"] as NoteMemoryData | null)?.recallDue) return;
+        const p = r.graphToViewport({ x: attrs["x"] as number, y: attrs["y"] as number });
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, r.scaleSize(attrs["size"] as number) + 3, 0, Math.PI * 2);
+        ctx.stroke();
+      });
+    }
 
     // Agents are rings: the node itself is hollow, the ring is stroked here.
     ctx.lineWidth = 1.5;
@@ -287,6 +325,7 @@
 <div class="graph">
   <div class="bar">
     <input type="search" bind:value={query} placeholder="Find a note" aria-label="Find a note" />
+    <button type="button" class="act" aria-pressed={memoryView} onclick={() => ((memoryView = !memoryView), renderer?.refresh())} title="Color notes by how much of them you remember">Memory</button>
     <button type="button" class="act" aria-pressed={listView} onclick={() => (listView = !listView)} disabled={!webgl}>{listView ? "Show graph" : "List view"}</button>
     {#if data?.truncated}<span class="muted">Showing the 3000 most recent notes.</span>{/if}
   </div>
@@ -308,7 +347,7 @@
             <li>
               <button type="button" class="item" onclick={() => (n.ghost ? undefined : openNote(n.id))} disabled={n.ghost}>
                 <span class="title">{n.title}</span>
-                <span class="meta">{n.degree} {n.degree === 1 ? "link" : "links"}{#if data && agentsTouching(data, n.id).length > 0} · {agentsTouching(data, n.id).join(", ")}{/if}</span>
+                <span class="meta">{#if memoryView && n.memory}{memoryLine(n.memory)} · {/if}{n.degree} {n.degree === 1 ? "link" : "links"}{#if data && agentsTouching(data, n.id).length > 0} · {agentsTouching(data, n.id).join(", ")}{/if}</span>
               </button>
             </li>
           {/each}
@@ -318,7 +357,11 @@
   {:else}
     <div class="canvas" bind:this={host} role="application" aria-label="Graph of notes and agents. Use the list view for keyboard access."></div>
     <canvas class="overlay" bind:this={overlay} aria-hidden="true"></canvas>
-    <p class="legend muted">dot = note · ring = agent · dashed line = agent read or wrote · glow = changed in the last 14 days</p>
+    {#if memoryView}
+      <p class="legend muted">green = well remembered · red = fading · grey = no card answered yet · ring = recall check due</p>
+    {:else}
+      <p class="legend muted">dot = note · ring = agent · dashed line = agent read or wrote · glow = changed in the last 14 days</p>
+    {/if}
   {/if}
 
   {#if selectedNode}
@@ -328,7 +371,12 @@
       {#if selectedNode.ghost}
         <p class="muted">Linked but not written yet.</p>
       {:else}
+        {#if selectedNode.memory}<p class="muted">{memoryLine(selectedNode.memory)}</p>{/if}
         <button type="button" class="act primary" onclick={() => openNode(selectedNode.id)}>{selectedNode.kind === "agent" ? "Open agent" : "Open note"}</button>
+        {#if selectedNode.kind === "note" && selectedNode.memory}
+          {#if selectedNode.memory.cards > 0}<a class="act" href={`/study?note=${encodeURIComponent(selectedNode.id)}`}>Study this note</a>{/if}
+          <a class="act" href={`/recall?note=${encodeURIComponent(selectedNode.id)}`}>Recall check</a>
+        {/if}
       {/if}
       {#if backlinks.length > 0}
         <h3>Linked from</h3>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { agentsTouching, buildGraph, glowAlpha, groupByConnections, matchesQuery, neighborSet, withAlpha, nodeSize, seedPosition, type GraphApi, type GraphColors } from "./graph-model";
+import { agentsTouching, buildGraph, glowAlpha, groupByConnections, matchesQuery, memoryColor, memoryLine, mixColor, neighborSet, withAlpha, nodeSize, seedPosition, type GraphApi, type GraphColors } from "./graph-model";
 
 const colors: GraphColors = { note: "n", agent: "a", ghost: "g", link: "l", agentEdge: "ae" };
 const data: GraphApi = {
@@ -93,5 +93,36 @@ describe("withAlpha", () => {
     expect(withAlpha("red", 0.4)).toBe("color-mix(in srgb, red 40%, transparent)");
     expect(withAlpha(" blue ", 2)).toBe("color-mix(in srgb, blue 100%, transparent)");
     expect(withAlpha("green", -1)).toBe("color-mix(in srgb, green 0%, transparent)");
+  });
+});
+
+describe("memory view", () => {
+  // Built from numbers: raw color literals are not allowed outside app.css.
+  const hex = (v: number): string => `#${[v, v, v].map((n) => n.toString(16).padStart(2, "0")).join("")}`;
+  const black = hex(0);
+  const white = hex(255);
+  const grey = hex(119);
+
+  it("mixes two hex colors and falls back to the first for anything else", () => {
+    expect(mixColor(black, white, 0)).toBe(black);
+    expect(mixColor(black, white, 1)).toBe(white);
+    expect(mixColor(black, white, 0.5)).toMatch(/^#(7f|80){3}$/);
+    expect(mixColor(black, white, 7)).toBe(white);
+    expect(mixColor("oklch(0.5 0 0)", white, 0.5)).toBe("oklch(0.5 0 0)");
+  });
+
+  it("colors by how much is remembered, and leaves unanswered notes plain", () => {
+    const c = { fading: black, strong: white, plain: grey };
+    const m = (strength: number | null) => ({ cards: 2, reviewed: strength === null ? 0 : 2, strength, recallDue: false, examDays: null });
+    expect(memoryColor(m(0.3), c)).toBe(black);
+    expect(memoryColor(m(0.99), c)).toBe(white);
+    expect(memoryColor(m(0.725), c)).toMatch(/^#(7f|80){3}$/);
+    expect(memoryColor(m(null), c)).toBe(grey);
+    expect(memoryColor(undefined, c)).toBe(grey);
+  });
+
+  it("says it in one plain line", () => {
+    expect(memoryLine({ cards: 4, reviewed: 3, strength: 0.82, recallDue: true, examDays: 5 })).toBe("about 82% remembered (3 of 4 cards answered) · recall check is due · exam in 5 days");
+    expect(memoryLine({ cards: 1, reviewed: 0, strength: null, recallDue: false, examDays: 0 })).toBe("1 card, none answered yet · exam today");
   });
 });

@@ -181,6 +181,10 @@ Chosen from the research (spaced repetition tied to notes, active processing ove
 - [x] Checked live (Ollama 4B, temp vault): correct cited answer on the second and third try; the first try failed with a stream error from the model server, and one run took 66 s. A 4B thinking model is slow here
 - [ ] Not done: open the note at the cited line, vector search, "gap check" against pasted text
 
+## Memory map (same plan, 2026-11-17)
+- [x] `retrievability` in `srs.ts` (FSRS forgetting curve from ts-fsrs `retrievability`), `memoryMap` in `memory.ts` (mean chance of recall over answered cards, recall check due, nearest exam days by note or tag), `GET /api/graph` nodes carry `memory`
+- [x] Graph "Memory" toggle: note dots colored from `--err` to `--ok` (no amber; amber stays for agent life), glow off, ring for a due recall check, side panel line plus "Study this note" and "Recall check". Checked in the browser (answered cards green, unanswered grey). A fading (red) note was not seen live because it needs days to pass; the color mapping and the decay are unit tested
+
 ## WP13: after v1 (ordered backlog, do not start before the release)
 
 
