@@ -5,6 +5,7 @@ import { getCheckpointer } from "./checkpoints";
 import { withNoteLock } from "./lock";
 import { reindexNote } from "./index-db";
 import { effectiveAgent } from "./permissions";
+import { picturesFor } from "./note-images";
 import { runChatTurn } from "./runs";
 import {
   addChatMessage,
@@ -74,6 +75,9 @@ export async function chatTurn(threadId: string, text: string, begin: () => void
   addChatMessage(threadId, "user", trimmed, run.id);
   if (thread.title === "New chat") setChatTitle(threadId, trimmed.replace(/\s+/g, " ").slice(0, 60));
 
+  // The opening message of a study helper (no tools) may carry the note's own pictures, when the owner allows it.
+  const images = first && agent.tools.length === 0 ? await picturesFor(trimmed) : [];
+
   begin();
   const finished = await runChatTurn({
     agent,
@@ -81,6 +85,7 @@ export async function chatTurn(threadId: string, text: string, begin: () => void
     text: trimmed,
     threadId,
     first,
+    ...(images.length > 0 ? { images } : {}),
     signal,
     onEvent: (e) => emit(e),
   });

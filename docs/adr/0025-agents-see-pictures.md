@@ -15,4 +15,4 @@ Notes hold pasted diagrams and screenshots (ADR-0021), but agents only read text
 ## Consequences
 - The pictures go to the owner's model provider, like the note text already does. The setting text says so.
 - A model that cannot read images may fail the run or ignore them; the owner turns the setting off then.
-- Other agents (tutors, quiz master) do not get pictures yet.
+- The tutors, quiz master and explain-it-back (chat agents with no tools) get the pictures linked in their opening message, once; later turns and agents with tools do not.

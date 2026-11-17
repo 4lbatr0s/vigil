@@ -117,7 +117,7 @@ function launch(runId: string, agent: Agent, task: string, resume?: { decisions:
  * One chat turn as a run (trigger chat): same budget, log and undo as any run. Resolves with the
  * finished (or waiting) run row. The reply is stored in the thread by `settle`.
  */
-export function runChatTurn(input: { agent: Agent; runId: string; text: string; threadId: string; first: boolean; signal: AbortSignal; onEvent: (e: TurnEvent) => void }): Promise<Run> {
+export function runChatTurn(input: { agent: Agent; runId: string; text: string; threadId: string; first: boolean; signal: AbortSignal; onEvent: (e: TurnEvent) => void; images?: { mime: string; data: string }[] }): Promise<Run> {
   const work = (async () => {
     try {
       const outcome = await deps.runner({
@@ -126,6 +126,7 @@ export function runChatTurn(input: { agent: Agent; runId: string; text: string; 
         runId: input.runId,
         makeModel: deps.makeModel,
         chat: { threadId: input.threadId, first: input.first },
+        ...(input.images && input.images.length > 0 ? { images: input.images } : {}),
         signal: input.signal,
         onEvent: input.onEvent,
       });

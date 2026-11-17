@@ -10,6 +10,7 @@ import { closeDb } from "./index-db";
 import type { ModelFactory } from "./llm";
 import { MAX_PICTURES, imageSettings, pictureNames, picturesFor } from "./note-images";
 import { setRunDeps, waitForRuns } from "./runs";
+import { closeCheckpoints } from "./checkpoints";
 import { closeState } from "./state-db";
 
 let root = "";
@@ -32,6 +33,7 @@ afterEach(async () => {
   server.closeAllConnections();
   await new Promise<void>((r) => server.close(() => r()));
   closeDb();
+  closeCheckpoints();
   closeState();
   process.env = { ...saved };
   await rm(root, { recursive: true, force: true });
@@ -99,5 +101,36 @@ describe("pictures for agents", () => {
     expect(r.status).toBe(202);
     await waitForRuns();
     expect(JSON.stringify(seen[0])).toContain("data:image/png;base64,");
+  });
+});
+
+describe("pictures in a study chat", () => {
+  async function chat(agentName: string, tools: string[], text: string, pics: boolean): Promise<unknown[]> {
+    await j("PUT", "/api/images/settings", { agentsSeePictures: pics });
+    const agent = (await j("POST", "/api/agents/from-template/socratic-tutor", { name: agentName })).body.data;
+    await j("PUT", `/api/agents/${agentName}`, { ...agent, enabled: true, tools });
+    const seen: unknown[] = [];
+    const factory: ModelFactory = () => ({ invoke: async (messages: { content: unknown }[]) => (seen.push(messages.at(-1)?.content), new AIMessage("Hello")) }) as never;
+    setRunDeps({ makeModel: factory });
+    const created = (await j("POST", "/api/chats", { agent: agentName })).body.data;
+    await fetch(`${base}/api/chats/${created.id}/messages`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ text }) }).then((r) => r.text());
+    await fetch(`${base}/api/chats/${created.id}/messages`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ text: `again ${text}` }) }).then((r) => r.text());
+    return seen;
+  }
+
+  it("go with the first message of a no-tool helper, once, and only when switched on", async () => {
+    const name = await upload();
+    const text = `Tutor me.\nNOTE START\n![](attachments/${name})\nNOTE END`;
+    const on = await chat("tutor-on", [], text, true);
+    expect(JSON.stringify(on[0])).toContain("data:image/png;base64,");
+    expect(JSON.stringify(on[1])).not.toContain("data:image");
+    const off = await chat("tutor-off", [], text, false);
+    expect(JSON.stringify(off[0])).not.toContain("data:image");
+  });
+
+  it("are not sent to an agent that has tools", async () => {
+    const name = await upload();
+    const seen = await chat("tutor-tools", ["read_notes"], `Hi\n![](attachments/${name})`, true);
+    expect(JSON.stringify(seen[0])).not.toContain("data:image");
   });
 });
