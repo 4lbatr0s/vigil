@@ -322,6 +322,8 @@
         <span>Description</span>
         <input type="text" bind:value={form.description} maxlength="280" />
       </label>
+      <details class="advanced" open={missingConnection !== null}>
+        <summary>Advanced: model, budget and instructions</summary>
       <label class="field">
         <span>Token budget per run</span>
         <input type="text" inputmode="numeric" bind:value={form.tokenBudget} class="narrow mono" />
@@ -351,6 +353,7 @@
           <input type="text" bind:value={form.model} class="mono" />
         {/if}
       </label>
+
       <label class="field">
         <span>What it does when started without instructions</span>
         <input type="text" bind:value={form.defaultTask} />
@@ -359,6 +362,7 @@
         <span>System prompt</span>
         <textarea rows="10" bind:value={form.systemPrompt}></textarea>
       </label>
+      </details>
 
       {#if saveError}<p class="error" role="alert">{saveError}</p>{/if}
       <div class="actions">
@@ -542,6 +546,15 @@
     border: 1px solid var(--hairline);
     border-radius: var(--radius);
     padding: 0 var(--space-2);
+  }
+  .advanced > summary {
+    cursor: pointer;
+    padding: var(--space-2) 0;
+    font-size: var(--text-ui);
+    color: var(--ink-muted);
+  }
+  .advanced[open] > summary {
+    margin-bottom: var(--space-3);
   }
   .toggles {
     display: grid;

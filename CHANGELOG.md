@@ -5,6 +5,7 @@
 A note app first, with agents inside it.
 
 - Notes: "From text" turns pasted text into an empty outline of headings and questions for you to answer in your own words, and there is a Cornell-style note template.
+- Agents: ready-made agents show tags (when it runs, what it touches, whether it uses the web) and the gallery search matches them. The agent page folds model, budget and instructions under "Advanced". The Today empty state is centred.
 - Study: a "Keeps slipping" list of cards you have forgotten again and again.
 - Study: a "Coming up" strip of reviews due over the next 14 days, settings for new cards per day and the remembering target, and sessions that take turns between notes.
 - Study: download your cards as text for Anki, and import cards from an Anki plain-text export (no review history).

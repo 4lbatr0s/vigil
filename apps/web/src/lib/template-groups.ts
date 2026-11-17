@@ -26,3 +26,15 @@ export function groupTemplates(templates: readonly AgentTemplate[]): { id: strin
   const rest = templates.filter((t) => !used.has(t.id));
   return rest.length > 0 ? [...groups, { id: "more", title: "More", blurb: "", items: rest }] : groups;
 }
+
+/** Short plain labels that tell what a ready-made agent does, worked out from its real settings so they cannot drift. */
+export function templateTags(t: AgentTemplate): string[] {
+  const tags: string[] = [];
+  const trigger = t.agent.trigger.kind;
+  tags.push(trigger === "cron" ? "Runs on a schedule" : trigger === "heartbeat" ? "Runs when notes change" : "You start it");
+  if (t.agent.tools.includes("write_notes")) tags.push("Writes notes");
+  else if (t.agent.tools.includes("read_notes")) tags.push("Reads notes");
+  else tags.push("Works on one note you give it");
+  if (t.agent.tools.includes("web_fetch")) tags.push("Uses the web");
+  return tags;
+}

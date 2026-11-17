@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { TEMPLATES } from "@vigil/shared";
-import { HIDDEN_TEMPLATES, groupTemplates } from "./template-groups";
+import { HIDDEN_TEMPLATES, groupTemplates, templateTags } from "./template-groups";
 
 describe("groupTemplates", () => {
   it("puts every shipped template under a group, none twice, none lost", () => {
@@ -16,5 +16,17 @@ describe("groupTemplates", () => {
     const groups = groupTemplates([...TEMPLATES, extra]);
     expect(groups.at(-1)).toMatchObject({ id: "more" });
     expect(groups.at(-1)?.items.map((t) => t.id)).toEqual(["brand-new"]);
+  });
+});
+
+describe("templateTags", () => {
+  const tags = (id: string) => templateTags(TEMPLATES.find((t) => t.id === id)!);
+  it("says when it runs, what it touches and whether it uses the web", () => {
+    expect(tags("morning-digest")).toEqual(["Runs on a schedule", "Writes notes"]);
+    expect(tags("research-scout")).toContain("Uses the web");
+    expect(tags("card-maker")).toEqual(["You start it", "Works on one note you give it"]);
+  });
+  it("gives every shipped template a when and a what", () => {
+    for (const t of TEMPLATES) expect(templateTags(t).length).toBeGreaterThanOrEqual(2);
   });
 });

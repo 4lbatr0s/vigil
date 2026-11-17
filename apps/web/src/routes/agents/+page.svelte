@@ -1,6 +1,6 @@
 <script lang="ts">
   import Illustration from "$lib/components/Illustration.svelte";
-  import { groupTemplates } from "$lib/template-groups";
+  import { groupTemplates, templateTags } from "$lib/template-groups";
   import Lamp from "@lucide/svelte/icons/lamp";
   import { onMount } from "svelte";
   import { goto } from "$app/navigation";
@@ -23,7 +23,7 @@
   let find = $state("");
   const shownGroups = $derived(
     groupTemplates(templates)
-      .map((g) => ({ ...g, items: g.items.filter((t) => find.trim() === "" || `${t.title} ${t.summary}`.toLowerCase().includes(find.trim().toLowerCase())) }))
+      .map((g) => ({ ...g, items: g.items.filter((t) => find.trim() === "" || `${t.title} ${t.summary} ${templateTags(t).join(" ")}`.toLowerCase().includes(find.trim().toLowerCase())) }))
       .filter((g) => g.items.length > 0),
   );
 
@@ -108,7 +108,7 @@
   {#if loaded}
     <section class="gallery" aria-labelledby="gallery-title">
       <h2 id="gallery-title">Ready-made agents</h2>
-      <input type="search" class="find" bind:value={find} placeholder="Find one, for example recall or digest" aria-label="Find a ready-made agent" />
+      <input type="search" class="find" bind:value={find} placeholder="Find one, for example recall, digest or writes notes" aria-label="Find a ready-made agent" />
       {#each shownGroups as g (g.id)}
         <h3 class="group">{g.title}{#if g.blurb}<span class="blurb"> · {g.blurb}</span>{/if}</h3>
         <ul class="ledger">
@@ -117,6 +117,7 @@
               <div class="template-text">
                 <span class="name">{t.title}</span>
                 <span class="summary">{t.summary}</span>
+                <span class="tags">{#each templateTags(t) as tag (tag)}<span class="tag">{tag}</span>{/each}</span>
                 <span class="needs">
                   {#if t.needs.includes("llm") && !llmReady}<a href="/settings#models">Connect a model first</a>.{/if}
                   {#if t.needs.includes("web")} Web: you choose the allowed sites.{/if}
@@ -193,6 +194,18 @@
     font-family: var(--font-serif);
     font-size: var(--text-h3);
     margin-bottom: var(--space-2);
+  }
+  .tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-1);
+  }
+  .tag {
+    padding: 0 var(--space-2);
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius);
+    font-size: var(--text-label);
+    color: var(--ink-muted);
   }
   .ledger {
     list-style: none;

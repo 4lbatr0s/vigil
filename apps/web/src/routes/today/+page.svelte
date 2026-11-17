@@ -407,5 +407,6 @@
   .empty {
     padding: var(--space-6) 0;
     font-size: var(--text-ui);
+    text-align: center;
   }
 </style>
