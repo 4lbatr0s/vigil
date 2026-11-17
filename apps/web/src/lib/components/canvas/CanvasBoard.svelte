@@ -2,8 +2,9 @@
   import { setContext, untrack } from "svelte";
   import { Background, BackgroundVariant, ConnectionMode, Controls, MarkerType, MiniMap, Panel, SvelteFlow, useSvelteFlow, type Edge, type Node } from "@xyflow/svelte";
   import { getNote, listNotes, uploadImage } from "$lib/api";
-  import { History, LOCK_FIELD, PRESETS, PRESET_NAMES, SIZES, cssColor, excerpt, imageNameOf, isLocked, lockProps, newId, noteFile, noteIdOf, snapshot, toBoard, toFile, type BoardEdge, type BoardNode, type CanvasFile, type CardData, type CardKind } from "$lib/canvas";
+  import { History, LOCK_FIELD, PRESETS, PRESET_NAMES, SIZES, cssColor, checklistProgress, excerpt, imageNameOf, isLocked, lockProps, newId, noteFile, noteIdOf, snapshot, toBoard, toFile, type BoardEdge, type BoardNode, type CanvasFile, type CardData, type CardKind } from "$lib/canvas";
   import { boundsOf, copySelection, groupAround, pasteClip, restack, type Clip } from "$lib/canvas-clipboard";
+  import { relativeSpot, tidy } from "$lib/canvas-layout";
   import type { NoteSummary } from "@vigil/shared";
   import CanvasMenu, { type MenuItem } from "./CanvasMenu.svelte";
   import { CANVAS_KEY, type CanvasContext } from "./context";
@@ -121,6 +122,12 @@
     } else if (event.shiftKey && !mod && event.code === "Digit2") {
       event.preventDefault();
       zoomToSelection();
+    } else if (event.key === "Tab" && !mod && !event.shiftKey && onlyCard() && (event.target as HTMLElement | null)?.closest(".svelte-flow__node, body") !== null) {
+      event.preventDefault();
+      addRelative("child");
+    } else if (event.key === "Enter" && event.shiftKey && !mod && onlyCard()) {
+      event.preventDefault();
+      addRelative("sibling");
     } else if (event.key === "Enter" && !mod && !event.shiftKey) {
       const only = chosen();
       const node = only.length === 1 ? nodes.find((n) => n.id === only[0]) : undefined;
@@ -132,6 +139,41 @@
       nodes = nodes.map((n) => (n.selected ? { ...n, selected: false } : n));
       edges = edges.map((e) => (e.selected ? { ...e, selected: false } : e));
     }
+  }
+
+  /** The one selected card, when exactly one card (not a group) is selected. */
+  const onlyCard = (): Node | null => {
+    const ids = chosen();
+    const node = ids.length === 1 ? nodes.find((n) => n.id === ids[0]) : undefined;
+    return node && node.type !== "group" ? node : null;
+  };
+
+  /** Mind-map keys: Tab adds a card to the right, joined by an arrow; Shift+Enter adds one below, joined to the same parent. */
+  function addRelative(kind: "child" | "sibling"): void {
+    const from = onlyCard();
+    if (!from) return;
+    const rect = (n: Node): { x: number; y: number; width: number; height: number } => ({ x: n.position.x, y: n.position.y, width: n.width ?? n.measured?.width ?? 200, height: n.height ?? n.measured?.height ?? 100 });
+    const size = SIZES.text;
+    const spot = relativeSpot(rect(from), kind, nodes.filter((n) => n.type !== "group").map(rect), size);
+    const id = newId("t", taken());
+    const top = nodes.reduce((m, n) => Math.max(m, n.zIndex ?? 0), 0) + 1;
+    const parent = kind === "child" ? from.id : edges.find((e) => e.target === from.id)?.source;
+    const node: BoardNode = { id, type: "text", position: spot, width: size.width, height: size.height, zIndex: top, data: { kind: "text", extra: {} } };
+    const edgeId = newId("e", taken());
+    nodes = [...nodes.map((n) => ({ ...n, selected: false })), { ...(node as unknown as Node), selected: true }];
+    if (parent) edges = [...edges, decorate({ id: edgeId, source: parent, target: id, sourceHandle: "right", targetHandle: "left", data: { fromEnd: "none", toEnd: "arrow", extra: {} } } as BoardEdge)];
+    editTarget = id;
+    commit();
+  }
+
+  /** Lays the selected cards out again, as a tree following the arrows or as a grid, keeping their top left corner. */
+  function applyTidy(ids: string[], mode: "tree" | "grid"): void {
+    const b = asBoard();
+    const at = tidy(b.nodes.filter((n) => ids.includes(n.id)), b.edges, mode);
+    if (at.size === 0) return;
+    nodes = nodes.map((n) => (at.has(n.id) ? { ...n, position: at.get(n.id) ?? n.position } : n));
+    commit();
+    void flow.fitView({ nodes: ids.map((id) => ({ id })), duration: 250, padding: 0.3, maxZoom: 1.2 });
   }
 
   // ---- copy, cut, paste, duplicate ----
@@ -293,6 +335,7 @@
       { label: "Bring to front", run: () => stack(ids, "front") },
       { label: "Send to back", run: () => stack(ids, "back") },
       { label: locked ? "Unlock" : "Lock in place", run: () => toggleLock(ids) },
+      ...(ids.length > 1 ? [{ label: "Tidy as a tree", run: () => applyTidy(ids, "tree") } satisfies MenuItem, { label: "Tidy as a grid", run: () => applyTidy(ids, "grid") } satisfies MenuItem] : []),
       { label: "Zoom to", hint: "Shift 2", run: () => void flow.fitView({ nodes: ids.map((id) => ({ id })), duration: 200, padding: 0.3, maxZoom: 1.5 }) },
       "-",
       { label: "Delete", hint: "Del", danger: true, disabled: locked, run: removeSelected },
@@ -322,14 +365,15 @@
   }
 
   // ---- notes shown on cards ----
-  const info = $state<Record<string, { title: string; excerpt: string; missing: boolean } | null>>({});
-  const noteInfo = (noteId: string): { title: string; excerpt: string; missing: boolean } | null => info[noteId] ?? null;
+  type NoteInfo = { title: string; excerpt: string; missing: boolean; progress: { done: number; total: number } | null };
+  const info = $state<Record<string, NoteInfo | null>>({});
+  const noteInfo = (noteId: string): NoteInfo | null => info[noteId] ?? null;
   function loadNote(noteId: string): void {
     if (noteId in info) return;
     info[noteId] = null;
     void getNote(noteId)
-      .then((n) => (info[noteId] = { title: n.title, excerpt: excerpt(n.body), missing: false }))
-      .catch(() => (info[noteId] = { title: noteId, excerpt: "", missing: true }));
+      .then((n) => (info[noteId] = { title: n.title, excerpt: excerpt(n.body), missing: false, progress: checklistProgress(n.body) }))
+      .catch(() => (info[noteId] = { title: noteId, excerpt: "", missing: true, progress: null }));
   }
 
   setContext<CanvasContext>(CANVAS_KEY, {
@@ -592,6 +636,10 @@
             <button type="button" class="swatch" style:--c={`var(--canvas-${p})`} aria-label={`Color ${PRESET_NAMES[p]}`} onclick={() => setColor(p)}></button>
           {/each}
           <button type="button" onclick={() => setColor(undefined)}>No color</button>
+          {#if selectedNodes.length > 1}
+            <button type="button" onclick={() => applyTidy(selectedNodes, "tree")} title="Lay the selected cards out following their arrows">Tidy tree</button>
+            <button type="button" onclick={() => applyTidy(selectedNodes, "grid")} title="Lay the selected cards out in rows">Tidy grid</button>
+          {/if}
           {#if selectedEdge}
             <input type="text" class="label-in" value={selectedEdge.label ?? ""} placeholder="Arrow label" aria-label="Arrow label" oninput={(e) => setLabel(e.currentTarget.value)} onchange={commit} />
           {/if}
@@ -617,6 +665,8 @@
               <dt>Ctrl/Cmd A</dt><dd>Select all</dd>
               <dt>Ctrl/Cmd G</dt><dd>Group the selection</dd>
               <dt>Enter</dt><dd>Edit the selected card</dd>
+              <dt>Tab</dt><dd>New card to the right, joined by an arrow (Esc first to move focus on)</dd>
+              <dt>Shift Enter</dt><dd>New card below, joined to the same parent</dd>
               <dt>Esc</dt><dd>Clear the selection</dd>
               <dt>Ctrl/Cmd Z</dt><dd>Undo (add Shift to redo)</dd>
             </dl>

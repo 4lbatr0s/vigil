@@ -5,6 +5,7 @@
   import { slugify, type Note, type NoteSummary } from "@vigil/shared";
   import { createCanvas, getNote, getStudyStats, saveCanvas, listApprovals, listNotes, listPins, listRuns, pinNote, putNote, unpinNote, type ApprovalItem, type StudyStats } from "$lib/api";
   import { SIZES, noteFile } from "$lib/canvas";
+  import { outlineToBoard } from "$lib/canvas-layout";
   import { newAgentNotes } from "$lib/notes-poll";
   import { refreshOnLive } from "$lib/live";
   import NoteList from "$lib/components/NoteList.svelte";
@@ -313,6 +314,18 @@
     }
   }
 
+  /** The note's headings as a map: the note on the left, one card per heading, arrows from each heading's parent. */
+  async function openAsMap(): Promise<void> {
+    if (!draft || !selectedId) return;
+    try {
+      const made = await createCanvas(`${draft.title} map`);
+      await saveCanvas(made.id, outlineToBoard(selectedId, draft.body), made.updatedAt);
+      await goto(`/canvas/${encodeURIComponent(made.id)}`);
+    } catch (err) {
+      status = err instanceof Error ? err.message : "Could not make a map";
+    }
+  }
+
   async function onDeleted(id: string): Promise<void> {
     const next = nextAfterDelete(notes.map((n) => n.id), id);
     notes = notes.filter((n) => n.id !== id);
@@ -398,6 +411,7 @@
           <button type="button" class="act" onclick={() => (studyOpen = true)}>Study</button>
           <button type="button" class="act" onclick={() => (cardsOpen = true)}>Make cards</button>
           <button type="button" class="act" onclick={() => void openAsCanvas()} title="Put this note on a new canvas board">Canvas</button>
+          <button type="button" class="act" onclick={() => void openAsMap()} title="Turn this note's headings into a map you can rearrange">Map</button>
           <a class="act" href={`/recall?note=${encodeURIComponent(selectedId ?? "")}`} title="Write what you remember, then see what you missed">Recall</a>
           <RenameNote noteId={selectedId ?? ""} title={draft.title} onrenamed={onRenamed} />
           <DeleteNote noteId={selectedId ?? ""} title={draft.title} ondeleted={onDeleted} />

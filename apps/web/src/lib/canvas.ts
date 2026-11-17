@@ -212,3 +212,23 @@ export function ringBoard(centerId: string, links: readonly string[], max = 12):
   });
   return { nodes, edges };
 }
+
+/** Checklist items in a card's text: how many are ticked out of how many. Null when there are none. */
+export function checklistProgress(text: string): { done: number; total: number } | null {
+  let done = 0;
+  let total = 0;
+  for (const m of text.matchAll(/^\s*(?:[-*+]|\d+[.)])\s+\[([ xX])\]/gm)) {
+    total += 1;
+    if (m[1] !== " ") done += 1;
+  }
+  return total === 0 ? null : { done, total };
+}
+
+/** Ticks or unticks the nth checklist item (0-based, in reading order) and gives the new text; unchanged if there is no such item. */
+export function toggleTask(text: string, index: number): string {
+  let seen = -1;
+  return text.replace(/^(\s*(?:[-*+]|\d+[.)])\s+\[)([ xX])(\])/gm, (all, open: string, mark: string, close: string) => {
+    seen += 1;
+    return seen === index ? `${open}${mark === " " ? "x" : " "}${close}` : all;
+  });
+}

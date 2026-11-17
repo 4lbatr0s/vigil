@@ -32,6 +32,12 @@
   {:else}
     <a class="title nodrag" href={`/?note=${encodeURIComponent(noteId)}`} title="Open the note">{info.title}</a>
     <pre class="excerpt">{info.excerpt}</pre>
+    {#if info.progress}
+      <div class="progress" role="progressbar" aria-label="Checklist progress" aria-valuemin="0" aria-valuemax={info.progress.total} aria-valuenow={info.progress.done}>
+        <span class="bar"><span class="fill" style:width={`${(info.progress.done / info.progress.total) * 100}%`}></span></span>
+        <span class="count">{info.progress.done}/{info.progress.total}</span>
+      </div>
+    {/if}
   {/if}
 </div>
 <Handles />
@@ -83,6 +89,27 @@
   }
   .hint {
     margin: 0;
+    color: var(--ink-muted);
+    font-size: var(--text-label);
+  }
+  .progress {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+  }
+  .bar {
+    flex: 1;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--hairline);
+    overflow: hidden;
+  }
+  .fill {
+    display: block;
+    height: 100%;
+    background: var(--canvas-4);
+  }
+  .count {
     color: var(--ink-muted);
     font-size: var(--text-label);
   }

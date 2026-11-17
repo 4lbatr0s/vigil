@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { History, LOCK_FIELD, cssColor, isLocked, lockProps, imageNameOf, ringBoard, excerpt, newId, noteFile, noteIdOf, snapshot, toBoard, toFile, type CanvasFile } from "./canvas";
+import { History, LOCK_FIELD, checklistProgress, cssColor, toggleTask, isLocked, lockProps, imageNameOf, ringBoard, excerpt, newId, noteFile, noteIdOf, snapshot, toBoard, toFile, type CanvasFile } from "./canvas";
 
 // Built from parts: raw color literals are not allowed outside app.css.
 const HEX = `#${"ff"}${"88"}${"00"}`;
@@ -148,5 +148,22 @@ describe("locked cards", () => {
     expect(out.nodes?.find((n) => n.id === "l")?.[LOCK_FIELD]).toBe(true);
     expect(out.nodes?.find((n) => n.id === "u")).not.toHaveProperty(LOCK_FIELD);
     expect(lockProps(false)).toEqual({});
+  });
+});
+
+describe("checklistProgress and toggleTask", () => {
+  const text = "## L0\n- [ ] cpu\n- [x] memory\n* [X] disk\n1. [ ] io\nplain - [ ] not an item";
+
+  it("counts ticked and total items, in any list style", () => {
+    expect(checklistProgress(text)).toEqual({ done: 2, total: 4 });
+    expect(checklistProgress("nothing here")).toBeNull();
+  });
+
+  it("ticks and unticks one item by position and leaves the rest alone", () => {
+    expect(toggleTask(text, 0)).toContain("- [x] cpu");
+    expect(toggleTask(text, 1)).toContain("- [ ] memory");
+    expect(toggleTask(text, 3)).toContain("1. [x] io");
+    expect(toggleTask(text, 0)).toContain("plain - [ ] not an item");
+    expect(toggleTask(text, 9)).toBe(text);
   });
 });

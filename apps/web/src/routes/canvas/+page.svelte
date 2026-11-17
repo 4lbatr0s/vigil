@@ -1,7 +1,8 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { goto } from "$app/navigation";
-  import { ApiError, createCanvas, deleteCanvas, listCanvases, type CanvasSummary } from "$lib/api";
+  import { ApiError, createCanvas, deleteCanvas, listCanvases, saveCanvas, type CanvasSummary } from "$lib/api";
+  import { starterBoard } from "$lib/canvas-layout";
   import { relativeTime } from "$lib/note-list";
 
   let canvases = $state<CanvasSummary[] | null>(null);
@@ -34,6 +35,22 @@
     }
   }
 
+  /** A board that already has a few cards on it: a path of steps with checklists, or a topic with branches. */
+  async function startFrom(kind: "path" | "mindmap"): Promise<void> {
+    if (busy) return;
+    busy = true;
+    error = "";
+    try {
+      const c = await createCanvas(title.trim() || (kind === "path" ? "Learning path" : "Mind map"));
+      await saveCanvas(c.id, starterBoard(kind), c.updatedAt);
+      await goto(`/canvas/${encodeURIComponent(c.id)}`);
+    } catch (err) {
+      error = err instanceof ApiError ? err.detail : err instanceof Error ? err.message : "Could not create it";
+    } finally {
+      busy = false;
+    }
+  }
+
   async function remove(id: string): Promise<void> {
     try {
       await deleteCanvas(id);
@@ -55,6 +72,11 @@
     <input type="text" bind:value={title} placeholder="Name a new board, for example Exam plan" aria-label="Name of the new canvas" maxlength="100" />
     <button type="submit" class="primary" disabled={busy || title.trim() === ""}>New canvas</button>
   </form>
+  <p class="starters">
+    <span class="muted">Or start from</span>
+    <button type="button" class="ghost" disabled={busy} onclick={() => void startFrom("path")}>A learning path</button>
+    <button type="button" class="ghost" disabled={busy} onclick={() => void startFrom("mindmap")}>A mind map</button>
+  </p>
   {#if error}<p class="error" role="alert">{error}</p>{/if}
 
   {#if canvases === null}
@@ -164,5 +186,12 @@
   }
   .error {
     color: var(--err-ink);
+  }
+  .starters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    align-items: center;
+    margin: var(--space-3) 0;
   }
 </style>
