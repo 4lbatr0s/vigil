@@ -247,3 +247,26 @@ export function extractCards(body: string): Card[] {
   });
   return cards;
 }
+
+export type CardHint = { code: "long-answer" | "list" | "yes-no" | "many-blanks" | "not-a-question"; message: string };
+
+const words = (s: string): number => s.split(/\s+/).filter(Boolean).length;
+
+/**
+ * Plain-language hints that a card is hard to learn from: the "one fact per card" rule of thumb
+ * (Wozniak's minimum information principle). Hints only; nothing is changed or blocked.
+ */
+export function lintCard(card: Pick<Card, "kind" | "front" | "back">): CardHint[] {
+  const hints: CardHint[] = [];
+  if (card.kind === "cloze") {
+    const blanks = card.front.split("[…]").length - 1;
+    if (blanks > 1) hints.push({ code: "many-blanks", message: "Several blanks in one card. Try one blank per card." });
+    return hints;
+  }
+  if (words(card.back) > 25) hints.push({ code: "long-answer", message: "Long answer. Try splitting it into smaller cards." });
+  const items = card.back.split(/[;,]|\band\b/i).filter((p) => p.trim() !== "");
+  if (items.length >= 3 || /(^|\s)(1[.)]|[-*]\s)/.test(card.back)) hints.push({ code: "list", message: "This looks like a list. One card per item is easier to remember." });
+  if (/^(yes|no|true|false)\b/i.test(card.back.trim())) hints.push({ code: "yes-no", message: "Yes or no is easy to guess. Ask what or why instead." });
+  if (!card.front.trim().endsWith("?")) hints.push({ code: "not-a-question", message: "Phrase the front as a question." });
+  return hints;
+}

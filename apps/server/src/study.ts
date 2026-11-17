@@ -6,7 +6,8 @@ import { allCardStates, getCardState, reviewCountsByNote, reviewCountsForNote, r
 /** New cards offered per request beyond the ones already due, so a big note never buries the day. */
 export const NEW_PER_SESSION = 10;
 
-export type StudyCard = IndexedCard & { isNew: boolean; due: string | null };
+/** `lapses` is how many times the card was forgotten after being learned; many means it needs rewriting. */
+export type StudyCard = IndexedCard & { isNew: boolean; due: string | null; lapses: number };
 
 /**
  * The cards to study now: reviews that are due first (oldest due date first), then up to `newLimit` cards
@@ -19,8 +20,8 @@ export function dueCards(now: Date, opts: { limit?: number; newLimit?: number; n
   const fresh: StudyCard[] = [];
   for (const c of cards) {
     const s = states.get(c.id);
-    if (!s) fresh.push({ ...c, isNew: true, due: null });
-    else if (isDue(s, now)) reviews.push({ ...c, isNew: false, due: s.due });
+    if (!s) fresh.push({ ...c, isNew: true, due: null, lapses: 0 });
+    else if (isDue(s, now)) reviews.push({ ...c, isNew: false, due: s.due, lapses: s.lapses });
   }
   reviews.sort((a, b) => (a.due ?? "").localeCompare(b.due ?? ""));
   return [...reviews, ...fresh.slice(0, opts.newLimit ?? NEW_PER_SESSION)].slice(0, opts.limit ?? 50);

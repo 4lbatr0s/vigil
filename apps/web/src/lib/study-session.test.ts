@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { StudyCard } from "./api";
 import { answer, current, isFinished, remaining, reveal, startSession } from "./study-session";
 
-const card = (id: string): StudyCard => ({ id, noteId: "n", kind: "qa", front: `Q${id}`, back: `A${id}`, line: 1, isNew: true, due: null });
+const card = (id: string): StudyCard => ({ id, noteId: "n", kind: "qa", front: `Q${id}`, back: `A${id}`, line: 1, isNew: true, due: null, lapses: 0 });
 
 describe("study session", () => {
   it("starts on the first card, hidden, and an answer needs the card revealed first", () => {

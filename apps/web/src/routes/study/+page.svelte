@@ -3,9 +3,12 @@
   import { onMount, tick } from "svelte";
   import { page } from "$app/state";
   import { answerStudyCard, getDecks, getDueCards, getStudyHistory, getStudyStats, undoStudyAnswer, type Answer, type DayCount, type DeckStats, type StudyStats } from "$lib/api";
+  import { lintCard } from "@vigil/shared";
   import { refreshStudyDue } from "$lib/study-state";
   import { ANSWER_KEYS, answer, current, isFinished, remaining, reveal, startSession, type Session } from "$lib/study-session";
 
+  /** Forgotten this many times after being learned: time to rewrite the card, not drill it again. */
+  const STUCK_LAPSES = 6;
   let session = $state<Session | null>(null);
   let stats = $state<StudyStats | null>(null);
   let decks = $state<DeckStats[]>([]);
@@ -188,6 +191,13 @@
       {/if}
       {#if saveError}<p class="error" role="alert">{saveError}</p>{/if}
       {#if before && lastAnswer}<p class="undo">Answered {lastAnswer}. <button type="button" class="linkbtn" onclick={() => void undo()}>Take it back <kbd>{inUndoBox ? `${modKey} Z` : "Z"}</kbd></button></p>{/if}
+      {#if session.revealed && card.lapses >= STUCK_LAPSES}
+        <aside class="stuck" aria-label="This card keeps slipping">
+          <p><strong>This one keeps slipping.</strong> You have forgotten it {card.lapses} times. A card that is hard to hold usually needs rewording or splitting.</p>
+          {#each lintCard(card) as h (h.code)}<p class="muted">{h.message}</p>{/each}
+          <p><a href={`/?note=${encodeURIComponent(card.noteId)}`}>Open the note to rewrite it</a></p>
+        </aside>
+      {/if}
       <p class="source"><a href={`/?note=${encodeURIComponent(card.noteId)}`}>From {card.noteId}</a></p>
     </div>
   {/if}
@@ -376,6 +386,18 @@
     color: var(--ink);
     text-decoration: underline;
     text-underline-offset: 2px;
+  }
+
+  .stuck {
+    padding: var(--space-3) var(--space-4);
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-lg);
+    background: var(--surface-raised);
+    font-size: var(--text-label);
+  }
+
+  .stuck p {
+    margin: 0 0 var(--space-1);
   }
 
   .source {

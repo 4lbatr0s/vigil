@@ -79,7 +79,7 @@ export const unpinNote = (id: string) => request<string[]>(`/api/pins/${seg(id)}
 
 // ---- Study (ADR-0017) ----
 
-export type StudyCard = { id: string; noteId: string; kind: "qa" | "cloze"; front: string; back: string; line: number; isNew: boolean; due: string | null };
+export type StudyCard = { id: string; noteId: string; kind: "qa" | "cloze"; front: string; back: string; line: number; isNew: boolean; due: string | null; lapses: number };
 export type StudyStats = { total: number; due: number; new: number; reviewedToday: number; againToday: number };
 export type Answer = "again" | "hard" | "good" | "easy";
 export const getDueCards = (opts: { note?: string; limit?: number } = {}) => {

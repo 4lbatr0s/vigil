@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onDestroy, tick } from "svelte";
   import { ApiError, createFromTemplate, getNote, getNoteCards, getRun, getRunResult, listAgents, putAgent, putNote, startCardProposals } from "$lib/api";
+  import { extractCards, lintCard } from "@vigil/shared";
   import { appendCards, isCardLine, proposalsFrom, type Proposal } from "$lib/card-review";
 
   let { open = $bindable(false), noteId, onsaved }: { open: boolean; noteId: string; onsaved: () => void } = $props();
@@ -33,6 +34,11 @@
     };
   });
   onDestroy(() => clearTimeout(timer));
+
+  function hintsFor(line: string) {
+    const card = extractCards(line)[0];
+    return card ? lintCard(card) : [];
+  }
 
   function fail(text: string): void {
     message = text;
@@ -149,6 +155,9 @@
             </label>
             <textarea rows="2" bind:value={p.line} disabled={p.duplicate} class:bad={p.keep && !isCardLine(p.line)} aria-label="Card text"></textarea>
             {#if p.duplicate}<span class="tag">already in this note</span>{/if}
+            {#if !p.duplicate && p.keep}
+              {#each hintsFor(p.line) as h (h.code)}<p class="hint">{h.message}</p>{/each}
+            {/if}
           </li>
         {/each}
       </ul>
@@ -218,6 +227,13 @@
 
   li.dup {
     opacity: 0.6;
+  }
+
+  .hint {
+    grid-column: 2;
+    margin: 0;
+    font-size: var(--text-label);
+    color: var(--ink-muted);
   }
 
   .keep {

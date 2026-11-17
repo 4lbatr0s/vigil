@@ -147,3 +147,14 @@ describe("study history", () => {
     expect(((await j("GET", "/api/study/history?days=abc")).body.data as unknown[]).length).toBe(14);
   });
 });
+
+describe("stuck cards", () => {
+  it("reports how often a card was forgotten", async () => {
+    await note("stuck", "Q :: A\n");
+    const first = (await j("GET", "/api/study/due")).body.data as { id: string; lapses: number }[];
+    expect(first[0]?.lapses).toBe(0);
+    const id = first[0]!.id;
+    await j("POST", "/api/study/review", { cardId: id, answer: "good" });
+    expect(((await j("GET", "/api/study/due")).body.data as unknown[]).length).toBe(0);
+  });
+});
