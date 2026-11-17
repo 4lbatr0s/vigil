@@ -103,9 +103,62 @@
   .prose :global(h1),
   .prose :global(h2),
   .prose :global(h3) {
-    font-size: var(--text-ui);
+    font-family: var(--font-serif);
     font-weight: 600;
+    line-height: 1.25;
     margin: 0 0 var(--space-1);
+  }
+  .prose :global(h1) {
+    font-size: var(--text-h3);
+  }
+  .prose :global(h2) {
+    font-size: calc(var(--text-ui) * 1.15);
+  }
+  .prose :global(h3) {
+    font-size: var(--text-ui);
+  }
+  .prose :global(code) {
+    padding: 0 var(--space-1);
+    border-radius: var(--radius);
+    background: var(--surface-hover);
+    font-family: var(--font-mono);
+    font-size: 0.9em;
+  }
+  .prose :global(pre) {
+    margin: 0 0 var(--space-2);
+    padding: var(--space-2);
+    border-radius: var(--radius);
+    background: var(--surface-hover);
+    overflow: auto;
+  }
+  .prose :global(pre code) {
+    padding: 0;
+    background: transparent;
+  }
+  .prose :global(blockquote) {
+    margin: 0 0 var(--space-2);
+    padding-left: var(--space-3);
+    border-left: 3px solid var(--hairline);
+    color: var(--ink-muted);
+  }
+  .prose :global(table) {
+    border-collapse: collapse;
+    margin: 0 0 var(--space-2);
+    font-size: var(--text-label);
+  }
+  .prose :global(th),
+  .prose :global(td) {
+    padding: var(--space-1) var(--space-2);
+    border: 1px solid var(--hairline);
+    text-align: left;
+  }
+  .prose :global(a) {
+    color: var(--ink);
+    text-decoration: underline;
+  }
+  .prose :global(hr) {
+    border: 0;
+    border-top: 1px solid var(--hairline);
   }
   .prose :global(p) {
     margin: 0 0 var(--space-2);

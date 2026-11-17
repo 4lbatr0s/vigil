@@ -232,3 +232,52 @@ export function toggleTask(text: string, index: number): string {
     return seen === index ? `${open}${mark === " " ? "x" : " "}${close}` : all;
   });
 }
+
+/** Edge look kept in a Vigil field on the arrow (the format has none); other apps keep it and ignore it. */
+export const EDGE_STYLE_FIELD = "vigilStyle";
+export type EdgeStyle = "curved" | "straight" | "step";
+export const EDGE_STYLES: readonly EdgeStyle[] = ["curved", "straight", "step"];
+export const edgeStyleOf = (extra: Record<string, unknown> | undefined): EdgeStyle => (extra?.[EDGE_STYLE_FIELD] === "straight" || extra?.[EDGE_STYLE_FIELD] === "step" ? extra[EDGE_STYLE_FIELD] : "curved");
+
+/** The headings of a note, in order, for choosing one to narrow a card to. Code blocks are skipped. */
+export function headingsOf(body: string): { level: number; title: string }[] {
+  const out: { level: number; title: string }[] = [];
+  let fence = false;
+  for (const line of body.split("\n")) {
+    if (/^\s*(```|~~~)/.test(line)) fence = !fence;
+    else if (!fence) {
+      const h = /^(#{1,6})\s+(.+?)\s*#*\s*$/.exec(line);
+      if (h) out.push({ level: h[1]?.length ?? 1, title: h[2] ?? "" });
+    }
+  }
+  return out;
+}
+
+/**
+ * The part of a note under one heading, from that heading to the next heading of the same or a higher level. `subpath`
+ * is `#Heading` as JSON Canvas writes it. If there is no such heading the whole note is returned, so a card never goes blank.
+ */
+export function sectionOf(body: string, subpath: string): string {
+  const want = subpath.replace(/^#+\s*/, "").trim().toLowerCase();
+  const lines = body.split("\n");
+  let fence = false;
+  let from = -1;
+  let level = 0;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i] ?? "";
+    if (/^\s*(```|~~~)/.test(line)) fence = !fence;
+    if (fence) continue;
+    const h = /^(#{1,6})\s+(.+?)\s*#*\s*$/.exec(line);
+    if (!h) continue;
+    const l = h[1]?.length ?? 1;
+    if (from < 0) {
+      if ((h[2] ?? "").trim().toLowerCase() === want) {
+        from = i;
+        level = l;
+      }
+    } else if (l <= level) {
+      return lines.slice(from, i).join("\n");
+    }
+  }
+  return from < 0 ? body : lines.slice(from).join("\n");
+}

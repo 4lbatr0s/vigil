@@ -1,7 +1,7 @@
 <script lang="ts">
   import { getContext } from "svelte";
   import { NodeResizer, type NodeProps } from "@xyflow/svelte";
-  import { cssColor, imageNameOf, noteIdOf, type CardData } from "$lib/canvas";
+  import { checklistProgress, cssColor, excerpt, imageNameOf, noteIdOf, sectionOf, type CardData } from "$lib/canvas";
   import { CANVAS_KEY, type CanvasContext } from "./context";
   import Handles from "./Handles.svelte";
 
@@ -15,6 +15,10 @@
     if (noteId) board.loadNote(noteId);
   });
   const color = $derived(cssColor(data.color));
+  /** The note, or only the part under the chosen heading ("narrow to heading"). */
+  const shown = $derived(info && !info.missing ? (data.subpath ? sectionOf(info.body, data.subpath) : info.body) : "");
+  const progress = $derived(checklistProgress(shown));
+  const part = $derived(data.subpath ? data.subpath.replace(/^#+\s*/, "") : "");
 </script>
 
 <NodeResizer isVisible={selected} minWidth={160} minHeight={80} onResizeEnd={() => board.commit()} />
@@ -30,12 +34,12 @@
     <p class="title">{noteId}</p>
     <p class="hint">This note no longer exists.</p>
   {:else}
-    <a class="title nodrag" href={`/?note=${encodeURIComponent(noteId)}`} title="Open the note">{info.title}</a>
-    <pre class="excerpt">{info.excerpt}</pre>
-    {#if info.progress}
-      <div class="progress" role="progressbar" aria-label="Checklist progress" aria-valuemin="0" aria-valuemax={info.progress.total} aria-valuenow={info.progress.done}>
-        <span class="bar"><span class="fill" style:width={`${(info.progress.done / info.progress.total) * 100}%`}></span></span>
-        <span class="count">{info.progress.done}/{info.progress.total}</span>
+    <a class="title nodrag" href={`/?note=${encodeURIComponent(noteId)}`} title="Open the note">{info.title}{#if part}<span class="part"> › {part}</span>{/if}</a>
+    <pre class="excerpt">{excerpt(shown)}</pre>
+    {#if progress}
+      <div class="progress" role="progressbar" aria-label="Checklist progress" aria-valuemin="0" aria-valuemax={progress.total} aria-valuenow={progress.done}>
+        <span class="bar"><span class="fill" style:width={`${(progress.done / progress.total) * 100}%`}></span></span>
+        <span class="count">{progress.done}/{progress.total}</span>
       </div>
     {/if}
   {/if}
@@ -91,6 +95,10 @@
     margin: 0;
     color: var(--ink-muted);
     font-size: var(--text-label);
+  }
+  .part {
+    font-weight: 400;
+    color: var(--ink-muted);
   }
   .progress {
     display: flex;

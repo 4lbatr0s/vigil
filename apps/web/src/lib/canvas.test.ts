@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { History, LOCK_FIELD, checklistProgress, cssColor, toggleTask, isLocked, lockProps, imageNameOf, ringBoard, excerpt, newId, noteFile, noteIdOf, snapshot, toBoard, toFile, type CanvasFile } from "./canvas";
+import { EDGE_STYLE_FIELD, History, LOCK_FIELD, checklistProgress, edgeStyleOf, headingsOf, sectionOf, cssColor, toggleTask, isLocked, lockProps, imageNameOf, ringBoard, excerpt, newId, noteFile, noteIdOf, snapshot, toBoard, toFile, type CanvasFile } from "./canvas";
 
 // Built from parts: raw color literals are not allowed outside app.css.
 const HEX = `#${"ff"}${"88"}${"00"}`;
@@ -165,5 +165,31 @@ describe("checklistProgress and toggleTask", () => {
     expect(toggleTask(text, 3)).toContain("1. [x] io");
     expect(toggleTask(text, 0)).toContain("plain - [ ] not an item");
     expect(toggleTask(text, 9)).toBe(text);
+  });
+});
+
+describe("headings, sections and edge styles", () => {
+  const body = "intro\n# A\nalpha\n## A1\none\n## A2\ntwo\n# B\nbeta\n```\n# not\n```";
+
+  it("lists headings and skips code", () => {
+    expect(headingsOf(body).map((h) => h.title)).toEqual(["A", "A1", "A2", "B"]);
+  });
+
+  it("cuts the part under a heading up to the next one of the same or higher level", () => {
+    expect(sectionOf(body, "#A")).toBe("# A\nalpha\n## A1\none\n## A2\ntwo");
+    expect(sectionOf(body, "#A1")).toBe("## A1\none");
+    expect(sectionOf(body, "#b")).toContain("beta");
+  });
+
+  it("gives the whole note when the heading is gone", () => {
+    expect(sectionOf(body, "#Missing")).toBe(body);
+  });
+
+  it("reads and keeps the arrow style, curved by default", () => {
+    expect(edgeStyleOf(undefined)).toBe("curved");
+    expect(edgeStyleOf({ [EDGE_STYLE_FIELD]: "step" })).toBe("step");
+    expect(edgeStyleOf({ [EDGE_STYLE_FIELD]: "wavy" })).toBe("curved");
+    const file: CanvasFile = { nodes: [], edges: [{ id: "e", fromNode: "a", toNode: "b", [EDGE_STYLE_FIELD]: "straight" }] };
+    expect(toFile([], toBoard(file).edges).edges?.[0]?.[EDGE_STYLE_FIELD]).toBe("straight");
   });
 });

@@ -7,7 +7,7 @@ export type CanvasContext = {
   /** The change is done: save it and make it one undo step. */
   commit(): void;
   /** Title and first lines of a note once loaded, else null. `missing` when there is no such note. Reading it starts nothing: call `loadNote`. */
-  noteInfo(noteId: string): { title: string; excerpt: string; missing: boolean; progress: { done: number; total: number } | null } | null;
+  noteInfo(noteId: string): { title: string; body: string; missing: boolean } | null;
   /** Starts loading a note's card text if that has not happened yet. Call it from an effect, not while rendering. */
   loadNote(noteId: string): void;
   /** The card the board wants to start editing (Enter, the menu, a new card), or null. A card that finds its own id here calls `clearEdit` and begins editing. */

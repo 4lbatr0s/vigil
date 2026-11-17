@@ -2,9 +2,10 @@
   import { setContext, untrack } from "svelte";
   import { Background, BackgroundVariant, ConnectionMode, Controls, MarkerType, MiniMap, Panel, SvelteFlow, useSvelteFlow, type Edge, type Node } from "@xyflow/svelte";
   import { getNote, listNotes, uploadImage } from "$lib/api";
-  import { History, LOCK_FIELD, PRESETS, PRESET_NAMES, SIZES, cssColor, checklistProgress, excerpt, imageNameOf, isLocked, lockProps, newId, noteFile, noteIdOf, snapshot, toBoard, toFile, type BoardEdge, type BoardNode, type CanvasFile, type CardData, type CardKind } from "$lib/canvas";
+  import { EDGE_STYLE_FIELD, EDGE_STYLES, History, LOCK_FIELD, PRESETS, PRESET_NAMES, SIZES, cssColor, checklistProgress, edgeStyleOf, excerpt, headingsOf, imageNameOf, isLocked, lockProps, newId, noteFile, noteIdOf, snapshot, toBoard, toFile, type BoardEdge, type BoardNode, type CanvasFile, type CanvasSide, type CardData, type CardKind } from "$lib/canvas";
   import { boundsOf, copySelection, groupAround, pasteClip, restack, type Clip } from "$lib/canvas-clipboard";
   import { alignBoxes, distributeBoxes, matchedSize, snapToObjects, type AlignHow, type Box } from "$lib/canvas-guides";
+  import { refreshOnLive } from "$lib/live";
   import { relativeSpot, tidy } from "$lib/canvas-layout";
   import AlignCenterHorizontal from "@lucide/svelte/icons/align-center-horizontal";
   import AlignCenterVertical from "@lucide/svelte/icons/align-center-vertical";
@@ -77,7 +78,7 @@
     const color = cssColor(data?.color);
     return {
       ...(e as Edge),
-      type: "default",
+      type: ({ curved: "default", straight: "straight", step: "smoothstep" } as const)[edgeStyleOf(data?.extra)],
       ...(color ? { style: `stroke: ${color}` } : {}),
       ...(data?.toEnd !== "none" ? { markerEnd: { type: MarkerType.ArrowClosed, ...(color ? { color } : {}) } } : {}),
       ...(data?.fromEnd === "arrow" ? { markerStart: { type: MarkerType.ArrowClosed, ...(color ? { color } : {}) } } : {}),
@@ -388,11 +389,29 @@
       { label: "Bring to front", run: () => stack(ids, "front") },
       { label: "Send to back", run: () => stack(ids, "back") },
       { label: locked ? "Unlock" : "Lock in place", run: () => toggleLock(ids) },
+      ...(only && only.type === "file" ? narrowItems(only) : []),
       ...(ids.length > 1 ? [{ label: "Tidy as a tree", run: () => applyTidy(ids, "tree") } satisfies MenuItem, { label: "Tidy as a grid", run: () => applyTidy(ids, "grid") } satisfies MenuItem] : []),
       { label: "Zoom to", hint: "Shift 2", run: () => void flow.fitView({ nodes: ids.map((id) => ({ id })), duration: 200, padding: 0.3, maxZoom: 1.5 }) },
       "-",
       { label: "Delete", hint: "Del", danger: true, disabled: locked, run: removeSelected },
     ]);
+  }
+
+  /** For a note card: show only the part under one heading, or the whole note again. */
+  function narrowItems(node: Node): MenuItem[] {
+    const d = node.data as CardData;
+    const noteId = noteIdOf(d.file ?? "");
+    const body = noteId ? (info[noteId]?.body ?? "") : "";
+    if (!noteId || body === "") return [];
+    const set = (subpath: string | undefined): void => {
+      nodes = nodes.map((n) => (n.id === node.id ? { ...n, data: { ...(n.data as CardData), ...(subpath ? { subpath } : { subpath: undefined }) } } : n));
+      commit();
+    };
+    return [
+      "-",
+      ...(d.subpath ? [{ label: "Show the whole note", run: () => set(undefined) } satisfies MenuItem] : []),
+      ...headingsOf(body).slice(0, 12).map((h): MenuItem => ({ label: `Only “${h.title.slice(0, 28)}”`, hint: d.subpath && d.subpath.replace(/^#+\s*/, "").toLowerCase() === h.title.toLowerCase() ? "now" : "", run: () => set(`#${h.title}`) })),
+    ];
   }
 
   function onNodeMenu({ event, node }: { event: MouseEvent; node: Node }): void {
@@ -405,6 +424,12 @@
     cardMenu(event, ns.map((n) => n.id));
   }
 
+  const look = (edge: Edge, which: "end" | "start" | "both" | "none"): string => {
+    const d = edge.data as BoardEdge["data"];
+    const now = d.fromEnd === "arrow" && d.toEnd === "arrow" ? "both" : d.fromEnd === "arrow" ? "start" : d.toEnd === "none" ? "none" : "end";
+    return now === which ? "now" : "";
+  };
+
   function onEdgeMenu({ event, edge }: { event: MouseEvent; edge: Edge }): void {
     edges = edges.map((e) => ({ ...e, selected: e.id === edge.id }));
     nodes = nodes.map((n) => (n.selected ? { ...n, selected: false } : n));
@@ -413,21 +438,41 @@
       { label: "Edit label", run: () => setTimeout(() => document.querySelector<HTMLInputElement>(".label-in")?.focus(), 60) },
       { label: "Go to the card it points at", run: () => focusNode(edge.target) },
       "-",
+      { label: "Arrow at the end", hint: look(edge, "end"), run: () => setEdgeLook({ fromEnd: "none", toEnd: "arrow" }) },
+      { label: "Arrow at the start", hint: look(edge, "start"), run: () => setEdgeLook({ fromEnd: "arrow", toEnd: "none" }) },
+      { label: "Arrows at both ends", hint: look(edge, "both"), run: () => setEdgeLook({ fromEnd: "arrow", toEnd: "arrow" }) },
+      { label: "No arrowheads", hint: look(edge, "none"), run: () => setEdgeLook({ fromEnd: "none", toEnd: "none" }) },
+      "-",
+      { label: "Curved line", hint: edgeStyleOf((edge.data as BoardEdge["data"]).extra) === "curved" ? "now" : "", run: () => setEdgeLook({ style: "curved" }) },
+      { label: "Straight line", hint: edgeStyleOf((edge.data as BoardEdge["data"]).extra) === "straight" ? "now" : "", run: () => setEdgeLook({ style: "straight" }) },
+      { label: "Right-angle line", hint: edgeStyleOf((edge.data as BoardEdge["data"]).extra) === "step" ? "now" : "", run: () => setEdgeLook({ style: "step" }) },
+      "-",
       { label: "Delete", hint: "Del", danger: true, run: removeSelected },
     ]);
   }
 
   // ---- notes shown on cards ----
-  type NoteInfo = { title: string; excerpt: string; missing: boolean; progress: { done: number; total: number } | null };
+  type NoteInfo = { title: string; body: string; missing: boolean };
   const info = $state<Record<string, NoteInfo | null>>({});
   const noteInfo = (noteId: string): NoteInfo | null => info[noteId] ?? null;
   function loadNote(noteId: string): void {
     if (noteId in info) return;
     info[noteId] = null;
     void getNote(noteId)
-      .then((n) => (info[noteId] = { title: n.title, excerpt: excerpt(n.body), missing: false, progress: checklistProgress(n.body) }))
-      .catch(() => (info[noteId] = { title: noteId, excerpt: "", missing: true, progress: null }));
+      .then((n) => (info[noteId] = { title: n.title, body: n.body, missing: false }))
+      .catch(() => (info[noteId] = { title: noteId, body: "", missing: true }));
   }
+
+  /** A note changed (you, or an agent): the cards that show it read it again. */
+  async function refreshNotes(): Promise<void> {
+    for (const id of Object.keys(info)) {
+      info[id] = await getNote(id).then(
+        (n): NoteInfo => ({ title: n.title, body: n.body, missing: false }),
+        (): NoteInfo => ({ title: id, body: "", missing: true }),
+      );
+    }
+  }
+  $effect(() => refreshOnLive(refreshNotes, ["note"], 5000));
 
   setContext<CanvasContext>(CANVAS_KEY, {
     update(id, patch) {
@@ -493,6 +538,15 @@
   const pickable = $derived(notes.filter((n) => pickQuery.trim() === "" || n.title.toLowerCase().includes(pickQuery.trim().toLowerCase())).slice(0, 40));
 
   function onPaneDoubleClick(event: MouseEvent): void {
+    const edgeEl = (event.target as HTMLElement).closest<HTMLElement>(".svelte-flow__edge");
+    if (edgeEl?.dataset.id) {
+      const id = edgeEl.dataset.id;
+      edges = edges.map((e) => ({ ...e, selected: e.id === id }));
+      nodes = nodes.map((n) => (n.selected ? { ...n, selected: false } : n));
+      selectedEdges = [id];
+      setTimeout(() => document.querySelector<HTMLInputElement>(".label-in")?.focus(), 60);
+      return;
+    }
     if ((event.target as HTMLElement).closest(".svelte-flow__node, .svelte-flow__edge, .svelte-flow__panel, .svelte-flow__controls, .svelte-flow__minimap")) return;
     add("text", {}, (() => { const p = flow.screenToFlowPosition({ x: event.clientX, y: event.clientY }); return { x: Math.round(p.x - SIZES.text.width / 2), y: Math.round(p.y - 20) }; })());
   }
@@ -514,6 +568,10 @@
     if (!point) return;
     const el = document.elementFromPoint(point.clientX, point.clientY)?.closest(".svelte-flow__node") as HTMLElement | null;
     const targetId = el?.dataset.id;
+    if (!el && document.elementFromPoint(point.clientX, point.clientY)?.closest(".svelte-flow__pane")) {
+      addConnectedCard(state.fromNode.id, state.fromHandle?.id ?? "right", flow.screenToFlowPosition({ x: point.clientX, y: point.clientY }));
+      return;
+    }
     if (!el || !targetId || targetId === state.fromNode.id) return;
     const r = el.getBoundingClientRect();
     const dist: [string, number][] = [
@@ -526,6 +584,23 @@
     const edge = onBeforeConnect({ source: state.fromNode.id, target: targetId, sourceHandle: state.fromHandle?.id ?? "right", targetHandle: side });
     if (edge === false) return;
     edges = [...edges, edge];
+    commit();
+  }
+
+  /** An arrow let go on the empty board makes a new card there, joined to the card it came from, as in Obsidian. */
+  function addConnectedCard(fromId: string, fromSide: string, at: { x: number; y: number }): void {
+    const size = SIZES.text;
+    const opposite: Record<string, CanvasSide> = { right: "left", left: "right", top: "bottom", bottom: "top" };
+    const toSide = opposite[fromSide] ?? "left";
+    const x = toSide === "left" ? at.x : toSide === "right" ? at.x - size.width : at.x - size.width / 2;
+    const y = toSide === "top" ? at.y : toSide === "bottom" ? at.y - size.height : at.y - size.height / 2;
+    const id = newId("t", taken());
+    const top = nodes.reduce((m, n) => Math.max(m, n.zIndex ?? 0), 0) + 1;
+    const node: BoardNode = { id, type: "text", position: { x: Math.round(x), y: Math.round(y) }, width: size.width, height: size.height, zIndex: top, data: { kind: "text", extra: {} } };
+    const edgeId = newId("e", taken());
+    nodes = [...nodes.map((n) => ({ ...n, selected: false })), { ...(node as unknown as Node), selected: true }];
+    edges = [...edges, decorate({ id: edgeId, source: fromId, target: id, sourceHandle: fromSide, targetHandle: toSide, data: { fromEnd: "none", toEnd: "arrow", extra: {} } } as BoardEdge)];
+    editTarget = id;
     commit();
   }
 
@@ -606,6 +681,20 @@
     commit();
   }
 
+  /** Changes how the selected arrows look: which ends have arrowheads, or the line style (kept in a Vigil field). */
+  function setEdgeLook(patch: { fromEnd?: "none" | "arrow"; toEnd?: "none" | "arrow"; style?: (typeof EDGE_STYLES)[number] }): void {
+    edges = edges.map((e) => {
+      if (!selectedEdges.includes(e.id)) return e;
+      const d = e.data as BoardEdge["data"];
+      const extra = { ...d.extra };
+      if (patch.style === "curved") delete extra[EDGE_STYLE_FIELD];
+      else if (patch.style) extra[EDGE_STYLE_FIELD] = patch.style;
+      const data = { ...d, ...(patch.fromEnd ? { fromEnd: patch.fromEnd } : {}), ...(patch.toEnd ? { toEnd: patch.toEnd } : {}), extra };
+      return decorate({ ...(e as unknown as BoardEdge), ...(e.label ? { label: e.label as string } : {}), data });
+    });
+    commit();
+  }
+
   const selectedEdge = $derived(selectedEdges.length === 1 ? (edges.find((e) => e.id === selectedEdges[0]) ?? null) : null);
   function setLabel(label: string): void {
     edges = edges.map((e) => (e.id === selectedEdges[0] ? { ...e, label: label === "" ? undefined : label } : e));
@@ -662,6 +751,7 @@
     onconnect={() => queueMicrotask(commit)}
     onconnectend={onConnectEnd}
     ondelete={commit}
+    onreconnectend={() => commit()}
     onnodedragstart={dragStart}
     onnodedrag={drag}
     onnodedragstop={dragStop}
