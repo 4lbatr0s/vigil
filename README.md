@@ -51,7 +51,7 @@ VIGIL_LLM_API_KEY=...
 VIGIL_LLM_MODEL=...
 ```
 
-Settings shows the connection and has a "Test connection" button. Every variable is listed in `.env.example`.
+Ollama is asked for a 16,384-token window (`VIGIL_LLM_NUM_CTX` changes it); the 4,096 default can leave a thinking model with an empty reply. Settings shows the connection and has a "Test connection" button. Every variable is listed in `.env.example`.
 
 ## What agents can do
 
@@ -63,7 +63,9 @@ An agent is a system prompt, a list of tools, a trigger and a token budget.
 - **Snapshots and undo:** a note is saved before an agent writes it. Undo restores it, and refuses if you edited the note since.
 - **Strict mode:** the agent's writes wait in **Approvals** until you accept them, with a diff. A paused run survives a restart.
 - **Permissions:** Settings has switches that turn a tool off for every agent, a ceiling for token budgets, and run-history retention.
-- **Graph:** notes and agents as a graph; recent notes glow, agent reads and writes are dashed lines.
+- **Graph:** notes and agents as a graph; recent notes glow, agent reads and writes are dashed lines. A Memory view colors notes by how much of them you remember.
+- **Other agents (MCP):** off by default. Switch it on in Settings and tools like Claude Code or Claude Desktop can search and read your notes at `/api/mcp`, and, with a second switch, write notes. Each write is a run you can undo.
+- **Learner status:** agents with the notes-reading tool can see your study memory (cards due, exam dates, recall rate, cards that keep slipping), which the weekly study review uses.
 
 ## Study
 
@@ -77,6 +79,9 @@ Learning research is clear that testing yourself and spacing reviews out beat re
 - **Recall checks.** Write what you remember of a whole note, an agent shows what you covered and missed from the note itself, and the note comes back after 1, 3, 7 and 21 days.
 - **Study outline.** Paste text and get headings with a question each, answers left empty for you to write in your own words.
 - **Your data stays yours.** Download your cards as text for Anki, or import an Anki plain-text export (review history is not imported). A calendar helps you find daily notes, and settings let you choose new cards per day and how sure the scheduler should aim to keep you.
+- **Ask your notes and gap check.** Ask a question and get an answer built only from your own note lines, each claim marked with the line behind it, or "your notes do not cover this". Paste an article and see what your notes already have, lack or contradict.
+- **What you got wrong.** After a recall check you can keep the points you got wrong; the next check shows them first and the card maker writes cards on them. You cross each one off.
+- **Capture and pictures.** A Capture box on Today adds a line to your Inbox note. If you switch it on, the card maker and recall checker can see the pictures in a note (they go to your model provider).
 - **Tutors.** A Socratic tutor, an explain-it-back coach and a quiz master ask first, hint second and answer last, using only the note you give them.
 
 No claim is made that this multiplies learning many times over: the research supports a solid, practical gain from better habits, with the busywork taken off your hands.
