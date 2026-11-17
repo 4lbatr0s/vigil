@@ -1,6 +1,7 @@
 import { ensureSyntaxTree, syntaxTree } from "@codemirror/language";
 import { type EditorState, type Extension, type Range } from "@codemirror/state";
 import { attachmentSrc } from "./images";
+import { ICONS, calloutLook, iconElement } from "./icons";
 import { Decoration, type DecorationSet, EditorView, ViewPlugin, type ViewUpdate, WidgetType } from "@codemirror/view";
 
 /** Only these schemes open from a Cmd/Ctrl+click: a note must not be able to run script. */
@@ -51,6 +52,55 @@ class ImageWidget extends WidgetType {
   }
 }
 
+/** The bar above a fenced code block: the language on the left and a Copy button on the right. */
+class CodeHeadWidget extends WidgetType {
+  constructor(readonly lang: string) {
+    super();
+  }
+  override eq(other: CodeHeadWidget): boolean {
+    return other.lang === this.lang;
+  }
+  override toDOM(): HTMLElement {
+    const bar = document.createElement("span");
+    bar.className = "cm-codehead";
+    const label = document.createElement("span");
+    label.className = "cm-codelang";
+    label.textContent = this.lang || "text";
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "cm-copy";
+    button.setAttribute("aria-label", "Copy the code");
+    const text = document.createElement("span");
+    text.className = "cm-copy-text";
+    text.textContent = "Copy";
+    button.append(iconElement(ICONS.copy, 14), text);
+    bar.append(label, button);
+    return bar;
+  }
+  override ignoreEvent(): boolean {
+    return false;
+  }
+}
+
+/** The first words of a callout (`> [!tip]`): an icon and a plain label instead of the raw marker. */
+class CalloutHeadWidget extends WidgetType {
+  constructor(readonly type: string) {
+    super();
+  }
+  override eq(other: CalloutHeadWidget): boolean {
+    return other.type === this.type;
+  }
+  override toDOM(): HTMLElement {
+    const look = calloutLook(this.type);
+    const el = document.createElement("span");
+    el.className = "cm-calloutname";
+    const label = document.createElement("span");
+    label.textContent = look.label;
+    el.append(iconElement(look.icon, 16), label);
+    return el;
+  }
+}
+
 class BulletWidget extends WidgetType {
   override eq(): boolean {
     return true;
@@ -79,6 +129,8 @@ class RuleWidget extends WidgetType {
 const HIDE = Decoration.replace({});
 const RULE = Decoration.replace({ widget: new RuleWidget() });
 const CALLOUT = /^>\s*\[!([A-Za-z]+)\]/;
+/** The marker of a callout's first line, with an optional fold sign: `> [!tip]`, `> [!tip]-`. */
+const CALLOUT_HEAD = /^>\s*\[!([A-Za-z]+)\][+-]?/;
 const BULLET = Decoration.replace({ widget: new BulletWidget() });
 const WIKILINK = /\[\[([^\]\n]+)\]\]/g;
 const CLOZE = /\{\{([^{}\n]+)\}\}/g;
@@ -154,10 +206,32 @@ export function buildDecorations(state: EditorState, range?: Range2, title?: str
           if (node.node.parent?.name === "InlineCode") hide(node.from, node.to);
           return;
         case "FencedCode":
-        case "CodeBlock":
+        case "CodeBlock": {
           codeRanges.push({ from: node.from, to: node.to });
           lineDeco(node.from, node.to, "cm-codeblock");
+          if (name === "FencedCode") {
+            const open = doc.lineAt(node.from);
+            const last = doc.lineAt(node.to);
+            const info = node.node.getChild("CodeInfo");
+            const lang = info ? doc.sliceString(info.from, info.to).trim() : "";
+            if (open.from >= from) {
+              out.push(Decoration.line({ class: "cm-codeblock-first" }).range(open.from));
+              if (!lineActive(open.from)) {
+                out.push(Decoration.line({ class: "cm-codehead-line" }).range(open.from));
+                out.push(Decoration.replace({ widget: new CodeHeadWidget(lang) }).range(open.from, open.to));
+              }
+            }
+            const closed = node.node.getChildren("CodeMark").length >= 2 && last.number !== open.number;
+            if (closed && last.to <= to) {
+              out.push(Decoration.line({ class: "cm-codeblock-last" }).range(last.from));
+              if (!lineActive(last.from)) {
+                out.push(Decoration.line({ class: "cm-codefoot-line" }).range(last.from));
+                if (last.to > last.from) out.push(HIDE.range(last.from, last.to));
+              }
+            }
+          }
           return;
+        }
         case "Image": {
           // Our own pictures (`![](attachments/<name>)`) show as pictures until the cursor is on the line.
           const url = node.node.getChild("URL");
@@ -182,7 +256,18 @@ export function buildDecorations(state: EditorState, range?: Range2, title?: str
         case "Blockquote": {
           const callout = CALLOUT.exec(doc.lineAt(node.from).text);
           if (callout) {
-            lineDeco(node.from, node.to, `cm-callout cm-callout-${(callout[1] as string).toLowerCase()}`);
+            const type = (callout[1] as string).toLowerCase();
+            lineDeco(node.from, node.to, `cm-callout cm-callout-${type} cm-tone-${calloutLook(type).tone}`);
+            const first = doc.lineAt(node.from);
+            const last = doc.lineAt(node.to);
+            if (first.from >= from) out.push(Decoration.line({ class: "cm-callout-first" }).range(first.from));
+            if (last.to <= to) out.push(Decoration.line({ class: "cm-callout-last" }).range(last.from));
+            const head = CALLOUT_HEAD.exec(first.text);
+            if (head && first.from >= from) {
+              const end = first.from + head[0].length;
+              if (!lineActive(first.from)) out.push(Decoration.replace({ widget: new CalloutHeadWidget(head[1] as string) }).range(first.from, end));
+              if (end < first.to) out.push(Decoration.mark({ class: "cm-callout-title" }).range(end, first.to));
+            }
           } else {
             lineDeco(node.from, node.to, "cm-quote");
           }
@@ -203,6 +288,8 @@ export function buildDecorations(state: EditorState, range?: Range2, title?: str
           return;
         case "QuoteMark": {
           const line = doc.lineAt(node.from);
+          // On a callout's first line the icon widget stands in for the whole marker.
+          if (node.from === line.from && CALLOUT_HEAD.test(line.text)) return;
           hide(node.from, Math.min(node.to + 1, line.to));
           return;
         }
@@ -220,8 +307,11 @@ export function buildDecorations(state: EditorState, range?: Range2, title?: str
           return;
         }
         case "TaskMarker": {
+          const done = /[xX]/.test(doc.sliceString(node.from, node.to));
+          const lineEnd = doc.lineAt(node.from).to;
+          if (done && node.to < lineEnd) out.push(Decoration.mark({ class: "cm-task-done" }).range(node.to, lineEnd));
           if (lineActive(node.from)) return;
-          const checked = /[xX]/.test(doc.sliceString(node.from, node.to));
+          const checked = done;
           out.push(Decoration.replace({ widget: new CheckboxWidget(checked) }).range(node.from, node.to));
           return;
         }
@@ -240,6 +330,7 @@ export function buildDecorations(state: EditorState, range?: Range2, title?: str
         if (d.from >= first.from && d.to <= first.to) out.splice(i, 1);
       }
       if (first.to > first.from) out.push(HIDE.range(first.from, first.to));
+      out.push(Decoration.line({ class: "cm-title-line" }).range(first.from));
     }
   }
 
@@ -310,6 +401,26 @@ export function linkUrlAt(state: EditorState, pos: number): string | null {
   return null;
 }
 
+/** The language and text of the fenced code block that holds `pos` (for the Copy button), or null. */
+export function fencedCodeAt(state: EditorState, pos: number): { lang: string; code: string } | null {
+  for (let n: ReturnType<ReturnType<typeof syntaxTree>["resolveInner"]> | null = treeAt(state, pos).resolveInner(pos, 1); n; n = n.parent) {
+    if (n.name === "FencedCode") {
+      const info = n.getChild("CodeInfo");
+      const text = n.getChild("CodeText");
+      return { lang: info ? state.doc.sliceString(info.from, info.to).trim() : "", code: text ? state.doc.sliceString(text.from, text.to) : "" };
+    }
+  }
+  return null;
+}
+
+function flash(button: HTMLElement, message: string): void {
+  const label = button.querySelector(".cm-copy-text");
+  if (!label) return;
+  const before = label.textContent;
+  label.textContent = message;
+  setTimeout(() => (label.textContent = before), 1400);
+}
+
 function pluginFor(getTitle: () => string | undefined) {
   return ViewPlugin.fromClass(
     class {
@@ -328,31 +439,50 @@ function pluginFor(getTitle: () => string | undefined) {
 }
 
 const theme = EditorView.baseTheme({
-  ".cm-h1": { fontSize: "var(--text-h1)", fontWeight: "600", lineHeight: "1.25" },
-  ".cm-h2": { fontSize: "var(--text-h2)", fontWeight: "600", lineHeight: "1.3" },
-  ".cm-h3": { fontSize: "var(--text-h3)", fontWeight: "600", lineHeight: "1.3" },
-  ".cm-h4, .cm-h5, .cm-h6": { fontWeight: "600" },
+  ".cm-h1": { fontSize: "var(--text-h1)", fontWeight: "600", lineHeight: "1.2", paddingTop: "1.1em", paddingBottom: "0.15em" },
+  ".cm-h2": { fontSize: "var(--text-h2)", fontWeight: "600", lineHeight: "1.25", paddingTop: "0.95em", paddingBottom: "0.1em" },
+  ".cm-h3": { fontSize: "var(--text-h3)", fontWeight: "600", lineHeight: "1.3", paddingTop: "0.8em" },
+  ".cm-h4, .cm-h5, .cm-h6": { fontWeight: "600", paddingTop: "0.6em" },
+  ".cm-line.cm-h1:first-child, .cm-line.cm-h2:first-child, .cm-line.cm-h3:first-child": { paddingTop: "0" },
+  ".cm-title-line": { height: "0", padding: "0 !important", overflow: "hidden", lineHeight: "0" },
   ".cm-strong": { fontWeight: "700" },
   ".cm-em": { fontStyle: "italic" },
-  ".cm-image": { display: "block", maxWidth: "100%", maxHeight: "480px", margin: "var(--space-2) 0", borderRadius: "var(--radius)" },
+  ".cm-image": { display: "block", maxWidth: "100%", maxHeight: "480px", margin: "var(--space-3) 0", borderRadius: "var(--radius)" },
   ".cm-strike": { textDecoration: "line-through", color: "var(--ink-muted)" },
-  ".cm-code": { fontFamily: "var(--font-mono)", fontSize: "0.9em", backgroundColor: "var(--surface)" },
-  ".cm-codeblock": { fontFamily: "var(--font-mono)", fontSize: "0.9em", backgroundColor: "var(--surface)" },
-  ".cm-quote": { borderLeft: "2px solid var(--hairline)", paddingLeft: "var(--space-3)", color: "var(--ink-muted)" },
+  ".cm-code": { fontFamily: "var(--font-mono)", fontSize: "0.86em", backgroundColor: "var(--surface-hover)", borderRadius: "4px", padding: "1px 5px" },
+  ".cm-codeblock": { fontFamily: "var(--font-mono)", fontSize: "0.86em", lineHeight: "1.6", backgroundColor: "var(--surface)", borderLeft: "1px solid var(--hairline)", borderRight: "1px solid var(--hairline)", padding: "0 var(--space-4)" },
+  ".cm-codeblock-first": { borderTop: "1px solid var(--hairline)", borderTopLeftRadius: "var(--radius)", borderTopRightRadius: "var(--radius)", marginTop: "var(--space-2)" },
+  ".cm-codeblock-last": { borderBottom: "1px solid var(--hairline)", borderBottomLeftRadius: "var(--radius)", borderBottomRightRadius: "var(--radius)", marginBottom: "var(--space-2)" },
+  ".cm-codehead-line": { backgroundColor: "color-mix(in srgb, var(--ink) 5%, var(--surface))", color: "var(--ink-muted)", fontFamily: "var(--font-chrome)", fontSize: "var(--text-label)", lineHeight: "2" },
+  // inline-flex, not flex: CodeMirror ends a line that holds only a widget with a line break, and a block here would double the height.
+  ".cm-codehead": { display: "inline-flex", alignItems: "center", justifyContent: "space-between", width: "calc(100% - 2px)", verticalAlign: "top" },
+  ".cm-codelang": { textTransform: "lowercase", letterSpacing: "0.02em" },
+  ".cm-copy": { display: "inline-flex", alignItems: "center", gap: "6px", padding: "2px 8px", border: "1px solid transparent", borderRadius: "var(--radius)", background: "transparent", color: "var(--ink-muted)", font: "inherit", cursor: "pointer" },
+  ".cm-copy:hover, .cm-copy:focus-visible": { backgroundColor: "var(--surface-hover)", color: "var(--ink)" },
+  ".cm-codefoot-line": { height: "6px", lineHeight: "6px", overflow: "hidden", padding: "0" },
+  ".cm-quote": { borderLeft: "3px solid var(--hairline)", paddingLeft: "var(--space-4)", color: "var(--ink-muted)" },
   ".cm-cloze": { backgroundColor: "var(--surface-hover)", borderBottom: "1px dashed var(--ink-muted)", borderRadius: "4px", padding: "0 2px" },
-  ".cm-tag": { color: "var(--ink-muted)", fontFamily: "var(--font-chrome)", fontSize: "0.85em", backgroundColor: "var(--surface)", borderRadius: "var(--radius)", padding: "0 3px" },
-  ".cm-callout": { borderLeft: "3px solid var(--ink-muted)", paddingLeft: "var(--space-3)", backgroundColor: "var(--surface)" },
-  ".cm-callout-warning, .cm-callout-danger, .cm-callout-caution": { borderLeftColor: "var(--err)" },
-  ".cm-callout-tip, .cm-callout-success": { borderLeftColor: "var(--ok)" },
+  ".cm-tag": { color: "var(--ink-muted)", fontFamily: "var(--font-chrome)", fontSize: "0.85em", backgroundColor: "var(--surface-hover)", borderRadius: "999px", padding: "1px 8px" },
+  ".cm-tone-note": { "--tone": "var(--canvas-5)" },
+  ".cm-tone-tip, .cm-tone-ok": { "--tone": "var(--canvas-4)" },
+  ".cm-tone-warn": { "--tone": "var(--canvas-2)" },
+  ".cm-tone-danger": { "--tone": "var(--canvas-1)" },
+  ".cm-callout": { borderLeft: "3px solid var(--tone, var(--ink-muted))", paddingLeft: "var(--space-4)", paddingRight: "var(--space-4)", backgroundColor: "color-mix(in srgb, var(--tone, var(--ink-muted)) 9%, var(--surface))" },
+  ".cm-callout-first": { paddingTop: "var(--space-2)", borderTopRightRadius: "var(--radius)", marginTop: "var(--space-2)" },
+  ".cm-callout-last": { paddingBottom: "var(--space-2)", borderBottomRightRadius: "var(--radius)", marginBottom: "var(--space-2)" },
+  ".cm-calloutname": { display: "inline-flex", alignItems: "center", gap: "6px", fontFamily: "var(--font-chrome)", fontSize: "0.9em", fontWeight: "600", color: "var(--tone, var(--ink))", marginRight: "var(--space-2)" },
+  ".cm-calloutname svg": { flex: "none" },
+  ".cm-callout-title": { fontWeight: "600" },
   ".cm-rule": { display: "inline-block", width: "100%", height: "0", verticalAlign: "middle", borderTop: "1px solid var(--hairline)" },
-  ".cm-table": { fontFamily: "var(--font-mono)", fontSize: "0.9em", backgroundColor: "var(--surface)", whiteSpace: "pre" },
+  ".cm-table": { fontFamily: "var(--font-mono)", fontSize: "0.88em", backgroundColor: "var(--surface)", whiteSpace: "pre" },
   ".cm-table-head": { fontWeight: "600" },
   ".cm-table-rule": { color: "var(--ink-muted)" },
-  ".cm-link": { textDecoration: "underline", textUnderlineOffset: "2px" },
-  ".cm-wikilink": { textDecoration: "underline dotted", textUnderlineOffset: "3px", cursor: "pointer" },
+  ".cm-link": { color: "var(--code-fn)", textDecoration: "underline", textUnderlineOffset: "3px", textDecorationThickness: "1px" },
+  ".cm-wikilink": { color: "var(--ink)", backgroundColor: "var(--surface-hover)", borderBottom: "1px solid var(--ink-muted)", borderRadius: "3px", padding: "0 3px", cursor: "pointer" },
   ".cm-bullet": { color: "var(--ink-muted)", display: "inline-block", width: "1.2em" },
   ".cm-listnum": { color: "var(--ink-muted)" },
-  ".cm-task": { margin: "0 var(--space-2) 0 0", verticalAlign: "middle", cursor: "pointer" },
+  ".cm-task": { width: "1.05em", height: "1.05em", margin: "0 var(--space-2) 0 0", verticalAlign: "-0.1em", cursor: "pointer", accentColor: "var(--canvas-4)" },
+  ".cm-task-done": { textDecoration: "line-through", color: "var(--ink-muted)" },
 });
 
 /**
@@ -369,6 +499,18 @@ export function livePreview(options: { onOpenWikilink?: (title: string) => void;
         if (target instanceof HTMLElement && target.classList.contains("cm-task")) {
           const change = toggleTask(view.state, view.posAtDOM(target));
           if (change) view.dispatch({ changes: change });
+          event.preventDefault();
+          return true;
+        }
+        const copy = target instanceof HTMLElement ? target.closest<HTMLElement>(".cm-copy") : null;
+        if (copy) {
+          const hit = fencedCodeAt(view.state, view.posAtDOM(copy));
+          if (hit) {
+            navigator.clipboard.writeText(hit.code).then(
+              () => flash(copy, "Copied"),
+              () => flash(copy, "Could not copy"),
+            );
+          }
           event.preventDefault();
           return true;
         }

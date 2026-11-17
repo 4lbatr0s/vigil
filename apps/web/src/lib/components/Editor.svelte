@@ -1,7 +1,7 @@
 <script lang="ts">
   import { untrack } from "svelte";
   import { EditorState, Prec } from "@codemirror/state";
-  import { EditorView, keymap } from "@codemirror/view";
+  import { EditorView, drawSelection, keymap, placeholder } from "@codemirror/view";
   import { minimalSetup } from "codemirror";
   import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
   import { languages } from "@codemirror/language-data";
@@ -105,12 +105,15 @@
     ]),
   );
 
-  // Code colors come from tokens too: ink for code, muted for comments and strings, bold for keywords.
+  // Code colours come from tokens (each checked for contrast in both themes): keywords, strings, numbers, names and types.
   const highlight = HighlightStyle.define([
     { tag: [tags.comment, tags.lineComment, tags.blockComment], color: "var(--ink-muted)", fontStyle: "italic" },
-    { tag: [tags.string, tags.regexp], color: "var(--ink-muted)" },
-    { tag: [tags.keyword, tags.operatorKeyword, tags.modifier], fontWeight: "600" },
-    { tag: [tags.number, tags.bool, tags.null], color: "var(--ink)" },
+    { tag: [tags.string, tags.regexp, tags.special(tags.string)], color: "var(--code-string)" },
+    { tag: [tags.keyword, tags.operatorKeyword, tags.modifier, tags.controlKeyword, tags.moduleKeyword], color: "var(--code-keyword)" },
+    { tag: [tags.number, tags.bool, tags.null, tags.atom], color: "var(--code-number)" },
+    { tag: [tags.function(tags.variableName), tags.function(tags.propertyName), tags.definition(tags.function(tags.variableName))], color: "var(--code-fn)" },
+    { tag: [tags.typeName, tags.className, tags.namespace, tags.definition(tags.typeName)], color: "var(--code-type)" },
+    { tag: [tags.propertyName, tags.attributeName], color: "var(--code-fn)" },
     { tag: tags.heading, fontWeight: "600" },
     { tag: tags.link, textDecoration: "underline" },
   ]);
@@ -121,22 +124,22 @@
       color: "var(--ink)",
       fontFamily: "var(--font-serif)",
       fontSize: "var(--text-prose)",
-      height: "100%",
     },
     ".cm-content": {
       fontFamily: "var(--font-serif)",
       fontSize: "var(--text-prose)",
-      lineHeight: "1.6",
+      lineHeight: "1.75",
       caretColor: "var(--ink)",
-      padding: "0",
-      maxWidth: "var(--measure)",
-      margin: "0 auto",
+      padding: "var(--space-2) 0 var(--space-12)",
+      minHeight: "50vh",
     },
+    ".cm-line": { padding: "0" },
     ".cm-scroller": {
       fontFamily: "var(--font-serif)",
-      lineHeight: "1.6",
-      overflow: "auto",
+      lineHeight: "1.75",
+      overflow: "visible",
     },
+    ".cm-placeholder": { color: "var(--ink-muted)", fontStyle: "italic" },
     ".cm-gutters": {
       backgroundColor: "transparent",
       color: "var(--ink-muted)",
@@ -146,8 +149,10 @@
     },
     ".cm-activeLine": { backgroundColor: "transparent" },
     ".cm-activeLineGutter": { backgroundColor: "transparent", color: "var(--ink-muted)" },
-    ".cm-selectionBackground, ::selection": { backgroundColor: "var(--hairline) !important" },
-    "&.cm-focused": { outline: "2px solid var(--ink)", outlineOffset: "-2px" },
+    ".cm-cursor, .cm-dropCursor": { borderLeftColor: "var(--ink)", borderLeftWidth: "2px" },
+    "&.cm-focused .cm-selectionBackground, .cm-selectionBackground, .cm-content ::selection": { backgroundColor: "var(--selection) !important" },
+    // The caret and the selection show where you are writing; the page needs no frame around the text.
+    "&.cm-focused": { outline: "none" },
   });
 
   $effect(() => {
@@ -161,6 +166,8 @@
         extensions: [
           formatKeys,
           minimalSetup,
+          drawSelection(),
+          placeholder("Write, or press / for blocks"),
           syntaxHighlighting(highlight),
           markdown({ base: markdownLanguage, codeLanguages: languages }),
           wikilinkCompletion(
@@ -199,11 +206,5 @@
 <style>
   .wrap {
     position: relative;
-    height: 100%;
-  }
-
-  .editor {
-    height: 100%;
-    overflow: hidden;
   }
 </style>

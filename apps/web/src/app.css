@@ -20,6 +20,13 @@
   /* Text-safe variants (contrast >= 4.5:1 on --bg and --surface, checked by contrast.test.ts). */
   --amber-ink: #e8a33d;
   --err-ink: #dd6a66;
+  --code-keyword: #b79ce0;
+  --code-string: #7fc79a;
+  --code-number: #e0a070;
+  --code-fn: #78c0ca;
+  --code-type: #cfc47a;
+  /* The text selection: a wash of the canvas cyan, so it reads on every card and page in both themes. */
+  --selection: color-mix(in srgb, var(--canvas-5) 32%, transparent);
 
   /* Type */
   --font-serif: "Newsreader Variable", Georgia, serif;
@@ -76,6 +83,11 @@
     --canvas-6: #7650a8;
     --amber-ink: #8f5c0a;
     --err-ink: #b03a36;
+    --code-keyword: #6a45a0;
+    --code-string: #2a7048;
+    --code-number: #a55a1e;
+    --code-fn: #1f6f7a;
+    --code-type: #7a7020;
     --shadow-pop: 0 8px 28px rgb(60 40 20 / 0.14), 0 1px 3px rgb(60 40 20 / 0.1);
   }
 }
@@ -98,6 +110,11 @@
   --canvas-6: #7650a8;
   --amber-ink: #8f5c0a;
   --err-ink: #b03a36;
+  --code-keyword: #6a45a0;
+  --code-string: #2a7048;
+  --code-number: #a55a1e;
+  --code-fn: #1f6f7a;
+  --code-type: #7a7020;
   --shadow-pop: 0 8px 28px rgb(60 40 20 / 0.14), 0 1px 3px rgb(60 40 20 / 0.1);
 }
 

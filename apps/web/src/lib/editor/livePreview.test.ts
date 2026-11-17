@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { EditorSelection, EditorState } from "@codemirror/state";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
-import { buildDecorations, isSafeUrl, linkUrlAt, toggleTask, wikilinkAt } from "./livePreview";
+import { buildDecorations, fencedCodeAt, isSafeUrl, linkUrlAt, toggleTask, wikilinkAt } from "./livePreview";
 
 const DOC = ["# Title", "", "Some **bold** and [a link](https://example.com) and [[Other note]].", "", "- [ ] open task", "- [x] done task", "- plain item", "", "```", "[[Inside code]]", "```"].join("\n");
 
@@ -213,5 +213,51 @@ describe("vault images", () => {
     const other = "![x](https://evil.test/a.png)";
     const doc = `${other}\n\nEnd`;
     expect(replaced(state(doc, doc.length))).not.toContain(other);
+  });
+});
+
+describe("code blocks and callouts", () => {
+  const code = ["Intro", "", "```ts", "const a = 1;", "```", "", "After"].join("\n");
+  const classesOf = (s: EditorState): string[] => items(s).map((i) => i.cls ?? "").filter((c) => c !== "");
+
+  it("turns the opening fence into a header bar and shrinks the closing fence, away from the cursor", () => {
+    const s = state(code, 0);
+    expect(classesOf(s)).toContain("cm-codehead-line");
+    expect(classesOf(s)).toContain("cm-codefoot-line");
+    expect(classesOf(s)).toContain("cm-codeblock-first");
+    expect(classesOf(s)).toContain("cm-codeblock-last");
+    expect(replaced(s)).toContain("```ts");
+    expect(replaced(s).filter((t) => t === "```")).toHaveLength(1);
+  });
+
+  it("shows the raw fences on the line that holds the cursor", () => {
+    const open = code.indexOf("```ts");
+    expect(replaced(state(code, open + 2))).not.toContain("```ts");
+    const close = code.lastIndexOf("```") + 1;
+    expect(classesOf(state(code, close))).not.toContain("cm-codefoot-line");
+  });
+
+  it("finds the language and text of the block for the Copy button", () => {
+    expect(fencedCodeAt(state(code, 0), code.indexOf("```ts"))).toEqual({ lang: "ts", code: "const a = 1;" });
+    expect(fencedCodeAt(state(code, 0), code.indexOf("const"))).toEqual({ lang: "ts", code: "const a = 1;" });
+    expect(fencedCodeAt(state(code, 0), 0)).toBeNull();
+  });
+
+  it("puts a callout's marker behind an icon and styles its first and last line", () => {
+    const doc = ["Text", "", "> [!tip] Remember", "> body line", "", "End"].join("\n");
+    const s = state(doc, 0);
+    expect(replaced(s)).toContain("> [!tip]");
+    const cls = classesOf(s);
+    expect(cls).toContain("cm-callout-first");
+    expect(cls).toContain("cm-callout-last");
+    expect(cls).toContain("cm-callout-title");
+    expect(cls.some((c) => c.includes("cm-tone-tip"))).toBe(true);
+  });
+
+  it("strikes the text of a done task, also while it is being edited", () => {
+    const doc = "- [x] finished thing\n- [ ] open thing";
+    expect(classesOf(state(doc, doc.length))).toContain("cm-task-done");
+    expect(classesOf(state(doc, 8))).toContain("cm-task-done");
+    expect(classesOf(state("- [ ] open only", 0))).not.toContain("cm-task-done");
   });
 });

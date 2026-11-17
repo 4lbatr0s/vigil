@@ -391,22 +391,7 @@
     {:else}
       <header class="head">
         <button type="button" class="act list-toggle" aria-label="Show the notes list" onclick={() => (listOpen = true)}><PanelLeft size={16} strokeWidth={1.5} /> Notes</button>
-        <input
-          class="title"
-          type="text"
-          aria-label="Note title"
-          aria-describedby={titleFocused ? "title-hint" : undefined}
-          bind:value={titleValue}
-          onfocus={() => (titleFocused = true)}
-          onblur={() => ((titleFocused = false), void commitTitle())}
-          onkeydown={(e) => {
-            if (e.key === "Enter") e.currentTarget.blur();
-            else if (e.key === "Escape") {
-              titleValue = draft?.title ?? "";
-              e.currentTarget.blur();
-            }
-          }}
-        />
+        <span class="grow"></span>
         <div class="actions">
           <button type="button" class="act" onclick={() => (studyOpen = true)}>Study</button>
           <button type="button" class="act" onclick={() => (cardsOpen = true)}>Make cards</button>
@@ -417,10 +402,6 @@
           <DeleteNote noteId={selectedId ?? ""} title={draft.title} ondeleted={onDeleted} />
         </div>
       </header>
-
-      {#if titleFocused}
-        <p class="title-hint" id="title-hint">The file name stays the same. Use Rename to change it.</p>
-      {/if}
 
       <ProvenanceBar agentName={current?.author === "agent" ? current.agentName : undefined} writtenAt={current?.updatedAt} run={writerRun} pending={pendingHere} onundone={() => void onUndone()} onreview={() => (review = writerRun && selectedId ? { runId: writerRun.id, noteId: selectedId, agent: current?.agentName ?? "The agent" } : null)} />
       {#if review && review.noteId === selectedId}
@@ -437,10 +418,31 @@
 
       <div class="panes">
         <section class="pane editor-pane">
+          <div class="doc">
+            <input
+              class="title"
+              type="text"
+              aria-label="Note title"
+              aria-describedby={titleFocused ? "title-hint" : undefined}
+              bind:value={titleValue}
+              onfocus={() => (titleFocused = true)}
+              onblur={() => ((titleFocused = false), void commitTitle())}
+              onkeydown={(e) => {
+                if (e.key === "Enter") e.currentTarget.blur();
+                else if (e.key === "Escape") {
+                  titleValue = draft?.title ?? "";
+                  e.currentTarget.blur();
+                }
+              }}
+            />
+            {#if titleFocused}
+              <p class="title-hint" id="title-hint">The file name stays the same. Use Rename to change it.</p>
+            {/if}
           <!-- The editor (CodeMirror) is the heavy part: load it after the shell and list. -->
           {#await import("$lib/components/Editor.svelte") then { default: Editor }}
             {#key reloadKey}<Editor value={draft.body} noteId={selectedId ?? ""} onDocChange={onDocChange} onOpenWikilink={(t) => void openWikilink(t)} getTitles={() => notes.map((n) => n.title)} getTitle={() => draft?.title} onProblem={(m) => (status = m)} onAsk={(sel) => ((askSelection = sel), (askOpen = true))} {jumpLine} />{/key}
           {/await}
+          </div>
         </section>
       </div>
 
@@ -575,10 +577,6 @@
       order: 1;
       margin-left: auto;
     }
-    .head .title {
-      order: 2;
-      flex-basis: 100%;
-    }
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -606,26 +604,41 @@
   .head {
     position: relative;
     display: flex;
-    align-items: baseline;
+    align-items: center;
     justify-content: space-between;
     gap: var(--space-4);
-    padding: var(--space-4) var(--space-6);
+    padding: var(--space-2) var(--space-6);
     border-bottom: 1px solid var(--hairline);
   }
 
   .title {
-    flex: 1;
+    display: block;
+    width: calc(100% + 2 * var(--space-2));
     min-width: 0;
     padding: var(--space-1) var(--space-2);
-    margin: 0 calc(-1 * var(--space-2));
+    margin: var(--space-4) calc(-1 * var(--space-2)) var(--space-2);
     border: 1px solid transparent;
     border-radius: var(--radius);
     background: none;
     font-family: var(--font-serif);
-    font-size: var(--text-h2);
+    font-size: var(--text-h1);
     font-weight: 600;
     line-height: 1.2;
     color: var(--ink);
+  }
+
+  .title::placeholder {
+    color: var(--ink-muted);
+  }
+
+  .grow {
+    flex: 1;
+  }
+
+  .doc {
+    width: 100%;
+    max-width: var(--measure);
+    margin: 0 auto;
   }
 
   .title:hover {
@@ -638,10 +651,9 @@
   }
 
   .title-hint {
-    padding: var(--space-1) var(--space-6);
+    margin: 0 0 var(--space-2);
     font-size: var(--text-label);
     color: var(--ink-muted);
-    border-bottom: 1px solid var(--hairline);
   }
 
   .panes {

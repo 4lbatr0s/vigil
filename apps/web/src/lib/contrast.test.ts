@@ -52,6 +52,15 @@ describe("design tokens", () => {
   });
 
   for (const [name, t] of themes) {
+    it(`code colours reach 4.5:1 on bg and surface: ${name}`, () => {
+      for (const text of ["code-keyword", "code-string", "code-number", "code-fn", "code-type"]) {
+        for (const ground of ["bg", "surface"]) {
+          const ratio = contrast(t[text] as string, t[ground] as string);
+          expect(ratio, `${name}: ${text} on ${ground} is ${ratio.toFixed(2)}`).toBeGreaterThanOrEqual(4.5);
+        }
+      }
+    });
+
     it(`text tokens reach 4.5:1 on bg and surface: ${name}`, () => {
       for (const text of ["ink", "ink-muted", "amber-ink", "err-ink", "ok"]) {
         for (const ground of ["bg", "surface"]) {
