@@ -23,6 +23,7 @@
     getTitles,
     getTitle,
     onAsk,
+    jumpLine = null,
   }: {
     value?: string;
     noteId?: string;
@@ -37,15 +38,27 @@
     getTitle?: () => string | undefined;
     /** Cmd/Ctrl+J, the toolbar button or `/ask`: the page opens "Ask an agent" with the selected text. */
     onAsk?: (selection: string) => void;
+    /** A line to scroll to and select when the note opens (1-based), for example from a cited source. */
+    jumpLine?: number | null;
   } = $props();
 
   const selectedText = (v: EditorView): string => v.state.sliceDoc(v.state.selection.main.from, v.state.selection.main.to);
 
   let host = $state<HTMLDivElement | undefined>(undefined);
+  let jumped = -1;
   let view = $state.raw<EditorView | undefined>(undefined);
   let wrap = $state<HTMLDivElement | undefined>(undefined);
   /** Where the floating format toolbar sits while text is selected, relative to the editor. */
   let bar = $state<{ left: number; top: number } | null>(null);
+
+  $effect(() => {
+    const v = view;
+    const n = jumpLine;
+    if (!v || n === null || n === jumped) return;
+    jumped = n;
+    const line = v.state.doc.line(Math.min(Math.max(1, n), v.state.doc.lines));
+    v.dispatch({ selection: { anchor: line.from, head: line.to }, effects: EditorView.scrollIntoView(line.from, { y: "center" }) });
+  });
 
   function placeBar(v: EditorView): void {
     const sel = v.state.selection.main;

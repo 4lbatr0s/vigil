@@ -86,7 +86,7 @@
       <h2>{asked}</h2>
       <p class="answer">
         {#each parts as part}
-          {#if part.kind === "text"}{part.text}{:else if part.passage}<a class="cite" href={`/?note=${encodeURIComponent(part.passage.noteId)}`} title={`${part.passage.title}, line ${part.passage.line}`}>{part.n}</a>{:else}<span class="cite bad" title="This mark points at no line">{part.n}</span>{/if}
+          {#if part.kind === "text"}{part.text}{:else if part.passage}<a class="cite" href={`/?note=${encodeURIComponent(part.passage.noteId)}&line=${part.passage.line}`} title={`${part.passage.title}, line ${part.passage.line}`}>{part.n}</a>{:else}<span class="cite bad" title="This mark points at no line">{part.n}</span>{/if}
         {/each}
       </p>
       {#if trust === "no-marks"}
@@ -99,7 +99,7 @@
         <ol class="sources">
           {#each used as p (p.n)}
             <li value={p.n}>
-              <a href={`/?note=${encodeURIComponent(p.noteId)}`}>{p.title}</a> <span class="muted">line {p.line}</span>
+              <a href={`/?note=${encodeURIComponent(p.noteId)}&line=${p.line}`}>{p.title}</a> <span class="muted">line {p.line}</span>
               <blockquote>{p.text}</blockquote>
             </li>
           {/each}

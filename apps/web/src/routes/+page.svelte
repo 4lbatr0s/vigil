@@ -32,6 +32,8 @@
   // A wikilink that points at no note yet: the inline "create it?" prompt.
   let pendingCreate = $state<string | null>(null);
   let loading = $state(true);
+  /** A line named by the address (`&line=4`), scrolled to once when that note opens. */
+  let jumpLine = $state<number | null>(null);
   let loadError = $state("");
   let flicker = $state(new Set<string>());
   let pins = $state<string[]>([]);
@@ -196,6 +198,8 @@
       void loadActivity();
       draft = { title: note.title, body: note.body };
       baseUpdatedAt = note.updatedAt;
+      const wantedLine = Number(page.url.searchParams.get("line"));
+      jumpLine = Number.isInteger(wantedLine) && wantedLine > 0 && page.url.searchParams.get("note") === note.id ? wantedLine : null;
       // Keep the address in step with the open note, so a reload or a copied link opens the same one.
       if (page.url.searchParams.get("note") !== note.id) replaceState(`/?note=${encodeURIComponent(note.id)}`, {});
     } catch (err) {
@@ -407,7 +411,7 @@
         <section class="pane editor-pane">
           <!-- The editor (CodeMirror) is the heavy part: load it after the shell and list. -->
           {#await import("$lib/components/Editor.svelte") then { default: Editor }}
-            {#key reloadKey}<Editor value={draft.body} noteId={selectedId ?? ""} onDocChange={onDocChange} onOpenWikilink={(t) => void openWikilink(t)} getTitles={() => notes.map((n) => n.title)} getTitle={() => draft?.title} onProblem={(m) => (status = m)} onAsk={(sel) => ((askSelection = sel), (askOpen = true))} />{/key}
+            {#key reloadKey}<Editor value={draft.body} noteId={selectedId ?? ""} onDocChange={onDocChange} onOpenWikilink={(t) => void openWikilink(t)} getTitles={() => notes.map((n) => n.title)} getTitle={() => draft?.title} onProblem={(m) => (status = m)} onAsk={(sel) => ((askSelection = sel), (askOpen = true))} {jumpLine} />{/key}
           {/await}
         </section>
       </div>
