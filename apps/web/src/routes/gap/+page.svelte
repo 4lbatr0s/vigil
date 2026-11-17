@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onDestroy } from "svelte";
   import { ApiError, createFromTemplate, getRun, getRunResult, listAgents, putAgent, startGap, type Passage } from "$lib/api";
-  import { splitAnswer, usedPassages } from "$lib/citations";
+  import { splitAnswer, usedPassages, verdict } from "$lib/citations";
 
   type Step = "ask" | "running" | "done" | "error";
 
@@ -16,6 +16,7 @@
 
   const parts = $derived(splitAnswer(answer, passages));
   const used = $derived(usedPassages(answer, passages));
+  const badMarks = $derived(verdict(answer, passages) === "bad-marks");
   
   onDestroy(() => clearTimeout(timer));
 
@@ -83,6 +84,9 @@
           {#if part.kind === "text"}{part.text}{:else if part.passage}<a class="cite" href={`/?note=${encodeURIComponent(part.passage.noteId)}&line=${part.passage.line}`} title={`${part.passage.title}, line ${part.passage.line}`}>{part.n}</a>{:else}<span class="cite bad" title="This mark points at no line">{part.n}</span>{/if}
         {/each}
       </p>
+      {#if badMarks}
+        <p class="warn" role="note">A mark points at a note line that was never given. Check the lines below before you trust that point.</p>
+      {/if}
       {#if used.length > 0}
         <h3>Your note lines it used</h3>
         <ol class="sources">
@@ -162,6 +166,13 @@
   .cite.bad {
     border-color: var(--err);
     color: var(--err-ink);
+  }
+  .warn {
+    padding: var(--space-3);
+    border: 1px solid var(--err);
+    border-radius: var(--radius);
+    color: var(--err-ink);
+    font-size: var(--text-label);
   }
   .sources {
     display: grid;

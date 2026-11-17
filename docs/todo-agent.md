@@ -3,7 +3,7 @@
 Nothing here needs the owner. The agent works top to bottom, one item per commit, ticks the item here and in `spec/progress.md`, and adds a CHANGELOG line. Commits stay local until the owner says "push". Tests use temp directories; no key is ever printed. What only the owner can do is in [`todo-owner.md`](todo-owner.md).
 
 - [x] 1. **Today: what to study first.** *Done: a "Start here" section (`lib/focus.ts`) with up to three plain lines: exam within a week, changes waiting for your yes, recall checks due, cards, slipping cards. Checked in the browser.* Order the Today page by exam date, due recall checks and cards that keep slipping, in plain words.
-- [ ] 2. **Gap check marks.** Check the `[n]` marks on `/gap` like `/ask` does (reuse `verdict` in `lib/citations.ts`).
+- [x] 2. **Gap check marks.** *Done: `/gap` warns when a mark points at a line that was never given (`verdict` bad-marks); marks already link to the note.* Check the `[n]` marks on `/gap` like `/ask` does (reuse `verdict` in `lib/citations.ts`).
 - [ ] 3. **Pictures for more agents.** Tutors, quiz master and explain-it-back see a note's pictures when the owner's setting is on (reuse `picturesFor`).
 - [ ] 4. **PWA share target for capture.** Share text to Vigil and it lands in the Inbox note.
 - [ ] 5. **Nested tag tree** in the note list (`a/b` tags).
