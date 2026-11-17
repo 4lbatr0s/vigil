@@ -30,7 +30,7 @@ import { getRunResult } from "./state-db";
 import { exportTsv } from "./anki-export";
 import { ResultBodySchema, enroll, recordResult } from "./recall";
 import { GoalBodySchema, goalStatuses, validGoalDay } from "./goals";
-import { StudySettingsSchema, answerCard, deckStats, dueCards, saveStudySettings, studyForecast, studyHistory, studySettings, studyStats, undoAnswer } from "./study";
+import { StudySettingsSchema, answerCard, deckStats, dueCards, saveStudySettings, studyForecast, stuckCards, studyHistory, studySettings, studyStats, undoAnswer } from "./study";
 import { cardsForNote } from "./index-db";
 import { addPin, approvalsForRun, clearHeartbeat, decideApproval, getApproval, listApprovals, listChatThreads, getAgent, getHeartbeat, getRun, getSchedule, listAgents, listEvents, listPins, listRuns, putAgent, listRecall, putSchedule, removeGoal, removePin, removeRecall, setGoal } from "./state-db";
 import { createNote, deleteNote, getNote as vaultGetNote, slugify, updateNote, validateId } from "./vault";
@@ -188,6 +188,14 @@ const routes: { method: string; pattern: RegExp; keys: string[]; handler: Handle
       const asked = Number(url.searchParams.get("days") ?? 14);
       const days = Number.isInteger(asked) ? Math.min(90, Math.max(1, asked)) : 14;
       send(res, 200, { data: studyHistory(new Date(), days) });
+    },
+  },
+  {
+    method: "GET",
+    pattern: /^\/api\/study\/stuck$/,
+    keys: [],
+    handler: (_req, res) => {
+      send(res, 200, { data: stuckCards() });
     },
   },
   {

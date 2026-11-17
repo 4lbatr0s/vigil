@@ -109,6 +109,8 @@ export const getStudySettings = () => request<StudySettings>("/api/study/setting
 export const putStudySettings = (s: StudySettings) => request<StudySettings>("/api/study/settings", json("PUT", s));
 export type ForecastDay = { day: string; count: number };
 export const getStudyForecast = () => request<ForecastDay[]>("/api/study/forecast");
+export type StuckCard = { id: string; noteId: string; front: string; lapses: number };
+export const getStuckCards = () => request<StuckCard[]>("/api/study/stuck");
 export const getDecks = () => request<DeckStats[]>("/api/study/decks");
 export const answerStudyCard = (cardId: string, answer: Answer) => request<{ due: string }>("/api/study/review", json("POST", { cardId, answer }));
 /** Starts the card maker on a note; the answer is read with getRunResult when the run has succeeded. */

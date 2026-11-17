@@ -189,3 +189,12 @@ describe("pace, mixing and forecast", () => {
     expect(total).toBeLessThanOrEqual(ids.length);
   });
 });
+
+describe("stuck list", () => {
+  it("is empty until a card has been forgotten three times", async () => {
+    await note("st", "Q :: A\n");
+    const [card] = (await j("GET", "/api/study/due")).body.data as { id: string }[];
+    for (let i = 0; i < 2; i++) await j("POST", "/api/study/review", { cardId: card!.id, answer: "again" });
+    expect((await j("GET", "/api/study/stuck")).body.data).toEqual([]);
+  });
+});

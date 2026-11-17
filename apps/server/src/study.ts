@@ -204,3 +204,16 @@ export function studyForecast(now: Date, days = 14): ForecastDay[] {
   }
   return out;
 }
+
+export type StuckCard = { id: string; noteId: string; front: string; lapses: number };
+
+/** Cards forgotten at least `min` times after being learned, worst first: the ones to reword or split. */
+export function stuckCards(min = 3, limit = 10): StuckCard[] {
+  const states = allCardStates();
+  const out: StuckCard[] = [];
+  for (const c of listCards()) {
+    const s = states.get(c.id);
+    if (s && s.lapses >= min) out.push({ id: c.id, noteId: c.noteId, front: c.front, lapses: s.lapses });
+  }
+  return out.sort((a, b) => b.lapses - a.lapses).slice(0, limit);
+}

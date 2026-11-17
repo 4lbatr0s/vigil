@@ -160,7 +160,7 @@ Chosen from the research (spaced repetition tied to notes, active processing ove
 - [x] Anki text export (`GET /api/study/export`, Anki 2.1.54+ header lines; not run through Anki itself) and import (`/import`, plain text only, no history). New notes from the outline and import pages pick a free id so no existing note is replaced
 - [x] Forecast strip ("Coming up"), Settings: new cards per day and remembering target (80 to 95%), sessions mix notes (`spreadByNote`)
 - [x] Live check, 2026-11-17, local 4B model: explain-it-back and quiz-master both opened with one question and no facts from the note (first-reply rules hold); recall and outline pages work end to end in the browser
-- [ ] Weak-spot list per note (not started: the By note rows already show recall once there are 8 answers)
+- [x] "Keeps slipping" list on the Study page (cards forgotten 3 or more times, `GET /api/study/stuck`)
 
 ## WP13: after v1 (ordered backlog, do not start before the release)
 

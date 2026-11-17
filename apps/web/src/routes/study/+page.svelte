@@ -3,7 +3,7 @@
   import Illustration from "$lib/components/Illustration.svelte";
   import { onMount, tick } from "svelte";
   import { page } from "$app/state";
-  import { answerStudyCard, getDecks, getDueCards, getStudyForecast, getStudyHistory, getStudyStats, undoStudyAnswer, type Answer, type DayCount, type DeckStats, type ForecastDay, type StudyStats } from "$lib/api";
+  import { answerStudyCard, getDecks, getDueCards, getStuckCards, getStudyForecast, getStudyHistory, getStudyStats, undoStudyAnswer, type Answer, type DayCount, type DeckStats, type ForecastDay, type StuckCard, type StudyStats } from "$lib/api";
   import { lintCard } from "@vigil/shared";
   import { refreshStudyDue } from "$lib/study-state";
   import { ANSWER_KEYS, answer, current, isFinished, remaining, reveal, startSession, type Session } from "$lib/study-session";
@@ -15,6 +15,7 @@
   let decks = $state<DeckStats[]>([]);
   let history = $state<DayCount[]>([]);
   let forecast = $state<ForecastDay[]>([]);
+  let stuck = $state<StuckCard[]>([]);
   const forecastPeak = $derived(Math.max(1, ...forecast.map((d) => d.count)));
   const forecastTotal = $derived(forecast.reduce((n, d) => n + d.count, 0));
   const peak = $derived(Math.max(1, ...history.map((d) => d.count)));
@@ -38,12 +39,13 @@
   async function load(): Promise<void> {
     loadError = "";
     try {
-      const [cards, st, d, h, f] = await Promise.all([getDueCards(noteId ? { note: noteId } : {}), getStudyStats(noteId ?? undefined), getDecks().catch(() => [] as DeckStats[]), getStudyHistory().catch(() => [] as DayCount[]), getStudyForecast().catch(() => [] as ForecastDay[])]);
+      const [cards, st, d, h, f, sk] = await Promise.all([getDueCards(noteId ? { note: noteId } : {}), getStudyStats(noteId ?? undefined), getDecks().catch(() => [] as DeckStats[]), getStudyHistory().catch(() => [] as DayCount[]), getStudyForecast().catch(() => [] as ForecastDay[]), getStuckCards().catch(() => [] as StuckCard[])]);
       session = startSession(cards);
       stats = st;
       decks = d;
       history = h;
       forecast = f;
+      stuck = sk;
       await tick();
       focusCard();
     } catch (err) {
@@ -223,6 +225,21 @@
         {/each}
       </ol>
       <p class="count">{weekTotal} {weekTotal === 1 ? "answer" : "answers"} this week</p>
+    </section>
+  {/if}
+
+  {#if stuck.length > 0}
+    <section class="decks" aria-labelledby="slipping">
+      <h2 id="slipping">Keeps slipping</h2>
+      <p class="muted">Cards you have forgotten again and again. Rewording or splitting them usually works better than more drilling.</p>
+      <ul>
+        {#each stuck as c (c.id)}
+          <li>
+            <a href={`/?note=${encodeURIComponent(c.noteId)}`}>{c.front}</a>
+            <span class="count">forgotten {c.lapses} times</span>
+          </li>
+        {/each}
+      </ul>
     </section>
   {/if}
 
