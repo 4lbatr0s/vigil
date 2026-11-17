@@ -8,11 +8,14 @@
   import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
   import { tags } from "@lezer/highlight";
   import { livePreview } from "$lib/editor/livePreview";
-  import { imageDrop } from "$lib/editor/images";
+  import { addImageFiles, imageDrop } from "$lib/editor/images";
   import { uploadImage } from "$lib/api";
   import { wikilinkCompletion } from "$lib/editor/wikilinkComplete";
   import { boldCommand, clozeCommand, codeCommand, headingCommand, indentCommand, italicCommand, lineCommand, linkCommand, outdentCommand, strikeCommand } from "$lib/editor/format";
   import SelectionToolbar from "$lib/components/SelectionToolbar.svelte";
+  import PopupMenu, { type MenuItem } from "$lib/components/PopupMenu.svelte";
+  import { blockHandle, moveBlockByKey } from "$lib/editor/blockHandle";
+  import { blocksOf, deleteBlock, duplicateBlock, moveBlock, movedBlockStart, turnInto, type TurnInto } from "$lib/editor/blocks";
 
   let {
     value = "",
@@ -48,6 +51,61 @@
   let jumped = -1;
   let view = $state.raw<EditorView | undefined>(undefined);
   let wrap = $state<HTMLDivElement | undefined>(undefined);
+  let menu = $state<{ x: number; y: number; items: MenuItem[] } | null>(null);
+  let fileInput = $state<HTMLInputElement | undefined>(undefined);
+
+  /** The `/image` block: choose a picture, it is uploaded and put at the caret like a pasted one. */
+  async function pickedImages(files: FileList | null): Promise<void> {
+    const v = view;
+    if (!v || !files) return;
+    await addImageFiles(v, [...files], async (file) => (await uploadImage(file)).name, (m) => onProblem?.(m));
+    v.focus();
+  }
+
+  /** The block menu: change what kind of block it is, duplicate, move or delete it. Each choice is one undo step. */
+  function openBlockMenu(at: { x: number; y: number }, index: number): void {
+    const v = view;
+    if (!v) return;
+    const fresh = () => blocksOf(v.state);
+    const turn = (kind: TurnInto, label: string, hint?: string): MenuItem => ({
+      label,
+      ...(hint ? { hint } : {}),
+      run: () => {
+        const b = fresh()[index];
+        if (b) v.dispatch({ changes: turnInto(v.state, b, kind), userEvent: "input" });
+        v.focus();
+      },
+    });
+    const move = (delta: -1 | 1): void => {
+      const blocks = fresh();
+      const changes = moveBlock(v.state, blocks, index, index + delta, delta > 0);
+      if (changes.length > 0) v.dispatch({ changes, selection: { anchor: movedBlockStart(blocks, index, index + delta, delta > 0, v.state.changes(changes)) }, userEvent: "move", scrollIntoView: true });
+      v.focus();
+    };
+    const total = fresh().length;
+    menu = {
+      ...at,
+      items: [
+        turn("text", "Text"),
+        turn("h1", "Heading 1", "#"),
+        turn("h2", "Heading 2", "##"),
+        turn("h3", "Heading 3", "###"),
+        turn("bullet", "Bulleted list", "-"),
+        turn("number", "Numbered list", "1."),
+        turn("todo", "To-do list", "[ ]"),
+        turn("quote", "Quote", ">"),
+        turn("callout", "Callout", "[!note]"),
+        turn("code", "Code block", "```"),
+        "-",
+        { label: "Duplicate", run: () => { const b = fresh()[index]; if (b) v.dispatch({ changes: duplicateBlock(v.state, b), userEvent: "input" }); v.focus(); } },
+        { label: "Move up", hint: "Alt Up", disabled: index === 0, run: () => move(-1) },
+        { label: "Move down", hint: "Alt Down", disabled: index >= total - 1, run: () => move(1) },
+        "-",
+        { label: "Delete", danger: true, run: () => { const b = fresh()[index]; if (b) v.dispatch({ changes: deleteBlock(v.state, b), userEvent: "delete" }); v.focus(); } },
+      ],
+    };
+  }
+
   /** Where the floating format toolbar sits while text is selected, relative to the editor. */
   let bar = $state<{ left: number; top: number } | null>(null);
 
@@ -100,6 +158,8 @@
       { key: "Mod-Shift-8", run: lineCommand("bullet") },
       { key: "Mod-Shift-7", run: lineCommand("number") },
       { key: "Mod-Shift-9", run: lineCommand("task") },
+      { key: "Alt-ArrowUp", run: (v) => moveBlockByKey(v, -1) },
+      { key: "Alt-ArrowDown", run: (v) => moveBlockByKey(v, 1) },
       { key: "Tab", run: indentCommand },
       { key: "Shift-Tab", run: outdentCommand },
     ]),
@@ -151,6 +211,23 @@
     ".cm-activeLineGutter": { backgroundColor: "transparent", color: "var(--ink-muted)" },
     ".cm-cursor, .cm-dropCursor": { borderLeftColor: "var(--ink)", borderLeftWidth: "2px" },
     "&.cm-focused .cm-selectionBackground, .cm-selectionBackground, .cm-content ::selection": { backgroundColor: "var(--selection) !important" },
+    ".cm-tooltip.cm-tooltip-autocomplete": { border: "1px solid var(--hairline)", borderRadius: "var(--radius)", backgroundColor: "var(--surface)", boxShadow: "var(--shadow-pop)", overflow: "hidden", padding: "var(--space-1)" },
+    ".cm-tooltip-autocomplete > ul": { fontFamily: "var(--font-chrome)", fontSize: "var(--text-ui)", maxHeight: "22em", minWidth: "17em" },
+    ".cm-tooltip-autocomplete > ul > li": { display: "flex", alignItems: "center", gap: "var(--space-2)", padding: "var(--space-1) var(--space-2)", borderRadius: "var(--radius)", color: "var(--ink)" },
+    ".cm-tooltip-autocomplete > ul > li[aria-selected]": { backgroundColor: "var(--surface-hover)", color: "var(--ink)" },
+    ".cm-tooltip-autocomplete .cm-completionLabel": { flex: "1" },
+    ".cm-tooltip-autocomplete .cm-completionDetail": { marginLeft: "var(--space-3)", color: "var(--ink-muted)", fontStyle: "normal", fontFamily: "var(--font-mono)", fontSize: "var(--text-label)", order: "3" },
+    ".cm-tooltip-autocomplete .cm-completionSection": { display: "block", padding: "var(--space-2) var(--space-2) var(--space-1)", color: "var(--ink-muted)", fontSize: "var(--text-label)", textTransform: "uppercase", letterSpacing: "0.05em" },
+    ".cm-slashicon": { flex: "none", color: "var(--ink-muted)", order: "-1" },
+    ".cm-blockhandle": { position: "absolute", left: "-64px", display: "none", alignItems: "center", gap: "2px", zIndex: "3" },
+    ".cm-blockhandle.on": { display: "flex" },
+    ".cm-blockhandle button": { display: "inline-flex", alignItems: "center", justifyContent: "center", width: "24px", height: "24px", padding: "0", border: "0", borderRadius: "var(--radius)", background: "transparent", color: "var(--ink-muted)", cursor: "pointer" },
+    ".cm-blockhandle button:hover": { backgroundColor: "var(--surface-hover)", color: "var(--ink)" },
+    ".cm-blockhandle button:last-child": { cursor: "grab" },
+    ".cm-dropline": { position: "absolute", left: "0", right: "0", height: "2px", display: "none", backgroundColor: "var(--canvas-5)", pointerEvents: "none", zIndex: "3" },
+    ".cm-dropline.on": { display: "block" },
+    "&.cm-dragging, &.cm-dragging .cm-content": { cursor: "grabbing", userSelect: "none" },
+    "@media (hover: none)": { ".cm-blockhandle": { display: "none !important" } },
     // The caret and the selection show where you are writing; the page needs no frame around the text.
     "&.cm-focused": { outline: "none" },
   });
@@ -167,12 +244,14 @@
           formatKeys,
           minimalSetup,
           drawSelection(),
+          blockHandle({ onMenu: openBlockMenu }),
           placeholder("Write, or press / for blocks"),
           syntaxHighlighting(highlight),
           markdown({ base: markdownLanguage, codeLanguages: languages }),
           wikilinkCompletion(
             () => getTitles?.() ?? [],
             onAsk ? () => onAsk(instance ? selectedText(instance) : "") : undefined,
+            () => fileInput?.click(),
           ),
           livePreview({ onOpenWikilink: (title) => onOpenWikilink?.(title), getTitle: () => getTitle?.() }),
           imageDrop(async (file) => (await uploadImage(file)).name, (m) => onProblem?.(m)),
@@ -201,10 +280,17 @@
   {#if bar && view}
     <SelectionToolbar {view} left={bar.left} top={bar.top} onask={onAsk ? () => onAsk(selectedText(view!)) : undefined} />
   {/if}
+  <input type="file" accept="image/png,image/jpeg,image/gif,image/webp" class="hidden" bind:this={fileInput} onchange={(e) => { void pickedImages(e.currentTarget.files); e.currentTarget.value = ""; }} aria-label="Choose a picture" />
+  {#if menu}
+    <PopupMenu x={menu.x} y={menu.y} items={menu.items} onclose={() => (menu = null)} />
+  {/if}
 </div>
 
 <style>
   .wrap {
     position: relative;
+  }
+  .hidden {
+    display: none;
   }
 </style>

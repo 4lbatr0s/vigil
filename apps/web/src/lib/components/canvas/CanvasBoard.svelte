@@ -30,7 +30,7 @@
   import MoveHorizontal from "@lucide/svelte/icons/move-horizontal";
   import MoveVertical from "@lucide/svelte/icons/move-vertical";
   import type { NoteSummary } from "@vigil/shared";
-  import CanvasMenu, { type MenuItem } from "./CanvasMenu.svelte";
+  import CanvasMenu, { type MenuItem } from "$lib/components/PopupMenu.svelte";
   import { CANVAS_KEY, type CanvasContext } from "./context";
   import GroupBox from "./GroupBox.svelte";
   import LinkCard from "./LinkCard.svelte";

@@ -11,8 +11,8 @@ const labels = (doc: string, pos?: number) => completeSlash(ctx(doc, pos))?.opti
 
 describe("completeSlash", () => {
   it("fires at the start of a line, also when indented, and offers every block for a bare slash", () => {
-    expect(labels("/")).toHaveLength(13);
-    expect(labels("text\n  /")).toHaveLength(13);
+    expect(labels("/")).toHaveLength(17);
+    expect(labels("text\n  /")).toHaveLength(17);
   });
   it("offers card blocks that put the cursor where the typing starts", () => {
     expect(labels("/flash")?.sort()).toEqual(["Cloze card", "Question card"]);
@@ -55,6 +55,31 @@ describe("completeSlash", () => {
     expect(completeSlash(ctx("/ask"))?.options.map((o) => o.label)).not.toContain("Ask an agent");
     expect(completeSlash(ctx("/ask"), () => undefined)?.options.map((o) => o.label)).toContain("Ask an agent");
     expect(completeSlash(ctx("/"), () => undefined)?.options.at(-1)?.label).toBe("Ask an agent");
+  });
+  it("groups the blocks and gives each an icon", () => {
+    const r = completeSlash(ctx("/"), () => undefined, { onImage: () => undefined });
+    const sections = new Set(r?.options.map((o) => (o.section as { name: string }).name));
+    expect([...sections].sort()).toEqual(["Agents", "Basic", "Blocks", "Insert", "Lists", "Study"]);
+    expect(r?.options.every((o) => typeof o.type === "string" && o.type !== "")).toBe(true);
+  });
+  it("offers Image only when the page can open the file chooser, and calls it", () => {
+    expect(labels("/image")).toBeNull();
+    let called = false;
+    const r = completeSlash(ctx("/image"), undefined, { onImage: () => (called = true) });
+    const opt = r?.options.find((o) => o.label === "Image");
+    const view = { state: EditorState.create({ doc: "/image" }), dispatch: () => undefined };
+    (opt?.apply as (v: unknown, c: unknown, f: number, t: number) => void)(view, opt, 0, 6);
+    expect(called).toBe(true);
+  });
+  it("offers a tip, a warning, a note link and today's date", () => {
+    expect(labels("/tip")).toContain("Tip");
+    expect(labels("/warn")).toContain("Warning");
+    expect(labels("/wikilink")).toEqual(["Link to a note"]);
+    const apply = completeSlash(ctx("/date"))?.options.find((o) => o.label === "Today's date");
+    let out = "";
+    const view = { state: EditorState.create({ doc: "/date" }), dispatch: (spec: { changes: { insert: string } }) => (out = spec.changes.insert) };
+    (apply?.apply as (v: unknown, c: unknown, f: number, t: number) => void)(view, apply, 0, 5);
+    expect(out).toMatch(/^\d{4}-\d{2}-\d{2}$/);
   });
   it("replaces the slash and the typed word", () => {
     const r = completeSlash(ctx("one\n/hea"));

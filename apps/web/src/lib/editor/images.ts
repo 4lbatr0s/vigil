@@ -29,6 +29,27 @@ export function imageProblem(file: { type: string; size: number }): string | nul
   return null;
 }
 
+/** Uploads each picture and puts a markdown image line at the cursor; `onProblem` gets a short message for any that cannot be added. */
+export async function addImageFiles(view: EditorView, files: File[], upload: (file: File) => Promise<string>, onProblem: (message: string) => void): Promise<void> {
+  for (const file of files) {
+    const problem = imageProblem(file);
+    if (problem) {
+      onProblem(problem);
+      continue;
+    }
+    try {
+      const name = await upload(file);
+      const at = view.state.selection.main.head;
+      const line = view.state.doc.lineAt(at);
+      const lead = line.text.trim() === "" ? "" : "\n";
+      const insert = `${lead}${imageMarkdown(name)}\n`;
+      view.dispatch({ changes: { from: at, insert }, selection: { anchor: at + insert.length } });
+    } catch (err) {
+      onProblem(err instanceof Error ? err.message : "Could not add the image.");
+    }
+  }
+}
+
 /**
  * Paste or drop a picture into the note: it is uploaded and a markdown image line is put at the cursor.
  * Text pastes are left alone. `onProblem` gets a short message when an image cannot be added.
@@ -38,25 +59,7 @@ export function imageDrop(upload: (file: File) => Promise<string>, onProblem: (m
     const files = imageFiles(data);
     if (files.length === 0) return false;
     event.preventDefault();
-    void (async () => {
-      for (const file of files) {
-        const problem = imageProblem(file);
-        if (problem) {
-          onProblem(problem);
-          continue;
-        }
-        try {
-          const name = await upload(file);
-          const at = view.state.selection.main.head;
-          const line = view.state.doc.lineAt(at);
-          const lead = line.text.trim() === "" ? "" : "\n";
-          const insert = `${lead}${imageMarkdown(name)}\n`;
-          view.dispatch({ changes: { from: at, insert }, selection: { anchor: at + insert.length } });
-        } catch (err) {
-          onProblem(err instanceof Error ? err.message : "Could not add the image.");
-        }
-      }
-    })();
+    void addImageFiles(view, files, upload, onProblem);
     return true;
   };
   return EditorView.domEventHandlers({

@@ -3,6 +3,7 @@ import { syntaxTree } from "@codemirror/language";
 import type { EditorState, Extension } from "@codemirror/state";
 import type { EditorView } from "@codemirror/view";
 import { rank } from "../fuzzy";
+import { ICONS, iconElement } from "./icons";
 import { completeSlash } from "./slash";
 
 const CODE = new Set(["FencedCode", "CodeBlock", "InlineCode"]);
@@ -46,6 +47,23 @@ export function completeWikilink(context: CompletionContext, titles: string[]): 
 }
 
 /** The autocompletion extension: `[[` offers note titles (read each time it opens), `/` at a line start offers blocks. */
-export function wikilinkCompletion(getTitles: () => string[], onAsk?: () => void): Extension {
-  return autocompletion({ override: [(context) => completeWikilink(context, getTitles()), (context) => completeSlash(context, onAsk)], icons: false, defaultKeymap: true });
+export function wikilinkCompletion(getTitles: () => string[], onAsk?: () => void, onImage?: () => void): Extension {
+  return autocompletion({
+    override: [(context) => completeWikilink(context, getTitles()), (context) => completeSlash(context, onAsk, { ...(onImage ? { onImage } : {}) })],
+    icons: false,
+    defaultKeymap: true,
+    // The `/` menu shows an icon for each block; note titles from `[[` show none.
+    addToOptions: [
+      {
+        render: (completion) => {
+          const icon = (ICONS as Record<string, Parameters<typeof iconElement>[0]>)[completion.type ?? ""];
+          if (!icon) return null;
+          const el = iconElement(icon, 16);
+          el.classList.add("cm-slashicon");
+          return el;
+        },
+        position: 20,
+      },
+    ],
+  });
 }

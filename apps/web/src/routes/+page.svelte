@@ -692,6 +692,11 @@
     padding: var(--space-6);
   }
 
+  /* Room on the left for the block handle that appears beside the line you point at. */
+  .editor-pane {
+    padding-left: calc(var(--space-12) + var(--space-8));
+  }
+
   .status {
     display: flex;
     align-items: center;
