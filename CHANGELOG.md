@@ -5,6 +5,7 @@
 A note app first, with agents inside it.
 
 - Notes: "From text" turns pasted text into an empty outline of headings and questions for you to answer in your own words, and there is a Cornell-style note template.
+- Study: a "Coming up" strip of reviews due over the next 14 days, settings for new cards per day and the remembering target, and sessions that take turns between notes.
 - Study: download your cards as text for Anki, and import cards from an Anki plain-text export (no review history).
 - Study: recall checks (ADR-0020). Write what you remember of a note, an agent shows what you covered and missed from the note itself, and the note comes back after 1, 3, 7 and 21 days.
 - Study: exam dates (ADR-0019) for a note or a tag. Reviews are paced to land before the day and the retention target rises in the last weeks. Today shows where the nearest one stands.

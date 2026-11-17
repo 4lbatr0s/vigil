@@ -3,7 +3,7 @@
   import Illustration from "$lib/components/Illustration.svelte";
   import { onMount, tick } from "svelte";
   import { page } from "$app/state";
-  import { answerStudyCard, getDecks, getDueCards, getStudyHistory, getStudyStats, undoStudyAnswer, type Answer, type DayCount, type DeckStats, type StudyStats } from "$lib/api";
+  import { answerStudyCard, getDecks, getDueCards, getStudyForecast, getStudyHistory, getStudyStats, undoStudyAnswer, type Answer, type DayCount, type DeckStats, type ForecastDay, type StudyStats } from "$lib/api";
   import { lintCard } from "@vigil/shared";
   import { refreshStudyDue } from "$lib/study-state";
   import { ANSWER_KEYS, answer, current, isFinished, remaining, reveal, startSession, type Session } from "$lib/study-session";
@@ -14,6 +14,9 @@
   let stats = $state<StudyStats | null>(null);
   let decks = $state<DeckStats[]>([]);
   let history = $state<DayCount[]>([]);
+  let forecast = $state<ForecastDay[]>([]);
+  const forecastPeak = $derived(Math.max(1, ...forecast.map((d) => d.count)));
+  const forecastTotal = $derived(forecast.reduce((n, d) => n + d.count, 0));
   const peak = $derived(Math.max(1, ...history.map((d) => d.count)));
   const weekTotal = $derived(history.slice(-7).reduce((n, d) => n + d.count, 0));
   let loadError = $state("");
@@ -35,11 +38,12 @@
   async function load(): Promise<void> {
     loadError = "";
     try {
-      const [cards, st, d, h] = await Promise.all([getDueCards(noteId ? { note: noteId } : {}), getStudyStats(noteId ?? undefined), getDecks().catch(() => [] as DeckStats[]), getStudyHistory().catch(() => [] as DayCount[])]);
+      const [cards, st, d, h, f] = await Promise.all([getDueCards(noteId ? { note: noteId } : {}), getStudyStats(noteId ?? undefined), getDecks().catch(() => [] as DeckStats[]), getStudyHistory().catch(() => [] as DayCount[]), getStudyForecast().catch(() => [] as ForecastDay[])]);
       session = startSession(cards);
       stats = st;
       decks = d;
       history = h;
+      forecast = f;
       await tick();
       focusCard();
     } catch (err) {
@@ -219,6 +223,18 @@
         {/each}
       </ol>
       <p class="count">{weekTotal} {weekTotal === 1 ? "answer" : "answers"} this week</p>
+    </section>
+  {/if}
+
+  {#if forecastTotal > 0}
+    <section class="history" aria-labelledby="coming">
+      <h2 id="coming">Coming up</h2>
+      <ol class="bars" aria-label={`${forecastTotal} reviews due in the next 14 days`}>
+        {#each forecast as d (d.day)}
+          <li title={`${d.day}: ${d.count} ${d.count === 1 ? "review" : "reviews"}`}><span style={`height: ${Math.max(d.count ? 8 : 2, Math.round((d.count / forecastPeak) * 100))}%`} class:zero={d.count === 0}></span></li>
+        {/each}
+      </ol>
+      <p class="count">{forecastTotal} {forecastTotal === 1 ? "review" : "reviews"} over the next 14 days. Today is the left bar.</p>
     </section>
   {/if}
 

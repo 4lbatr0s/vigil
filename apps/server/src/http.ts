@@ -30,7 +30,7 @@ import { getRunResult } from "./state-db";
 import { exportTsv } from "./anki-export";
 import { ResultBodySchema, enroll, recordResult } from "./recall";
 import { GoalBodySchema, goalStatuses, validGoalDay } from "./goals";
-import { NEW_PER_SESSION, answerCard, deckStats, dueCards, studyHistory, studyStats, undoAnswer } from "./study";
+import { StudySettingsSchema, answerCard, deckStats, dueCards, saveStudySettings, studyForecast, studyHistory, studySettings, studyStats, undoAnswer } from "./study";
 import { cardsForNote } from "./index-db";
 import { addPin, approvalsForRun, clearHeartbeat, decideApproval, getApproval, listApprovals, listChatThreads, getAgent, getHeartbeat, getRun, getSchedule, listAgents, listEvents, listPins, listRuns, putAgent, listRecall, putSchedule, removeGoal, removePin, removeRecall, setGoal } from "./state-db";
 import { createNote, deleteNote, getNote as vaultGetNote, slugify, updateNote, validateId } from "./vault";
@@ -188,6 +188,32 @@ const routes: { method: string; pattern: RegExp; keys: string[]; handler: Handle
       const asked = Number(url.searchParams.get("days") ?? 14);
       const days = Number.isInteger(asked) ? Math.min(90, Math.max(1, asked)) : 14;
       send(res, 200, { data: studyHistory(new Date(), days) });
+    },
+  },
+  {
+    method: "GET",
+    pattern: /^\/api\/study\/forecast$/,
+    keys: [],
+    handler: (_req, res) => {
+      send(res, 200, { data: studyForecast(new Date()) });
+    },
+  },
+  {
+    method: "GET",
+    pattern: /^\/api\/study\/settings$/,
+    keys: [],
+    handler: (_req, res) => {
+      send(res, 200, { data: studySettings() });
+    },
+  },
+  {
+    method: "PUT",
+    pattern: /^\/api\/study\/settings$/,
+    keys: [],
+    handler: async (req, res) => {
+      const parsed = StudySettingsSchema.safeParse(await readJsonBody(req));
+      if (!parsed.success) throw new AppError("invalid-body", "Body must be { newPerDay: 0 to 50, retention: 0.8 to 0.95 }", 400);
+      send(res, 200, { data: saveStudySettings(parsed.data) });
     },
   },
   {
@@ -365,7 +391,7 @@ const routes: { method: string; pattern: RegExp; keys: string[]; handler: Handle
     pattern: /^\/api\/goals$/,
     keys: [],
     handler: (_req, res) => {
-      send(res, 200, { data: goalStatuses(new Date(), NEW_PER_SESSION) });
+      send(res, 200, { data: goalStatuses(new Date(), studySettings().newPerDay) });
     },
   },
   {
@@ -378,7 +404,7 @@ const routes: { method: string; pattern: RegExp; keys: string[]; handler: Handle
       validGoalDay(parsed.data.day);
       if (parsed.data.kind === "note" && indexGetNote(parsed.data.value) === null) throw new AppError("note-not-found", `Note not found: ${parsed.data.value}`, 404);
       setGoal(parsed.data, new Date());
-      send(res, 200, { data: goalStatuses(new Date(), NEW_PER_SESSION) });
+      send(res, 200, { data: goalStatuses(new Date(), studySettings().newPerDay) });
     },
   },
   {
@@ -390,7 +416,7 @@ const routes: { method: string; pattern: RegExp; keys: string[]; handler: Handle
       const value = url.searchParams.get("value") ?? "";
       if ((kind !== "note" && kind !== "tag") || value === "") throw new AppError("invalid-body", "kind (note or tag) and value are required", 400);
       removeGoal(kind, value);
-      send(res, 200, { data: goalStatuses(new Date(), NEW_PER_SESSION) });
+      send(res, 200, { data: goalStatuses(new Date(), studySettings().newPerDay) });
     },
   },
   {

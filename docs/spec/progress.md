@@ -158,7 +158,8 @@ Chosen from the research (spaced repetition tied to notes, active processing ove
 - [x] Note recall check (migration 12 `note_recall`, ladder 1/3/7/21 days, `recall-checker` agent, `/recall` page, Today card). Live check with the local 4B model: quoted real lines and caught a wrong claim; labels were a little sloppy, so the learner always rates the result themselves
 - [x] Active note scaffold: `outliner` agent, `/outline` page ("From text" in the note list), Cornell note template. Live check with the 4B model: sound outline of 6 sections, but questions leaked dates, so the prompt now forbids dates, numbers and names that belong in an answer
 - [x] Anki text export (`GET /api/study/export`, Anki 2.1.54+ header lines; not run through Anki itself) and import (`/import`, plain text only, no history). New notes from the outline and import pages pick a free id so no existing note is replaced
-- [ ] Forecast strip, desired retention and new-per-day settings, interleaving, weak-spot list
+- [x] Forecast strip ("Coming up"), Settings: new cards per day and remembering target (80 to 95%), sessions mix notes (`spreadByNote`)
+- [ ] Weak-spot list per note (not started: the By note rows already show recall once there are 8 answers)
 
 ## WP13: after v1 (ordered backlog, do not start before the release)
 

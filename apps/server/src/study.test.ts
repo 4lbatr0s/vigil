@@ -7,7 +7,7 @@ import { accessFromEnv } from "./access";
 import { createHandler } from "./http";
 import { closeDb } from "./index-db";
 import { closeState } from "./state-db";
-import { MIN_REVIEWS_FOR_RATE, dueCards, studyStats } from "./study";
+import { MIN_REVIEWS_FOR_RATE, dueCards, spreadByNote, studyStats } from "./study";
 
 let root = "";
 let server: Server;
@@ -156,5 +156,36 @@ describe("stuck cards", () => {
     const id = first[0]!.id;
     await j("POST", "/api/study/review", { cardId: id, answer: "good" });
     expect(((await j("GET", "/api/study/due")).body.data as unknown[]).length).toBe(0);
+  });
+});
+
+describe("pace, mixing and forecast", () => {
+  it("spreadByNote takes turns between notes and keeps each note's order", () => {
+    const c = (noteId: string, n: number) => ({ noteId, n });
+    const out = spreadByNote([c("a", 1), c("a", 2), c("a", 3), c("b", 1), c("c", 1), c("c", 2)]);
+    expect(out.map((x) => `${x.noteId}${x.n}`)).toEqual(["a1", "b1", "c1", "a2", "c2", "a3"]);
+    const one = [c("a", 1), c("a", 2)];
+    expect(spreadByNote(one)).toBe(one);
+  });
+  it("settings default, save, and reject out-of-range values", async () => {
+    expect((await j("GET", "/api/study/settings")).body.data).toEqual({ newPerDay: 10, retention: 0.9 });
+    const saved = await j("PUT", "/api/study/settings", { newPerDay: 3, retention: 0.85 });
+    expect(saved.body.data).toEqual({ newPerDay: 3, retention: 0.85 });
+    expect((await j("PUT", "/api/study/settings", { newPerDay: 99, retention: 0.9 })).status).toBe(400);
+    expect((await j("PUT", "/api/study/settings", { newPerDay: 5, retention: 0.99 })).status).toBe(400);
+  });
+  it("offers only as many new cards as the setting allows", async () => {
+    await note("many", Array.from({ length: 8 }, (_, i) => `Q${i} :: A${i}`).join("\n\n"));
+    await j("PUT", "/api/study/settings", { newPerDay: 3, retention: 0.9 });
+    expect(((await j("GET", "/api/study/due")).body.data as unknown[]).length).toBe(3);
+  });
+  it("forecast lists 14 days and counts answered cards on the day they come back", async () => {
+    await note("fc", "Q1 :: A1\n\nQ2 :: A2\n");
+    const ids = ((await j("GET", "/api/study/due")).body.data as { id: string }[]).map((c) => c.id);
+    for (const id of ids) await j("POST", "/api/study/review", { cardId: id, answer: "easy" });
+    const days = (await j("GET", "/api/study/forecast")).body.data as { day: string; count: number }[];
+    expect(days).toHaveLength(14);
+    const total = days.reduce((n, d) => n + d.count, 0);
+    expect(total).toBeLessThanOrEqual(ids.length);
   });
 });

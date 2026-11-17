@@ -1,14 +1,50 @@
+import { z } from "zod";
 import { AppError } from "./errors";
 import { cardsForNote, listCards, type IndexedCard } from "./index-db";
-import { ANSWERS, isDue, newCardState, review, type Answer, type CardState } from "./srs";
+import { ANSWERS, DEFAULT_RETENTION, isDue, newCardState, review, type Answer, type CardState } from "./srs";
 import { capDue, goalFor, retentionFor, daysLeft } from "./goals";
-import { allCardStates, listGoals, type GoalRow, getCardState, reviewCountsByNote, reviewCountsForNote, reviewCountsSince, reviewTimesSince, saveReview, undoLastReview } from "./state-db";
+import { allCardStates, getSetting, listGoals, putSetting, type GoalRow, getCardState, reviewCountsByNote, reviewCountsForNote, reviewCountsSince, reviewTimesSince, saveReview, undoLastReview } from "./state-db";
+
+export type StudySettings = { newPerDay: number; retention: number };
+
+/** The owner's pace: how many new cards to offer, and how well the scheduler should aim for you to remember. */
+export function studySettings(): StudySettings {
+  const n = getSetting("study.newPerDay");
+  const r = getSetting("study.retention");
+  return {
+    newPerDay: typeof n === "number" && Number.isInteger(n) && n >= 0 && n <= 50 ? n : NEW_PER_SESSION,
+    retention: typeof r === "number" && r >= 0.8 && r <= 0.95 ? r : DEFAULT_RETENTION,
+  };
+}
+
+export const StudySettingsSchema = z.object({ newPerDay: z.number().int().min(0).max(50), retention: z.number().min(0.8).max(0.95) });
+
+export function saveStudySettings(next: StudySettings): StudySettings {
+  putSetting("study.newPerDay", next.newPerDay);
+  putSetting("study.retention", next.retention);
+  return studySettings();
+}
 
 /** New cards offered per request beyond the ones already due, so a big note never buries the day. */
 export const NEW_PER_SESSION = 10;
 
 /** `lapses` is how many times the card was forgotten after being learned; many means it needs rewriting. */
 export type StudyCard = IndexedCard & { isNew: boolean; due: string | null; lapses: number };
+
+/**
+ * Takes turns between notes while keeping each note's own order, so a session mixes topics instead of
+ * running through one note at a time. Mixed practice helps most when items are easy to confuse
+ * (Brunmair and Richter 2019; Firth et al. 2021). One note, or one card, comes back unchanged.
+ */
+export function spreadByNote<T extends { noteId: string }>(cards: T[]): T[] {
+  const queues = new Map<string, T[]>();
+  for (const c of cards) (queues.get(c.noteId) ?? queues.set(c.noteId, []).get(c.noteId)!).push(c);
+  if (queues.size < 2) return cards;
+  const out: T[] = [];
+  const lists = [...queues.values()];
+  for (let i = 0; out.length < cards.length; i++) for (const q of lists) if (i < q.length) out.push(q[i]!);
+  return out;
+}
 
 /**
  * The cards to study now: reviews that are due first (oldest due date first), then up to `newLimit` cards
@@ -32,7 +68,7 @@ export function dueCards(now: Date, opts: { limit?: number; newLimit?: number; n
     if (new Date(due).getTime() <= now.getTime()) reviews.push({ ...c, isNew: false, due, lapses: s.lapses });
   }
   reviews.sort((a, b) => (a.due ?? "").localeCompare(b.due ?? ""));
-  return [...reviews, ...fresh.slice(0, opts.newLimit ?? NEW_PER_SESSION)].slice(0, opts.limit ?? 50);
+  return [...spreadByNote(reviews), ...spreadByNote(fresh.slice(0, opts.newLimit ?? studySettings().newPerDay))].slice(0, opts.limit ?? 50);
 }
 
 /** Records an answer. The same card text in two notes is one card; the answer counts for the note that was shown. */
@@ -42,7 +78,7 @@ export function answerCard(cardId: string, answer: string, now: Date): { next: C
   if (!card) throw new AppError("card-not-found", `Card not found: ${cardId}`, 404);
   const state = getCardState(cardId) ?? newCardState(now);
   const goal = goalFor(card.noteId, now);
-  const { next, log } = review(state, answer as Answer, now, goal ? retentionFor(daysLeft(goal.day, now)) : undefined);
+  const { next, log } = review(state, answer as Answer, now, Math.max(studySettings().retention, goal ? retentionFor(daysLeft(goal.day, now)) : 0));
   if (goal) next.due = capDue(next.due, goal.day, now);
   saveReview(cardId, card.noteId, next, log, now);
   return { next, due: next.due };
@@ -135,6 +171,36 @@ export function studyHistory(now: Date, days = 14): DayCount[] {
     d.setDate(start.getDate() + i);
     const k = localDay(d);
     out.push({ day: k, count: counts.get(k) ?? 0 });
+  }
+  return out;
+}
+
+export type ForecastDay = { day: string; count: number };
+
+/**
+ * Reviews coming due per local day for the next `days` days (today first). Cards already due, and cards
+ * an exam date pulls in, count for today. Cards never answered are not part of the forecast.
+ */
+export function studyForecast(now: Date, days = 14): ForecastDay[] {
+  const start = new Date(now);
+  start.setHours(0, 0, 0, 0);
+  const goals = listGoals();
+  const counts = new Map<string, number>();
+  const cards = listCards();
+  const states = allCardStates();
+  for (const c of cards) {
+    const s = states.get(c.id);
+    if (!s) continue;
+    const goal = goals.length > 0 ? goalFor(c.noteId, now, goals) : null;
+    const due = new Date(goal ? capDue(s.due, goal.day, now) : s.due);
+    const k = due.getTime() <= now.getTime() ? localDay(now) : localDay(due);
+    counts.set(k, (counts.get(k) ?? 0) + 1);
+  }
+  const out: ForecastDay[] = [];
+  for (let i = 0; i < days; i++) {
+    const d = new Date(start);
+    d.setDate(start.getDate() + i);
+    out.push({ day: localDay(d), count: counts.get(localDay(d)) ?? 0 });
   }
   return out;
 }

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { goto } from "$app/navigation";
+  import StudySettingsSection from "$lib/components/StudySettings.svelte";
   import { ApiError, getLlmStatus, getPermissions, getSession, getUsage, logout, putPermissions, type LlmStatus, type Session, type Usage } from "$lib/api";
   import { applyAppearance, loadAppearance, saveAppearance, type Appearance } from "$lib/appearance";
   import { fieldOfError, formToSettings, messageOfError, settingsToForm, type SettingsField, type SettingsForm } from "$lib/settings-form";
@@ -116,6 +117,8 @@
       </label>
     </div>
   </section>
+
+  <StudySettingsSection />
 
   {#if form}
     <section aria-labelledby="perm">
