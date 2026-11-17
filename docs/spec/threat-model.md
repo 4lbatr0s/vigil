@@ -54,6 +54,7 @@ Scope: a single-user, self-hosted instance (loopback by default, optionally expo
 | T18 | Event stream leaks data or exhausts connections | events carry ids, statuses and counts only (run-event: run id, seq and kind, never text), never bodies, prompts or keys; 20-stream cap; same `checkAccess` | built (WP4-T9) | `events.test.ts` |
 | T19 | A pasted file is not a picture (SVG with script, HTML, an oversized body) or a crafted name reads another file | type decided from the first bytes (PNG, JPEG, GIF, WebP only; SVG refused); 5 MB cap while streaming; stored under a content-hash name; reads accept only `^[a-f0-9]{16}\.(png|jpg|gif|webp)$`; served with `nosniff` and a sandboxed `default-src 'none'` policy; same access checks as every API route | built (Study v2) | `attachments.test.ts` |
 | T20 | Another agent (over MCP) reads or rewrites notes, floods writes, or is steered by a malicious note | off by default; write is a separate switch; same Host, Origin and token checks as the API (route is under `/api/`); only the four read tools and `write_note` are reachable, no shell, no network, no other routes; each write is its own snapshotted run that can be undone; 30 writes per minute and 200,000 characters per body; tool output capped | built (ADR-0022) | `mcp.test.ts` |
+| T21 | A model key leaks (database copy, backup, log, error text, API response) or a typed endpoint is abused | keys encrypted at rest (AES-256-GCM, key in `VIGIL_SECRET_KEY` or a 0600 file); write-only: never returned, logged or put in events; `redact` strips every key seen; probe is one GET with timeout, size cap and no redirects, from the signed-in owner only; only `http(s)` addresses without credentials; the model sees notes, not keys | built (ADR-0026) | `connections.test.ts` |
 | T16 | Malicious dependency | exact pins for the LangChain family and agent-adjacent libraries; lockfile committed; `pnpm install --frozen-lockfile` in CI | partly built | CI |
 
 ## 5. Residual risks (accepted, stated plainly)
@@ -62,6 +63,7 @@ Scope: a single-user, self-hosted instance (loopback by default, optionally expo
 - **Allowlisted hosts can still receive data in URLs.** The allowlist narrows the channel to hosts the owner chose; the run log shows every URL.
 - **An editor outside Vigil can change a file between a check and a write.** The window is milliseconds; undo re-checks each note right before acting.
 - **The model provider sees what the agent reads.** This is inherent to bring-your-own-key. Use Ollama for fully local operation.
+- **Saved model keys are as safe as the machine.** Someone with both `state.db` and `secret.key` (or the process memory) can read them; a copy of the database alone cannot.
 - **A shared secret (`VIGIL_TOKEN`) is the only credential.** No per-user accounts exist in v1 (single user by design).
 - **Obsidian-style plugins are out of scope.** Vigil does not execute vault content.
 

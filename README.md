@@ -38,7 +38,9 @@ pnpm typecheck && pnpm test       # the gate
 
 ## Connect a model
 
-Environment only (keys are never typed into the app, stored, or shown):
+Open **Settings, AI models, Add a connection**: pick Ollama (on this computer), LM Studio, OpenAI, Anthropic (Claude), DeepSeek, OpenRouter, Groq or any OpenAI-compatible address, paste a key if the service needs one, press **Test and list models**, choose a model and save. Keys are stored encrypted on this computer and never shown again. An agent uses the default connection unless you pick another on its page.
+
+Prefer the environment? It still works and shows up as a read-only connection:
 
 ```
 # Ollama on this machine
@@ -51,7 +53,7 @@ VIGIL_LLM_API_KEY=...
 VIGIL_LLM_MODEL=...
 ```
 
-Ollama is asked for a 16,384-token window (`VIGIL_LLM_NUM_CTX` changes it); the 4,096 default can leave a thinking model with an empty reply. Settings shows the connection and has a "Test connection" button. Every variable is listed in `.env.example`.
+Saved keys are encrypted with a key from `VIGIL_SECRET_KEY` or the file `secret.key` next to `state.db`; a backup that holds both files holds your keys. Ollama is asked for a 16,384-token window (`VIGIL_LLM_NUM_CTX` changes it); the 4,096 default can leave a thinking model with an empty reply. Every variable is listed in `.env.example`.
 
 ## What agents can do
 

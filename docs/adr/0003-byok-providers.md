@@ -1,6 +1,9 @@
 # ADR-0003: BYOK — OpenAI-compatible endpoints + native Ollama; no bundled AI
 
 ## Status
+Amended by ADR-0026 (2026-11-17): keys may also be saved in Settings, encrypted on this machine. Environment variables still work.
+
+(Original status follows.)
 Accepted (2026-11-14)
 
 ## Context

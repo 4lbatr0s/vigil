@@ -31,12 +31,22 @@ export function messageOfError(detail: string): string {
   return detail.replace(/^Invalid settings: (?:[A-Za-z.]+: )?/, "");
 }
 
+/** A model server on this computer or this network needs no key. */
+function isLocalAddress(url: string): boolean {
+  try {
+    const host = new URL(url).hostname;
+    return host === "localhost" || host === "127.0.0.1" || host === "[::1]" || /^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(host);
+  } catch {
+    return false;
+  }
+}
+
 export type Banner = { text: string; href: string };
 
 /** One plain banner for every page, or null. Model trouble outranks usage. */
 export function bannerFor(llm: LlmStatus | null, usage: Usage | null): Banner | null {
-  if (llm && (llm.model === null || (llm.provider !== "ollama" && !llm.hasKey))) {
-    return { text: "No AI model is set up yet, so agents cannot run. Open Settings to see what to set.", href: "/settings" };
+  if (llm && (llm.connection === null || llm.model === null || (llm.provider !== "ollama" && !llm.hasKey && !isLocalAddress(llm.baseUrl)))) {
+    return { text: "No AI model is connected yet, so agents cannot run. Connect one in Settings.", href: "/settings#models" };
   }
   if (usage && usage.level === "over") {
     return { text: `This month's agent usage passed your cap (${usage.tokens.toLocaleString("en")} of ${usage.cap?.toLocaleString("en")} tokens). Agents still run.`, href: "/settings" };

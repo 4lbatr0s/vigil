@@ -213,6 +213,12 @@ Chosen from the research (spaced repetition tied to notes, active processing ove
 ## Heading context on cards (same plan, 2026-11-17)
 - [x] `extractCards` records the nearest heading (`context`, headings inside code fences ignored); the same front under a different heading is its own card (a different id, the first keeps its old id, so scheduling is not reset); index schema 6 (`cards.context`); Study shows the heading above the question. Checked in the browser
 
+## Model connections (owner request 2026-11-17, ADR-0026)
+- [x] `secrets.ts` (AES-256-GCM), state migration 14, `connections.ts`, `/api/connections` (CRUD, default, probe), `buildChatModel` for openai, anthropic (`@langchain/anthropic` 1.6.1) and ollama, `agent.connection`, per-connection `llmStatus`, key registered with `redact`
+- [x] Settings, AI models: provider cards, address, key, Test and list models, default model, change, remove; banner "Connect one in Settings"
+- [x] Checked live: no env, added Ollama through the wizard in the browser (models listed from the real server), saved, ran the card maker through it. Fake OpenAI-compatible server tests cover the saved key reaching the endpoint, a wrong key, a missing connection, redirects and unreachable addresses
+- [ ] Not tried with a real OpenAI, Anthropic or DeepSeek key (the agent never has one): owner list
+
 ## WP13: after v1 (ordered backlog, do not start before the release)
 
 

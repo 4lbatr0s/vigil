@@ -1,23 +1,22 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { goto } from "$app/navigation";
+  import ModelsSettings from "$lib/components/ModelsSettings.svelte";
   import McpSettingsSection from "$lib/components/McpSettings.svelte";
   import TidyPictures from "$lib/components/TidyPictures.svelte";
   import StudySettingsSection from "$lib/components/StudySettings.svelte";
-  import { ApiError, getLlmStatus, getPermissions, getSession, getUsage, logout, putPermissions, type LlmStatus, type Session, type Usage } from "$lib/api";
+  import { ApiError, getPermissions, getSession, getUsage, logout, putPermissions, type Session, type Usage } from "$lib/api";
   import { applyAppearance, loadAppearance, saveAppearance, type Appearance } from "$lib/appearance";
   import { fieldOfError, formToSettings, messageOfError, settingsToForm, type SettingsField, type SettingsForm } from "$lib/settings-form";
 
   let form = $state<SettingsForm | null>(null);
   let saved = $state<SettingsForm | null>(null);
-  let llm = $state<LlmStatus | null>(null);
   let usage = $state<Usage | null>(null);
   let session = $state<Session | null>(null);
   let loadError = $state("");
   let saveError = $state<{ field: SettingsField | null; text: string } | null>(null);
   let notice = $state("");
   let busy = $state(false);
-  let probing = $state(false);
   // Appearance lives in this browser only (it is not a server setting).
   let look = $state<Appearance>({ theme: "system", size: "medium" });
   function changeLook(next: Appearance): void {
@@ -39,10 +38,9 @@
     look = loadAppearance();
     void (async () => {
       try {
-        const [settings, status, use] = await Promise.all([getPermissions(), getLlmStatus(), getUsage()]);
+        const [settings, use] = await Promise.all([getPermissions(), getUsage()]);
         form = settingsToForm(settings);
         saved = settingsToForm(settings);
-        llm = status;
         usage = use;
         session = await getSession();
       } catch (err) {
@@ -74,17 +72,6 @@
       await logout();
     } finally {
       await goto("/login");
-    }
-  }
-
-  async function probe(): Promise<void> {
-    probing = true;
-    try {
-      llm = await getLlmStatus(true);
-    } catch (err) {
-      loadError = err instanceof Error ? err.message : "Could not test the connection";
-    } finally {
-      probing = false;
     }
   }
 
@@ -168,30 +155,7 @@
     </section>
   {/if}
 
-  <section aria-labelledby="model">
-    <h2 id="model">AI model</h2>
-    {#if llm}
-      <dl class="facts">
-        <dt>Provider</dt><dd class="mono">{llm.provider}</dd>
-        <dt>Address</dt><dd class="mono">{llm.baseUrl}</dd>
-        <dt>Model</dt><dd class="mono">{llm.model ?? "not set"}</dd>
-        <dt>API key</dt><dd>{llm.hasKey ? "present" : "not set"}</dd>
-        <dt>Connection</dt>
-        <dd>
-          {llm.reachable === null ? "not tested" : llm.reachable ? "reachable" : "not reachable"}
-          <button type="button" class="ghost" disabled={probing} onclick={() => void probe()}>{probing ? "Testing…" : "Test connection"}</button>
-        </dd>
-      </dl>
-    {:else}
-      <p class="muted">Loading…</p>
-    {/if}
-    <p class="muted">Keys are never typed here. Set these in the environment where the server runs, then restart it:</p>
-    <pre class="env">VIGIL_LLM_PROVIDER=openai   # or ollama
-VIGIL_LLM_BASE_URL=https://api.openai.com/v1
-VIGIL_LLM_API_KEY=...        # never shown anywhere in the app
-VIGIL_LLM_MODEL=...
-VIGIL_MONTHLY_TOKEN_CAP=...  # optional warning level</pre>
-  </section>
+  <ModelsSettings />
 
   <section aria-labelledby="use">
     <h2 id="use">Usage this month</h2>
@@ -326,28 +290,6 @@ VIGIL_MONTHLY_TOKEN_CAP=...  # optional warning level</pre>
   button:disabled {
     opacity: 0.5;
     cursor: default;
-  }
-  .facts {
-    display: grid;
-    grid-template-columns: 120px 1fr;
-    gap: var(--space-2) var(--space-4);
-    margin: var(--space-3) 0;
-    font-size: var(--text-label);
-  }
-  dt {
-    color: var(--ink-muted);
-  }
-  dd {
-    margin: 0;
-  }
-  .env {
-    margin: var(--space-3) 0;
-    padding: var(--space-3);
-    border: 1px solid var(--hairline);
-    border-radius: var(--radius);
-    background: var(--surface);
-    font-size: var(--text-label);
-    overflow-x: auto;
   }
   .bar {
     height: 2px;

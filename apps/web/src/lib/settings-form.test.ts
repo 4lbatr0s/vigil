@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { PermissionSettingsSchema } from "@vigil/shared";
 import { bannerFor, fieldOfError, formToSettings, messageOfError, settingsToForm } from "./settings-form";
 
-const llm = (over: Partial<Parameters<typeof bannerFor>[0] & object> = {}) => ({ provider: "openai", baseUrl: "u", model: "m", hasKey: true, reachable: null, ...over });
+const llm = (over: Partial<Parameters<typeof bannerFor>[0] & object> = {}) => ({ provider: "openai", baseUrl: "u", model: "m", hasKey: true, reachable: null, connection: { id: "a", name: "A" }, ...over });
 const usage = (level: "ok" | "warn" | "over") => ({ month: "2026-11", tokens: 90, cap: 100, level });
 
 describe("settings form", () => {
@@ -31,9 +31,15 @@ describe("bannerFor", () => {
     expect(bannerFor(null, null)).toBeNull();
   });
   it("warns when no model or no key (openai)", () => {
-    expect(bannerFor(llm({ model: null }), null)?.href).toBe("/settings");
+    expect(bannerFor(llm({ model: null }), null)?.href).toBe("/settings#models");
     expect(bannerFor(llm({ hasKey: false }), null)?.text).toMatch(/No AI model/);
     expect(bannerFor(llm({ provider: "ollama", hasKey: false }), null)).toBeNull();
+  });
+  it("warns when nothing is connected, and needs no key for a server on this machine or network", () => {
+    expect(bannerFor(llm({ connection: null }), null)?.text).toMatch(/No AI model/);
+    expect(bannerFor(llm({ provider: "openai", baseUrl: "http://127.0.0.1:1234/v1", hasKey: false }), null)).toBeNull();
+    expect(bannerFor(llm({ provider: "openai", baseUrl: "http://192.168.1.20:8000/v1", hasKey: false }), null)).toBeNull();
+    expect(bannerFor(llm({ provider: "openai", baseUrl: "https://api.openai.com/v1", hasKey: false }), null)?.text).toMatch(/No AI model/);
   });
   it("shows usage warnings, model trouble first", () => {
     expect(bannerFor(llm(), usage("warn"))?.text).toMatch(/80%/);

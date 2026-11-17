@@ -114,6 +114,15 @@ export const recordRecall = (noteId: string, result: RecallResult) => request<Re
 export const startRecallCheck = (noteId: string, recall: string) => request<Run>(`/api/notes/${seg(noteId)}/recall-check`, json("POST", { recall }));
 export const startOutline = (source: string) => request<Run>("/api/outline", json("POST", { source }));
 export const captureLine = (text: string) => request<{ id: string; line: string }>("/api/capture", json("POST", { text }));
+export type Connection = { id: string; name: string; kind: "openai" | "anthropic" | "ollama"; baseUrl: string; hasKey: boolean; defaultModel: string | null; isDefault: boolean; readOnly: boolean };
+export type ConnectionInput = { name: string; kind: Connection["kind"]; baseUrl: string; apiKey?: string; clearKey?: boolean; defaultModel?: string };
+export type ProbeResult = { ok: boolean; models: string[]; error: string | null };
+export const listConnections = () => request<Connection[]>("/api/connections");
+export const createConnection = (c: ConnectionInput) => request<Connection>("/api/connections", json("POST", c));
+export const updateConnection = (id: string, c: ConnectionInput) => request<Connection>(`/api/connections/${seg(id)}`, json("PUT", c));
+export const deleteConnection = (id: string) => request<{ id: string }>(`/api/connections/${seg(id)}`, { method: "DELETE" });
+export const setDefaultConnection = (id: string) => request<Connection[]>("/api/connections/default", json("PUT", { id }));
+export const probeConnection = (p: { kind: Connection["kind"]; baseUrl: string; apiKey?: string; connectionId?: string }) => request<ProbeResult>("/api/connections/probe", json("POST", p));
 export type ImageSettings = { agentsSeePictures: boolean };
 export const getImageSettings = () => request<ImageSettings>("/api/images/settings");
 export const putImageSettings = (s: ImageSettings) => request<ImageSettings>("/api/images/settings", json("PUT", s));
@@ -249,7 +258,7 @@ export const decideApproval = (id: string, decision: "approve" | "reject", force
 // ---- Settings, usage, model status ----
 
 export type Usage = { month: string; tokens: number; cap: number | null; level: "ok" | "warn" | "over" };
-export type LlmStatus = { provider: string; baseUrl: string; model: string | null; hasKey: boolean; reachable: boolean | null };
+export type LlmStatus = { provider: string; baseUrl: string; model: string | null; hasKey: boolean; reachable: boolean | null; connection: { id: string; name: string } | null };
 
 export const getUsage = () => request<Usage>("/api/usage");
 export const getLlmStatus = (probe = false) => request<LlmStatus>(`/api/llm/status${probe ? "?probe=1" : ""}`);
