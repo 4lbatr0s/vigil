@@ -219,6 +219,12 @@ Chosen from the research (spaced repetition tied to notes, active processing ove
 - [x] Checked live: no env, added Ollama through the wizard in the browser (models listed from the real server), saved, ran the card maker through it. Fake OpenAI-compatible server tests cover the saved key reaching the endpoint, a wrong key, a missing connection, redirects and unreachable addresses
 - [ ] Not tried with a real OpenAI, Anthropic or DeepSeek key (the agent never has one): owner list
 
+## Easier agents (owner request 2026-11-17)
+- [x] `/agents/new` wizard: goal, when (on demand, daily, weekly, when notes change), what it may touch, hosts; a no-tool `agent-designer` drafts name, description, instructions and default task as JSON (`POST /api/agents/design`); the schedule and tools come from the person, never the draft; `designToAgent` starts it off and with approvals on when it writes or reads plus web; "I will write it myself" skips the draft
+- [x] Agent page edits schedule (daily, weekly, notes change, custom), tools (with consequences), connection, model list from the connection, default task; ticking Write turns approvals on
+- [x] Checked live (Ollama 4B): two drafts were usable (one took about 4 minutes of thinking, so the page says a local model can take a minute or two); the create flow and a schedule and tools edit saved correctly through the browser
+- [ ] Not done: duplicate an agent, gallery search and tags, a test run inside the wizard
+
 ## WP13: after v1 (ordered backlog, do not start before the release)
 
 

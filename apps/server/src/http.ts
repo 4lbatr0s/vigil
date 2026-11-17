@@ -19,7 +19,7 @@ import {
   removeNote,
   searchNotes,
 } from "./index-db";
-import { AgentNameSchema, AgentSchema, PermissionSettingsSchema, TEMPLATES } from "@vigil/shared";
+import { AgentNameSchema, AgentSchema, PermissionSettingsSchema, TEMPLATES, ToolGrantSchema } from "@vigil/shared";
 import { withNoteLock } from "./lock";
 import { chatTurn, chatWithMessages, newChat, removeChat, saveChatAsNote, type ChatLine } from "./chat";
 import { cronError, nextTickAfter } from "./cron";
@@ -342,6 +342,23 @@ const routes: { method: string; pattern: RegExp; keys: string[]; handler: Handle
       if (!agent) throw new AppError("agent-not-found", "Add the Study outliner agent first (Agents, then the Study outliner template).", 404);
       if (!agent.enabled) throw new AppError("agent-disabled", "The Study outliner agent is switched off. Turn it on from the Agents page.", 409);
       const run = startRun("outliner", `Make a study outline from this material.\n\nSOURCE START\n${parsed.data.source}\nSOURCE END`, "manual");
+      send(res, 202, { data: run });
+    },
+  },
+  {
+    // Draft a new agent from a description. The designer has no tools; the person reviews the draft before anything is saved.
+    method: "POST",
+    pattern: /^\/api\/agents\/design$/,
+    keys: [],
+    handler: async (req, res) => {
+      const parsed = z.object({ goal: z.string().trim().min(10).max(1500), tools: z.array(ToolGrantSchema).max(4).default([]) }).safeParse(await readJsonBody(req));
+      if (!parsed.success) throw new AppError("invalid-body", "Body must be { goal: 10 to 1500 characters, tools?: [...] }", 400);
+      const agent = getAgent("agent-designer");
+      if (!agent) throw new AppError("agent-not-found", "Add the Agent designer agent first.", 404);
+      if (!agent.enabled) throw new AppError("agent-disabled", "The Agent designer agent is switched off. Turn it on from the Agents page.", 409);
+      const names: Record<string, string[]> = { read_notes: ["list_notes", "read_note", "search_notes"], write_notes: ["write_note"], web_fetch: ["fetch_url"], call_agents: ["call_agent"] };
+      const tools = parsed.data.tools.flatMap((t) => names[t] ?? []);
+      const run = startRun("agent-designer", `Design an agent for this goal.\n\nGOAL START\n${parsed.data.goal}\nGOAL END\nAVAILABLE TOOLS: ${tools.length > 0 ? tools.join(", ") : "none"}`, "manual");
       send(res, 202, { data: run });
     },
   },

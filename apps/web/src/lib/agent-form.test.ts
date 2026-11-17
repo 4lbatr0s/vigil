@@ -80,3 +80,32 @@ describe("allowed hosts", () => {
     expect(formToAgent(withHosts, { ...form, allowedHosts: ["example.com", "docs.example.com"] }).allowedHosts).toEqual(["example.com", "docs.example.com"]);
   });
 });
+
+import { DEFAULT_TRIGGER_FORM, formToTrigger, triggerToForm } from "./agent-form";
+
+describe("schedule choices", () => {
+  it("reads a trigger into plain choices", () => {
+    expect(triggerToForm({ kind: "manual" }).kind).toBe("manual");
+    expect(triggerToForm({ kind: "heartbeat", everyMinutes: 30 })).toMatchObject({ kind: "changes", minutes: "30" });
+    expect(triggerToForm({ kind: "cron", expression: "0 7 * * *" })).toMatchObject({ kind: "daily", time: "07:00" });
+    expect(triggerToForm({ kind: "cron", expression: "30 18 * * 5" })).toMatchObject({ kind: "weekly", time: "18:30", day: 5 });
+    expect(triggerToForm({ kind: "cron", expression: "30 18 * * 7" })).toMatchObject({ kind: "weekly", day: 0 });
+    expect(triggerToForm({ kind: "cron", expression: "*/15 * * * *" })).toMatchObject({ kind: "custom", expression: "*/15 * * * *" });
+    expect(triggerToForm({ kind: "cron", expression: "0 25 * * *" }).kind).toBe("custom");
+  });
+
+  it("turns choices back into a trigger, keeping the time zone", () => {
+    expect(formToTrigger({ ...DEFAULT_TRIGGER_FORM, kind: "daily", time: "07:05" }, "Europe/Istanbul")).toEqual({ ok: true, trigger: { kind: "cron", expression: "5 7 * * *", timezone: "Europe/Istanbul" } });
+    expect(formToTrigger({ ...DEFAULT_TRIGGER_FORM, kind: "weekly", time: "18:00", day: 0 })).toEqual({ ok: true, trigger: { kind: "cron", expression: "0 18 * * 0" } });
+    expect(formToTrigger({ ...DEFAULT_TRIGGER_FORM, kind: "changes", minutes: "60" })).toEqual({ ok: true, trigger: { kind: "heartbeat", everyMinutes: 60 } });
+    expect(formToTrigger(DEFAULT_TRIGGER_FORM)).toEqual({ ok: true, trigger: { kind: "manual" } });
+    expect(formToTrigger({ ...DEFAULT_TRIGGER_FORM, kind: "custom", expression: " */15 * * * * " })).toEqual({ ok: true, trigger: { kind: "cron", expression: "*/15 * * * *" } });
+  });
+
+  it("says what is wrong", () => {
+    expect(formToTrigger({ ...DEFAULT_TRIGGER_FORM, kind: "daily", time: "7" })).toMatchObject({ ok: false, message: expect.stringContaining("time") });
+    expect(formToTrigger({ ...DEFAULT_TRIGGER_FORM, kind: "daily", time: "24:00" }).ok).toBe(false);
+    expect(formToTrigger({ ...DEFAULT_TRIGGER_FORM, kind: "changes", minutes: "2" }).ok).toBe(false);
+    expect(formToTrigger({ ...DEFAULT_TRIGGER_FORM, kind: "custom", expression: "0 7" }).ok).toBe(false);
+  });
+});

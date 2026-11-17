@@ -1,5 +1,5 @@
 import { readNdjson } from "./ndjson";
-import type { Agent, AgentTemplate, Note, NoteSummary, PermissionSettings, Run, RunEvent } from "@vigil/shared";
+import type { Agent, AgentTemplate, Note, NoteSummary, PermissionSettings, Run, RunEvent, ToolGrant } from "@vigil/shared";
 
 type Envelope<T> = { data: T } | { error: { code: string; message: string } };
 
@@ -169,6 +169,7 @@ export const getAgent = (name: string) => request<Agent>(`/api/agents/${seg(name
 export const putAgent = (agent: Agent) => request<Agent>(`/api/agents/${seg(agent.name)}`, json("PUT", agent));
 export const getSchedule = (name: string) => request<Schedule>(`/api/agents/${seg(name)}/schedule`);
 export const runAgent = (name: string, task?: string) => request<Run>(`/api/agents/${seg(name)}/run`, json("POST", task === undefined ? {} : { task }));
+export const startAgentDesign = (goal: string, tools: ToolGrant[]) => request<Run>("/api/agents/design", json("POST", { goal, tools }));
 export const listTemplates = () => request<AgentTemplate[]>("/api/agent-templates");
 export const createFromTemplate = (id: string, name?: string) =>
   request<Agent>(`/api/agents/from-template/${seg(id)}`, json("POST", name === undefined ? {} : { name }));

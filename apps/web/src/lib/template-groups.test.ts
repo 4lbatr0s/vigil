@@ -1,12 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { TEMPLATES } from "@vigil/shared";
-import { groupTemplates } from "./template-groups";
+import { HIDDEN_TEMPLATES, groupTemplates } from "./template-groups";
 
 describe("groupTemplates", () => {
   it("puts every shipped template under a group, none twice, none lost", () => {
     const groups = groupTemplates(TEMPLATES);
     const ids = groups.flatMap((g) => g.items.map((t) => t.id));
-    expect(ids.sort()).toEqual(TEMPLATES.map((t) => t.id).sort());
+    // Helpers the app starts itself (the agent designer) are the only ones left out of the gallery.
+    expect(ids.sort()).toEqual(TEMPLATES.map((t) => t.id).filter((id) => !HIDDEN_TEMPLATES.includes(id)).sort());
+    expect(ids).not.toContain("agent-designer");
     expect(groups.map((g) => g.id)).toEqual(["study", "daily", "tidy"]);
   });
   it("shows an unknown template under More", () => {

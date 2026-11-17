@@ -2,9 +2,9 @@
   import { onMount } from "svelte";
   import { goto } from "$app/navigation";
   import { page } from "$app/state";
-  import { AgentNameSchema, type Agent, type PermissionSettings, type Run } from "@vigil/shared";
-  import { ApiError, createChat, getAgent, getPermissions, getSchedule, listRuns, putAgent, runAgent, type Schedule } from "$lib/api";
-  import { addHost, agentToForm, describeGrants, formToAgent, noHostsWarning, riskyCombination, type AgentForm } from "$lib/agent-form";
+  import { AgentNameSchema, type Agent, type PermissionSettings, type Run, type ToolGrant } from "@vigil/shared";
+  import { ApiError, createChat, getAgent, listConnections, probeConnection, type Connection, getPermissions, getSchedule, listRuns, putAgent, runAgent, type Schedule } from "$lib/api";
+  import { TOOL_LABELS, addHost, agentToForm, describeGrants, formToAgent, noHostsWarning, riskyCombination, triggerProblem, type AgentForm } from "$lib/agent-form";
   import { describeCheck, formatStamp } from "$lib/format";
   import { refreshOnLive } from "$lib/live";
   import { describeTrigger, describeTriggerSentence, statusDot } from "$lib/schedule";
@@ -25,6 +25,32 @@
   let confirmOff = $state(false);
   let hostInput = $state("");
   let hostError = $state("");
+  let connections = $state<Connection[]>([]);
+  let models = $state<string[]>([]);
+  const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+  const TOOLS: ToolGrant[] = ["read_notes", "write_notes", "web_fetch", "call_agents"];
+  const problem = $derived(agent && form ? triggerProblem(form, agent) : null);
+
+  /** The models of the connection this agent uses (its own, else the default), for the model list. */
+  async function loadModels(): Promise<void> {
+    models = [];
+    const c = connections.find((x) => x.id === form?.connection) ?? connections.find((x) => x.isDefault);
+    if (!c) return;
+    try {
+      const r = await probeConnection({ kind: c.kind, baseUrl: c.baseUrl, ...(c.readOnly ? {} : { connectionId: c.id }) });
+      models = r.ok ? r.models : [];
+    } catch {
+      // The list is a convenience: without it the model box stays a plain text field.
+      models = [];
+    }
+  }
+
+  function toggleTool(tool: ToolGrant, on: boolean): void {
+    if (!form) return;
+    form.tools = on ? [...new Set([...form.tools, tool])] : form.tools.filter((t) => t !== tool);
+    // Giving an agent the power to write starts with approvals on; you may switch that off below.
+    if (tool === "write_notes" && on) form.strict = true;
+  }
 
   const running = $derived(runs.some((r) => r.status === "running"));
   const grants = $derived(agent && settings ? describeGrants(agent, settings) : []);
@@ -40,6 +66,8 @@
       [agent, settings] = await Promise.all([getAgent(name), getPermissions()]);
       form = agentToForm(agent);
       schedule = await getSchedule(name);
+      connections = await listConnections().catch(() => [] as Connection[]);
+      void loadModels();
     } catch (err) {
       loadError = err instanceof Error ? err.message : "Could not load the agent";
     }
@@ -220,7 +248,7 @@
         </div>
       {/if}
 
-      {#if agent.tools.includes("web_fetch")}
+      {#if form.tools.includes("web_fetch")}
         <div class="field hosts">
           <span id="hosts-label">Allowed sites (web access)</span>
           <ul class="chips" aria-labelledby="hosts-label">
@@ -237,6 +265,44 @@
           <span class="hint">Only exact host names work (no subdomains, no wildcards), and never local or private addresses. Every address the agent fetches is written in its run log.</span>
         </div>
       {/if}
+      <fieldset class="field">
+        <legend>When it runs</legend>
+        <div class="when">
+          <select bind:value={form.trigger.kind} aria-label="When it runs">
+            <option value="manual">Only when I start it</option>
+            <option value="daily">Every day</option>
+            <option value="weekly">Every week</option>
+            <option value="changes">When my notes change</option>
+            {#if form.trigger.kind === "custom"}<option value="custom">Custom schedule</option>{/if}
+          </select>
+          {#if form.trigger.kind === "weekly"}
+            <select bind:value={form.trigger.day} aria-label="Day of the week">
+              {#each DAY_NAMES as d, i (d)}<option value={i}>{d}</option>{/each}
+            </select>
+          {/if}
+          {#if form.trigger.kind === "daily" || form.trigger.kind === "weekly"}
+            <input type="time" bind:value={form.trigger.time} aria-label="Time of day" />
+          {/if}
+          {#if form.trigger.kind === "changes"}
+            <span class="hint">checking every</span>
+            <input type="text" inputmode="numeric" class="narrow mono" bind:value={form.trigger.minutes} aria-label="Minutes between checks" />
+            <span class="hint">minutes</span>
+          {/if}
+          {#if form.trigger.kind === "custom"}
+            <input type="text" class="mono" bind:value={form.trigger.expression} aria-label="Schedule expression" />
+          {/if}
+        </div>
+        {#if problem}<span class="error" role="alert">{problem}</span>{/if}
+      </fieldset>
+      <fieldset class="field">
+        <legend>What it may do</legend>
+        {#each TOOLS as t (t)}
+          <label class="tool">
+            <input type="checkbox" checked={form.tools.includes(t)} onchange={(e) => toggleTool(t, e.currentTarget.checked)} />
+            <span><strong>{TOOL_LABELS[t].label}</strong> <span class="hint">{TOOL_LABELS[t].detail}</span></span>
+          </label>
+        {/each}
+      </fieldset>
       <label class="field">
         <span>Description</span>
         <input type="text" bind:value={form.description} maxlength="280" />
@@ -245,9 +311,30 @@
         <span>Token budget per run</span>
         <input type="text" inputmode="numeric" bind:value={form.tokenBudget} class="narrow mono" />
       </label>
+      {#if connections.length > 0}
+        <label class="field">
+          <span>Model connection</span>
+          <select bind:value={form.connection} onchange={() => void loadModels()}>
+            <option value="">Default connection</option>
+            {#each connections as c (c.id)}<option value={c.id}>{c.name}</option>{/each}
+          </select>
+        </label>
+      {/if}
       <label class="field">
-        <span>Model (empty uses the default)</span>
-        <input type="text" bind:value={form.model} class="mono" />
+        <span>Model (empty uses the connection's default)</span>
+        {#if models.length > 0}
+          <select bind:value={form.model}>
+            <option value="">Connection default</option>
+            {#each models as m (m)}<option value={m}>{m}</option>{/each}
+            {#if form.model !== "" && !models.includes(form.model)}<option value={form.model}>{form.model}</option>{/if}
+          </select>
+        {:else}
+          <input type="text" bind:value={form.model} class="mono" />
+        {/if}
+      </label>
+      <label class="field">
+        <span>What it does when started without instructions</span>
+        <input type="text" bind:value={form.defaultTask} />
       </label>
       <label class="field">
         <span>System prompt</span>
@@ -256,7 +343,7 @@
 
       {#if saveError}<p class="error" role="alert">{saveError}</p>{/if}
       <div class="actions">
-        <button type="button" class="primary" disabled={busy || !dirty} onclick={() => void save()}>Save</button>
+        <button type="button" class="primary" disabled={busy || !dirty || problem !== null} onclick={() => void save()}>Save</button>
         <button type="button" class="ghost" disabled={running} onclick={() => void runNow()}>{running ? "Running…" : "Run now"}</button>
         <button type="button" class="ghost" onclick={() => void startChatWith()}>Chat</button>
         {#if notice && !dirty}<span class="muted" aria-live="polite">{notice}</span>{/if}
@@ -289,6 +376,30 @@
   .page {
     padding: var(--space-6);
     max-width: 860px;
+  }
+  .when {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    align-items: center;
+  }
+  fieldset.field {
+    border: 0;
+    padding: 0;
+    margin: 0;
+    display: grid;
+    gap: var(--space-2);
+  }
+  fieldset.field legend {
+    padding: 0;
+    margin-bottom: var(--space-1);
+    font-size: var(--text-label);
+    color: var(--ink-muted);
+  }
+  .tool {
+    display: flex;
+    gap: var(--space-2);
+    align-items: baseline;
   }
   .crumb {
     font-size: var(--text-label);

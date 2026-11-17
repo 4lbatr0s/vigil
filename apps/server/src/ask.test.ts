@@ -137,3 +137,16 @@ describe("gap check", () => {
     expect((await j("POST", "/api/gap", { source: "too short" })).status).toBe(400);
   });
 });
+
+describe("POST /api/agents/design", () => {
+  it("needs the designer agent, then starts it with the goal and the tools as data", async () => {
+    expect((await j("POST", "/api/agents/design", { goal: "Summarize my week every Friday", tools: ["read_notes"] })).body.error?.code).toBe("agent-not-found");
+    const agent = (await j("POST", "/api/agents/from-template/agent-designer", {})).body.data;
+    await j("PUT", "/api/agents/agent-designer", { ...agent, enabled: true });
+    const r = await j("POST", "/api/agents/design", { goal: "Summarize my week every Friday", tools: ["read_notes", "write_notes"] });
+    expect(r.status).toBe(202);
+    expect(r.body.data.agent).toBe("agent-designer");
+    expect((await j("POST", "/api/agents/design", { goal: "short" })).status).toBe(400);
+    expect((await j("POST", "/api/agents/design", { goal: "Summarize my week every Friday", tools: ["shell"] })).status).toBe(400);
+  });
+});

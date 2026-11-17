@@ -7,7 +7,11 @@ export const TEMPLATE_GROUPS = [
 ] as const;
 
 /** Templates under their group headings, in the order above; a template no group names goes under "More" so none is ever lost. */
+/** Helpers the app starts for you (the new-agent wizard); not listed in the gallery. */
+export const HIDDEN_TEMPLATES: readonly string[] = ["agent-designer"];
+
 export function groupTemplates(templates: readonly AgentTemplate[]): { id: string; title: string; blurb: string; items: AgentTemplate[] }[] {
+  templates = templates.filter((t) => !HIDDEN_TEMPLATES.includes(t.id));
   const byId = new Map(templates.map((t) => [t.id, t]));
   const used = new Set<string>();
   const groups = TEMPLATE_GROUPS.map((g) => {

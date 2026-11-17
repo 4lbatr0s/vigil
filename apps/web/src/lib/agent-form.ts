@@ -1,4 +1,55 @@
-import { HOST_HELP, normalizeHost, type Agent, type PermissionSettings, type ToolGrant } from "@vigil/shared";
+import { HOST_HELP, normalizeHost, type Agent, type PermissionSettings, type ToolGrant, type Trigger } from "@vigil/shared";
+
+export type TriggerKind = "manual" | "daily" | "weekly" | "changes" | "custom";
+
+/** The schedule as the page edits it: plain choices, turned into a cron expression or heartbeat on save. */
+export type TriggerForm = {
+  kind: TriggerKind;
+  /** `HH:MM`, for daily and weekly. */
+  time: string;
+  /** 0 (Sunday) to 6, for weekly. */
+  day: number;
+  /** Minutes between checks, for "when my notes change". */
+  minutes: string;
+  /** A cron expression the choices above cannot express, kept as it is. */
+  expression: string;
+};
+
+export const DEFAULT_TRIGGER_FORM: TriggerForm = { kind: "manual", time: "07:00", day: 1, minutes: "30", expression: "" };
+
+const two = (n: number): string => String(n).padStart(2, "0");
+
+export function triggerToForm(t: Trigger): TriggerForm {
+  if (t.kind === "manual") return { ...DEFAULT_TRIGGER_FORM };
+  if (t.kind === "heartbeat") return { ...DEFAULT_TRIGGER_FORM, kind: "changes", minutes: String(t.everyMinutes) };
+  const m = /^(\d{1,2}) (\d{1,2}) \* \* (\*|[0-7])$/.exec(t.expression.trim());
+  if (m && Number(m[1]) <= 59 && Number(m[2]) <= 23) {
+    const time = `${two(Number(m[2]))}:${two(Number(m[1]))}`;
+    return m[3] === "*" ? { ...DEFAULT_TRIGGER_FORM, kind: "daily", time } : { ...DEFAULT_TRIGGER_FORM, kind: "weekly", time, day: Number(m[3]) % 7 };
+  }
+  return { ...DEFAULT_TRIGGER_FORM, kind: "custom", expression: t.expression };
+}
+
+export type TriggerResult = { ok: true; trigger: Trigger } | { ok: false; message: string };
+
+/** The trigger to save, or what is wrong with the form. A cron trigger keeps the time zone it had. */
+export function formToTrigger(f: TriggerForm, timezone?: string): TriggerResult {
+  if (f.kind === "manual") return { ok: true, trigger: { kind: "manual" } };
+  if (f.kind === "changes") {
+    const n = Number(f.minutes);
+    if (!Number.isInteger(n) || n < 5 || n > 1440) return { ok: false, message: "Check for changes every 5 to 1440 minutes." };
+    return { ok: true, trigger: { kind: "heartbeat", everyMinutes: n } };
+  }
+  const tz = timezone ? { timezone } : {};
+  if (f.kind === "custom") {
+    const expression = f.expression.trim();
+    return expression.split(/\s+/).length === 5 ? { ok: true, trigger: { kind: "cron", expression, ...tz } } : { ok: false, message: "A schedule has five parts, like 0 7 * * *." };
+  }
+  const t = /^(\d{1,2}):(\d{2})$/.exec(f.time.trim());
+  if (!t || Number(t[1]) > 23 || Number(t[2]) > 59) return { ok: false, message: "Enter a time like 07:30." };
+  const day = f.kind === "weekly" ? String(Math.min(6, Math.max(0, Math.trunc(f.day)))) : "*";
+  return { ok: true, trigger: { kind: "cron", expression: `${Number(t[2])} ${Number(t[1])} * * ${day}`, ...tz } };
+}
 
 /** What the agent page edits. Strings stay strings until saved, so a half-typed number is not lost. */
 export type AgentForm = {
@@ -10,6 +61,11 @@ export type AgentForm = {
   model: string;
   /** Hosts `fetch_url` may call. */
   allowedHosts: string[];
+  trigger: TriggerForm;
+  tools: ToolGrant[];
+  /** A saved connection id, or empty for the default one. */
+  connection: string;
+  defaultTask: string;
 };
 
 export function agentToForm(agent: Agent): AgentForm {
@@ -21,6 +77,10 @@ export function agentToForm(agent: Agent): AgentForm {
     tokenBudget: String(agent.tokenBudget),
     model: agent.model ?? "",
     allowedHosts: [...agent.allowedHosts],
+    trigger: triggerToForm(agent.trigger),
+    tools: [...agent.tools],
+    connection: agent.connection ?? "",
+    defaultTask: agent.defaultTask,
   };
 }
 
@@ -30,8 +90,9 @@ export function agentToForm(agent: Agent): AgentForm {
  * empty model is left out rather than sent as an empty string.
  */
 export function formToAgent(base: Agent, form: AgentForm): Agent {
-  const { model: _drop, ...rest } = base;
+  const { model: _m, connection: _c, ...rest } = base;
   const model = form.model.trim();
+  const trigger = formToTrigger(form.trigger, base.trigger.kind === "cron" ? base.trigger.timezone : undefined);
   return {
     ...rest,
     description: form.description,
@@ -39,10 +100,28 @@ export function formToAgent(base: Agent, form: AgentForm): Agent {
     enabled: form.enabled,
     strict: form.strict,
     allowedHosts: [...form.allowedHosts],
+    tools: [...form.tools],
+    defaultTask: form.defaultTask,
+    // A trigger that cannot be saved keeps the old one here; the page shows the message from `triggerProblem` first.
+    trigger: trigger.ok ? trigger.trigger : base.trigger,
     tokenBudget: form.tokenBudget.trim() === "" ? Number.NaN : Number(form.tokenBudget),
     ...(model === "" ? {} : { model }),
+    ...(form.connection === "" ? {} : { connection: form.connection }),
   };
 }
+
+/** What is wrong with the schedule choices, or null. */
+export function triggerProblem(form: AgentForm, base: Agent): string | null {
+  const r = formToTrigger(form.trigger, base.trigger.kind === "cron" ? base.trigger.timezone : undefined);
+  return r.ok === false ? r.message : null;
+}
+
+export const TOOL_LABELS: Record<ToolGrant, { label: string; detail: string }> = {
+  read_notes: { label: "Read my notes", detail: "It can list, search and read every note." },
+  write_notes: { label: "Write notes", detail: "It can create and replace notes. Each write is saved first so you can undo it." },
+  web_fetch: { label: "Fetch web pages", detail: "Only from sites you list below. Pages it reads are treated as untrusted text." },
+  call_agents: { label: "Ask other agents", detail: "It can start other agents you allow, one level deep." },
+};
 
 export type GrantLine = { tool: ToolGrant; text: string; blocked: boolean };
 

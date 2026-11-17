@@ -63,7 +63,10 @@
 <svelte:head><title>Agents · Vigil</title></svelte:head>
 
 <main class="page">
-  <h1>Agents</h1>
+  <div class="titlebar">
+    <h1>Agents</h1>
+    <a class="primary-link" href="/agents/new">Create an agent</a>
+  </div>
 
   {#if error}
     <p class="error" role="alert">{error}</p>
@@ -122,6 +125,22 @@
 </main>
 
 <style>
+  .titlebar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    align-items: center;
+    justify-content: space-between;
+  }
+  .primary-link {
+    padding: var(--space-2) var(--space-4);
+    border: 1px solid var(--ink);
+    border-radius: var(--radius);
+    background: var(--ink);
+    color: var(--bg);
+    font-size: var(--text-ui);
+    text-decoration: none;
+  }
   .page {
     padding: var(--space-6);
     max-width: 960px;
