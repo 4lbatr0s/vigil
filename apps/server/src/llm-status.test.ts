@@ -25,7 +25,7 @@ describe("llmStatus", () => {
   it("reports config without probing and never contains the key", async () => {
     const env = { VIGIL_LLM_PROVIDER: "openai", VIGIL_LLM_BASE_URL: "http://127.0.0.1:1", VIGIL_LLM_API_KEY: "sk-secret-value-123456", VIGIL_LLM_MODEL: "m" };
     const status = await llmStatus(false, env);
-    expect(status).toEqual({ provider: "openai", baseUrl: "http://127.0.0.1:1", model: "m", hasKey: true, reachable: null });
+    expect(status).toEqual({ provider: "openai", baseUrl: "http://127.0.0.1:1", model: "m", hasKey: true, reachable: null, connection: { id: "env", name: "Environment (VIGIL_LLM_*)" } });
     expect(JSON.stringify(status)).not.toContain("sk-secret-value-123456");
   });
 

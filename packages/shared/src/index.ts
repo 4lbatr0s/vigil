@@ -106,6 +106,8 @@ export const AgentSchema = z.object({
   tokenBudget: z.number().int().positive().max(1_000_000).default(20_000),
   /** Overrides VIGIL_LLM_MODEL for this agent. */
   model: z.string().min(1).optional(),
+  /** The saved model connection this agent uses (Settings, Models); the default connection when absent. */
+  connection: z.string().min(1).max(60).optional(),
   /** User message for a run that is started without one. */
   defaultTask: z.string().default("Do your job now."),
   /** Hosts `web_fetch` may call (WP10). Exact host names, no wildcards. */

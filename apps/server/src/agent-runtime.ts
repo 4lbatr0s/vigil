@@ -136,7 +136,7 @@ export const runAgent: AgentRunner = async ({ agent, task, runId, makeModel, dep
       if (dropped.length > 0 && freshChars >= RESUMMARIZE_AFTER_CHARS && remaining >= MIN_BUDGET_FOR_SUMMARY) {
         try {
           const input = `${known ? `Earlier summary:\n${known.text}\n\nNewer messages:\n` : ""}${transcriptOf(fresh)}`;
-          const summarizer = makeModel([], { model: agent.model, maxTokens: Math.min(remaining, SUMMARY_MAX_TOKENS) });
+          const summarizer = makeModel([], { model: agent.model, connection: agent.connection, maxTokens: Math.min(remaining, SUMMARY_MAX_TOKENS) });
           const made = await summarizer.invoke([new SystemMessage(SUMMARY_PROMPT), new HumanMessage(input)]);
           const text = messageText(made).trim();
           const cost = made.usage_metadata?.total_tokens ?? estimateTokens([new HumanMessage(input)], made);
@@ -156,7 +156,7 @@ export const runAgent: AgentRunner = async ({ agent, task, runId, makeModel, dep
       // so it must not carry the authority of the system prompt.
       if (summary) sent = [...sent.slice(0, sent[0] instanceof SystemMessage ? 1 : 0), new HumanMessage(summaryNote(summary.text)), ...sent.slice(sent[0] instanceof SystemMessage ? 1 : 0)];
     }
-    const model = makeModel(tools, { model: agent.model, maxTokens: remaining });
+    const model = makeModel(tools, { model: agent.model, connection: agent.connection, maxTokens: remaining });
     // Wait for the model, but let a cancel win at once instead of after the (possibly long) call.
     let streamed = false;
     const ask = async (): Promise<AIMessage> => {

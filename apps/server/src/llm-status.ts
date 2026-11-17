@@ -1,35 +1,30 @@
+import { DEFAULT_URLS, probeConnection, resolveConnection, type ResolvedConnection } from "./connections";
+
 export type LlmStatus = {
   provider: string;
   baseUrl: string;
   model: string | null;
   hasKey: boolean;
   reachable: boolean | null;
+  /** The connection in use: a saved one, the environment, or none yet. */
+  connection: { id: string; name: string } | null;
 };
 
 /**
- * What the server is configured to talk to. Never contains the key, only whether one is set.
- * `reachable` is null unless `probe` is true: then one GET to the user's own model host, any failure gives false.
- * The URL comes from the owner's environment, never from a model or a request.
+ * What the server will talk to by default. Never contains the key, only whether one is set.
+ * `reachable` is null unless `probe` is true: then one GET to the owner's own model host, any failure gives false.
+ * The address comes from the owner (Settings or the environment), never from a model or a request.
  */
 export async function llmStatus(probe: boolean, env: NodeJS.ProcessEnv = process.env): Promise<LlmStatus> {
-  const provider = env.VIGIL_LLM_PROVIDER ?? "openai";
-  const baseUrl = env.VIGIL_LLM_BASE_URL ?? (provider === "ollama" ? "http://127.0.0.1:11434" : "https://api.openai.com/v1");
-  const key = env.VIGIL_LLM_API_KEY;
-  const status: LlmStatus = { provider, baseUrl, model: env.VIGIL_LLM_MODEL || null, hasKey: Boolean(key), reachable: null };
-  if (!probe) return status;
-  const base = baseUrl.replace(/\/+$/, "");
+  let conn: ResolvedConnection | null = null;
   try {
-    const res =
-      provider === "ollama"
-        ? await fetch(`${base}/api/tags`, { signal: AbortSignal.timeout(2000) })
-        : await fetch(`${base}/models`, {
-            headers: key ? { authorization: `Bearer ${key}` } : {},
-            signal: AbortSignal.timeout(3000),
-          });
-    status.reachable = res.ok;
+    conn = resolveConnection(undefined, env);
   } catch {
-    // A refused, timed-out or malformed probe is exactly the "not reachable" answer.
-    status.reachable = false;
+    // Nothing is connected yet (or a saved key cannot be read): the status says so with an empty answer instead of an error.
+    conn = null;
   }
+  if (!conn) return { provider: "openai", baseUrl: DEFAULT_URLS.openai, model: null, hasKey: false, reachable: probe ? false : null, connection: null };
+  const status: LlmStatus = { provider: conn.kind, baseUrl: conn.baseUrl, model: conn.model ?? null, hasKey: conn.apiKey !== undefined, reachable: null, connection: { id: conn.id, name: conn.name } };
+  if (probe) status.reachable = (await probeConnection({ kind: conn.kind, baseUrl: conn.baseUrl, apiKey: conn.apiKey })).ok;
   return status;
 }

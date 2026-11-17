@@ -5,7 +5,7 @@ import { AppError } from "./errors";
 import { effectiveAgent } from "./permissions";
 import { reindexNote, removeNote } from "./index-db";
 import { withNoteLock } from "./lock";
-import { modelFactoryFromEnv, redact, type ModelFactory } from "./llm";
+import { modelFactoryFromConnections, redact, type ModelFactory } from "./llm";
 import {
   addChatMessage,
   approvalsForRun,
@@ -30,7 +30,7 @@ import { bodyOfRaw, deleteNote, getNote, restoreNoteFile } from "./vault";
 type Deps = { runner: AgentRunner; makeModel: ModelFactory };
 
 // The model is built per call from the current environment, so a changed env needs no restart.
-let deps: Deps = { runner: runAgent, makeModel: (tools, options) => modelFactoryFromEnv()(tools, options) };
+let deps: Deps = { runner: runAgent, makeModel: (tools, options) => modelFactoryFromConnections()(tools, options) };
 const inFlight = new Set<Promise<void>>();
 
 /** Tests swap in a fake runner or model. */

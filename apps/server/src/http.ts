@@ -30,6 +30,7 @@ import { getPermissions, putPermissions } from "./permissions";
 import { planRename, renameNote } from "./rename";
 import { refreshSchedule } from "./scheduler";
 import { llmStatus } from "./llm-status";
+import { ConnectionInputSchema, ProbeInputSchema, createConnection, listConnections, probeConnection, removeConnection, savedKey, setDefaultConnection, updateConnection } from "./connections";
 import { usage } from "./usage";
 import { getRunResult } from "./state-db";
 import { exportTsv } from "./anki-export";
@@ -693,6 +694,64 @@ const routes: { method: string; pattern: RegExp; keys: string[]; handler: Handle
         throw new AppError("invalid-body", `Invalid settings: ${where}${issue?.message ?? "bad shape"}`, 400);
       }
       send(res, 200, { data: putPermissions(parsed.data) });
+    },
+  },
+  {
+    method: "GET",
+    pattern: /^\/api\/connections$/,
+    keys: [],
+    handler: async (_req, res) => send(res, 200, { data: listConnections() }),
+  },
+  {
+    method: "POST",
+    pattern: /^\/api\/connections$/,
+    keys: [],
+    handler: async (req, res) => {
+      const parsed = ConnectionInputSchema.safeParse(await readJsonBody(req));
+      if (!parsed.success) throw new AppError("invalid-body", `Invalid connection: ${parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ")}`, 400);
+      send(res, 201, { data: createConnection(parsed.data) });
+    },
+  },
+  {
+    // Try an address and key that are not saved yet (or a saved connection, by id, without sending its key back) and list its models.
+    method: "POST",
+    pattern: /^\/api\/connections\/probe$/,
+    keys: [],
+    handler: async (req, res) => {
+      const parsed = ProbeInputSchema.safeParse(await readJsonBody(req));
+      if (!parsed.success) throw new AppError("invalid-body", `Invalid address: ${parsed.error.issues.map((i) => i.message).join("; ")}`, 400);
+      const key = parsed.data.apiKey || (parsed.data.connectionId ? savedKey(parsed.data.connectionId) : undefined);
+      send(res, 200, { data: await probeConnection({ kind: parsed.data.kind, baseUrl: parsed.data.baseUrl, apiKey: key }) });
+    },
+  },
+  {
+    method: "PUT",
+    pattern: /^\/api\/connections\/default$/,
+    keys: [],
+    handler: async (req, res) => {
+      const parsed = z.object({ id: z.string().min(1).max(60) }).safeParse(await readJsonBody(req));
+      if (!parsed.success) throw new AppError("invalid-body", "Body must be { id: string }", 400);
+      setDefaultConnection(parsed.data.id);
+      send(res, 200, { data: listConnections() });
+    },
+  },
+  {
+    method: "PUT",
+    pattern: /^\/api\/connections\/([^/]+)$/,
+    keys: ["id"],
+    handler: async (req, res, params) => {
+      const parsed = ConnectionInputSchema.safeParse(await readJsonBody(req));
+      if (!parsed.success) throw new AppError("invalid-body", `Invalid connection: ${parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ")}`, 400);
+      send(res, 200, { data: updateConnection(params["id"] ?? "", parsed.data) });
+    },
+  },
+  {
+    method: "DELETE",
+    pattern: /^\/api\/connections\/([^/]+)$/,
+    keys: ["id"],
+    handler: async (_req, res, params) => {
+      removeConnection(params["id"] ?? "");
+      send(res, 200, { data: { id: params["id"] } });
     },
   },
   {

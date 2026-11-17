@@ -207,6 +207,19 @@ export const MIGRATIONS: readonly string[] = [
   );
   CREATE INDEX misconceptions_note ON misconceptions(note_id, resolved_at);
   `,
+  `
+  -- migration 14: model connections the owner added in Settings (ADR-0026); the key is stored encrypted
+  CREATE TABLE connections (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    base_url TEXT NOT NULL,
+    api_key_enc TEXT,
+    default_model TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+  `,
 ];
 
 let current: { key: string; db: Database.Database } | null = null;
@@ -883,4 +896,31 @@ export function insertMisconception(row: MisconceptionRow): void {
 /** True when an open item was resolved; false when there is none with that id. */
 export function resolveMisconception(id: string, now: Date): boolean {
   return open().prepare("UPDATE misconceptions SET resolved_at = ? WHERE id = ? AND resolved_at IS NULL").run(now.toISOString(), id).changes > 0;
+}
+
+// ---- Model connections (ADR-0026) ----
+
+export type ConnectionRow = { id: string; name: string; kind: string; baseUrl: string; apiKeyEnc: string | null; defaultModel: string | null; createdAt: string; updatedAt: string };
+type ConnectionDb = { id: string; name: string; kind: string; base_url: string; api_key_enc: string | null; default_model: string | null; created_at: string; updated_at: string };
+const toConnection = (r: ConnectionDb): ConnectionRow => ({ id: r.id, name: r.name, kind: r.kind, baseUrl: r.base_url, apiKeyEnc: r.api_key_enc, defaultModel: r.default_model, createdAt: r.created_at, updatedAt: r.updated_at });
+
+export function listConnectionRows(): ConnectionRow[] {
+  return (open().prepare("SELECT * FROM connections ORDER BY created_at, id").all() as ConnectionDb[]).map(toConnection);
+}
+
+export function getConnectionRow(id: string): ConnectionRow | null {
+  const r = open().prepare("SELECT * FROM connections WHERE id = ?").get(id) as ConnectionDb | undefined;
+  return r ? toConnection(r) : null;
+}
+
+export function putConnectionRow(row: ConnectionRow): void {
+  open()
+    .prepare(
+      "INSERT INTO connections (id, name, kind, base_url, api_key_enc, default_model, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET name = excluded.name, kind = excluded.kind, base_url = excluded.base_url, api_key_enc = excluded.api_key_enc, default_model = excluded.default_model, updated_at = excluded.updated_at",
+    )
+    .run(row.id, row.name, row.kind, row.baseUrl, row.apiKeyEnc, row.defaultModel, row.createdAt, row.updatedAt);
+}
+
+export function deleteConnectionRow(id: string): boolean {
+  return open().prepare("DELETE FROM connections WHERE id = ?").run(id).changes > 0;
 }
