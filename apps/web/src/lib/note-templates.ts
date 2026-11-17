@@ -20,6 +20,12 @@ export const NOTE_TEMPLATES: NoteTemplate[] = [
     body: `## Who\n\n\n## Decisions\n\n\n## Next steps\n- [ ] \n`,
   },
   {
+    id: "cornell",
+    label: "New Cornell note",
+    title: (day) => `Cornell ${day}`,
+    body: `## Notes\n\n\n## Cue questions\nWrite a question for each part of your notes, then answer it from memory.\n\n\n## Summary in my own words\n\n\n## Cards\n`,
+  },
+  {
     id: "reading",
     label: "New reading note",
     title: (day) => `Reading ${day}`,

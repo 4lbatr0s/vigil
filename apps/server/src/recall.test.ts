@@ -83,3 +83,11 @@ describe("recall API", () => {
     expect((await j("POST", "/api/notes/bio/recall-check", { recall: "x".repeat(6_001) })).status).toBe(400);
   });
 });
+
+describe("outline API", () => {
+  it("needs the agent and enough text", async () => {
+    expect((await j("POST", "/api/outline", { source: "short" })).status).toBe(400);
+    expect((await j("POST", "/api/outline", { source: "x".repeat(20_001) })).status).toBe(400);
+    expect((await j("POST", "/api/outline", { source: "Plants use light to make sugar in leaves." })).body.error?.code).toBe("agent-not-found");
+  });
+});

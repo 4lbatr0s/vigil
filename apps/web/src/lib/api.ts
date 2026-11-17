@@ -103,6 +103,7 @@ export const enrollRecall = (noteId: string) => request<RecallItem>(`/api/recall
 export const stopRecall = (noteId: string) => request<{ ok: true }>(`/api/recall/${seg(noteId)}`, { method: "DELETE" });
 export const recordRecall = (noteId: string, result: RecallResult) => request<RecallItem>(`/api/recall/${seg(noteId)}/result`, json("POST", { result }));
 export const startRecallCheck = (noteId: string, recall: string) => request<Run>(`/api/notes/${seg(noteId)}/recall-check`, json("POST", { recall }));
+export const startOutline = (source: string) => request<Run>("/api/outline", json("POST", { source }));
 export const getDecks = () => request<DeckStats[]>("/api/study/decks");
 export const answerStudyCard = (cardId: string, answer: Answer) => request<{ due: string }>("/api/study/review", json("POST", { cardId, answer }));
 /** Starts the card maker on a note; the answer is read with getRunResult when the run has succeeded. */

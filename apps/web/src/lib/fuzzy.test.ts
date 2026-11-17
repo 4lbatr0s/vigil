@@ -28,7 +28,7 @@ describe("fuzzyScore", () => {
 describe("buildCommands", () => {
   const base = { noteHits: [{ id: "plan", title: "Launch plan" }], agents: ["morning-digest", "weekly-review"] };
   it("shows only the fixed commands for an empty query", () => {
-    expect(buildCommands({ ...base, query: "" }).map((c) => c.label)).toEqual(["New note", "Today's note", "Study cards", "Open Today", "New lecture note", "New meeting note", "New reading note", "New chat", "Open Graph", "Open Agents", "Open Settings", "Open Approvals"]);
+    expect(buildCommands({ ...base, query: "" }).map((c) => c.label)).toEqual(["New note", "Today's note", "Study cards", "Open Today", "New lecture note", "New meeting note", "New Cornell note", "New reading note", "New chat", "Open Graph", "Open Agents", "Open Settings", "Open Approvals"]);
   });
   it("lists notes, agents and matching commands for a query", () => {
     const out = buildCommands({ ...base, query: "digest" });

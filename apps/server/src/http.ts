@@ -274,6 +274,21 @@ const routes: { method: string; pattern: RegExp; keys: string[]; handler: Handle
     },
   },
   {
+    // Starts the Study outliner on pasted text. The agent has no tools; the learner writes the answers (ADR-0020).
+    method: "POST",
+    pattern: /^\/api\/outline$/,
+    keys: [],
+    handler: async (req, res) => {
+      const parsed = z.object({ source: z.string().trim().min(20).max(20_000) }).safeParse(await readJsonBody(req));
+      if (!parsed.success) throw new AppError("invalid-body", "Body must be { source: string } of 20 to 20000 characters", 400);
+      const agent = getAgent("outliner");
+      if (!agent) throw new AppError("agent-not-found", "Add the Study outliner agent first (Agents, then the Study outliner template).", 404);
+      if (!agent.enabled) throw new AppError("agent-disabled", "The Study outliner agent is switched off. Turn it on from the Agents page.", 409);
+      const run = startRun("outliner", `Make a study outline from this material.\n\nSOURCE START\n${parsed.data.source}\nSOURCE END`, "manual");
+      send(res, 202, { data: run });
+    },
+  },
+  {
     method: "GET",
     pattern: /^\/api\/recall$/,
     keys: [],

@@ -156,7 +156,7 @@ Chosen from the research (spaced repetition tied to notes, active processing ove
 - [x] Card quality hints (`lintCard`) in the card maker, stuck-card prompt after 6 lapses
 - [x] Exam dates: migration 11 `goals`, retention steps, review cap, `/api/goals`, Study page form, Today line
 - [x] Note recall check (migration 12 `note_recall`, ladder 1/3/7/21 days, `recall-checker` agent, `/recall` page, Today card). Live check with the local 4B model: quoted real lines and caught a wrong claim; labels were a little sloppy, so the learner always rates the result themselves
-- [ ] Active note scaffold (`outliner` agent, Cornell template)
+- [x] Active note scaffold: `outliner` agent, `/outline` page ("From text" in the note list), Cornell note template. Live check with the 4B model: sound outline of 6 sections, but questions leaked dates, so the prompt now forbids dates, numbers and names that belong in an answer
 - [ ] Anki text export and import
 - [ ] Forecast strip, desired retention and new-per-day settings, interleaving, weak-spot list
 

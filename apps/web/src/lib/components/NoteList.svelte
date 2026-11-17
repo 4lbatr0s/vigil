@@ -241,6 +241,7 @@
   <form class="create" onsubmit={create}>
     <input id="new-note-title" class="input" type="text" placeholder="Note title" aria-label="New note title" bind:value={newTitle} />
     <button type="submit" class="action" disabled={creating || newTitle.trim().length === 0}>New note</button>
+    <a class="fromtext" href="/outline" title="Paste text and get an empty outline to fill in">From text</a>
   </form>
   {#if error}
     <p class="error">{error}</p>
@@ -310,6 +311,13 @@
   .clear:hover {
     background: var(--surface-hover);
     color: var(--ink);
+  }
+
+  .fromtext {
+    align-self: center;
+    font-size: var(--text-label);
+    color: var(--ink-muted);
+    white-space: nowrap;
   }
 
   .calbtn {
