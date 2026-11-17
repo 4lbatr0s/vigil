@@ -242,5 +242,5 @@ Known gaps (from `docs/spec/open-questions.md`):
 - [x] Trim long chat history. *Done 2026-11-16: each model call gets the system message plus the newest whole turns within 48,000 characters (`history.ts`); the stored conversation stays whole. Summarising older turns is not done.*
 - [ ] Trim the editor chunk (about 240 KB gzip, loads lazily after the shell).
 - [x] Logout only cleared the browser cookie. *Done 2026-11-17: sessions carry an epoch (`ep`, stored in the settings table); a signed-in logout raises it, so a copied cookie stops working. It signs out every device. An anonymous call to `/api/logout` changes nothing.*
-- [ ] A botnet with 25+ addresses can make the owner wait at login while an attack lasts.
+- [x] A botnet with 25+ addresses could make the owner wait at login. *Done 2026-11-17: an address that signed in within the last 7 days (kept in memory) skips the shared queue under pressure; it keeps its own limit of five wrong guesses a minute. A new address or a restart still waits; the queue itself is unchanged.*
 - [ ] WP13 backlog (post-v1) in `docs/spec/implementation-plan.md`.

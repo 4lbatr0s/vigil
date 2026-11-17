@@ -9,6 +9,8 @@ const MAX_FAILURES = 5;
 const WINDOW_MS = 60_000;
 /** Across all addresses: a spray from many addresses (or forged ones) still runs into this. */
 const GLOBAL_MAX_FAILURES = 40;
+/** How long an address that signed in counts as known. */
+const KNOWN_MS = 7 * 24 * 3600 * 1000;
 
 /** Failed logins per client address: five inside a minute locks that address out for the rest of the minute. */
 export class LoginLimiter {
@@ -32,8 +34,22 @@ export class LoginLimiter {
     if (this.seen.size > 10_000) for (const [k, v] of this.seen) if (now - v.firstAt >= WINDOW_MS) this.seen.delete(k);
   }
 
-  succeed(ip: string): void {
+  succeed(ip: string, now: number = Date.now()): void {
     this.seen.delete(ip);
+    this.known.set(ip, now);
+    if (this.known.size > 1000) for (const [k, t] of this.known) if (now - t >= KNOWN_MS) this.known.delete(k);
+  }
+
+  /** Addresses that signed in successfully in the last week (kept in memory only, so a restart forgets them). */
+  private readonly known = new Map<string, number>();
+
+  /**
+   * True for an address that recently signed in. Under pressure it skips the shared queue, so a spray from many
+   * addresses cannot make the owner wait at their usual address; its own five-failures-a-minute limit still applies.
+   */
+  isKnown(ip: string, now: number = Date.now()): boolean {
+    const at = this.known.get(ip);
+    return at !== undefined && now - at < KNOWN_MS;
   }
 
   private globalFailures: number[] = [];
@@ -79,6 +95,7 @@ export class LoginLimiter {
 
   reset(): void {
     this.seen.clear();
+    this.known.clear();
     this.globalFailures = [];
     this.nextFree = 0;
     this.queued = 0;
@@ -209,7 +226,7 @@ export async function handleAuth(req: IncomingMessage, res: ServerResponse, path
     // parallel requests cannot all pass it; a correct token takes its count back below.
     const pressured = limiter.globalBlocked();
     limiter.globalFail();
-    if (pressured && !(await limiter.slot(ip))) {
+    if (pressured && !limiter.isKnown(ip) && !(await limiter.slot(ip))) {
       throw new AppError("too-many-attempts", "Too many tries. Wait a minute and try again.", 429);
     }
     const body = await readBody(req);

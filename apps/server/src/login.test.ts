@@ -120,6 +120,21 @@ describe("login", () => {
     expect(Date.now() - t0).toBeGreaterThanOrEqual(200);
   });
 
+  it("an address that signed in before is not held up by a spray from other addresses", async () => {
+    setPressureSpacingForTests(400);
+    const from = (ip: string, token: string) => call("POST", "/api/login", { body: { token }, headers: { host: "notes.example.com", "x-forwarded-for": ip } });
+    expect((await from("88.8.8.8", TOKEN)).status).toBe(200); // the owner signs in once from their usual address
+    for (let i = 0; i < 40; i++) expect((await from(`${20 + (i % 200)}.1.1.${1 + i}`, "wrong")).status).toBe(401);
+    // Under pressure now: a stranger's right guess waits in the queue, the owner's usual address does not.
+    const owner = Date.now();
+    expect((await from("88.8.8.8", TOKEN)).status).toBe(200);
+    expect(Date.now() - owner).toBeLessThan(300);
+    // The known address is still limited to five wrong guesses a minute.
+    const wrong = [];
+    for (let i = 0; i < 6; i++) wrong.push((await from("88.8.8.8", "wrong")).status);
+    expect(wrong).toEqual([401, 401, 401, 401, 401, 429]);
+  });
+
   it("one address cannot fill the queue: under pressure it gets two places, then is refused, whatever the token", async () => {
     setPressureSpacingForTests(300);
     for (let i = 0; i < 40; i++) await call("POST", "/api/login", { body: { token: "wrong" }, headers: { host: "notes.example.com", "x-forwarded-for": `${30 + (i % 200)}.2.2.${1 + i}` } });
