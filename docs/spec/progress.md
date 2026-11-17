@@ -241,6 +241,6 @@ Known gaps (from `docs/spec/open-questions.md`):
 - [x] True per-token chat streaming. *Done 2026-11-16: optional `stream()` on `ChatModel`; a chat turn emits `delta` lines as the model writes (the whole-reply `token` line stays as the fallback); runs nobody watches still use one call. Verified on Ollama, including a tool-call turn.*
 - [x] Trim long chat history. *Done 2026-11-16: each model call gets the system message plus the newest whole turns within 48,000 characters (`history.ts`); the stored conversation stays whole. Summarising older turns is not done.*
 - [ ] Trim the editor chunk (about 240 KB gzip, loads lazily after the shell).
-- [ ] Logout only clears the browser cookie; add a server-side session epoch if copied cookies matter.
+- [x] Logout only cleared the browser cookie. *Done 2026-11-17: sessions carry an epoch (`ep`, stored in the settings table); a signed-in logout raises it, so a copied cookie stops working. It signs out every device. An anonymous call to `/api/logout` changes nothing.*
 - [ ] A botnet with 25+ addresses can make the owner wait at login while an attack lasts.
 - [ ] WP13 backlog (post-v1) in `docs/spec/implementation-plan.md`.

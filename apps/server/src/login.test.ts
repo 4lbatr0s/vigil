@@ -6,7 +6,7 @@ import path from "node:path";
 import { resetLimiterForTests, setPressureSpacingForTests, clientIp, cookieSecure } from "./auth";
 import { closeDb } from "./index-db";
 import { start, type RunningServer } from "./server";
-import { COOKIE_NAME, makeSession, resetSessionKeyCache, sessionKeyPath, verifySession } from "./session";
+import { COOKIE_NAME, bumpSessionEpoch, makeSession, sessionEpoch, resetSessionKeyCache, sessionKeyPath, verifySession } from "./session";
 import { closeState } from "./state-db";
 import type { Access } from "./access";
 import type { IncomingMessage } from "node:http";
@@ -264,5 +264,37 @@ describe("client address and Secure flag behind a proxy", () => {
     expect(cookieSecure(fakeReq({ host: "localhost", "x-forwarded-proto": "https" }), access)).toBe(false); // not a listed host: ignored
     process.env.VIGIL_COOKIE_SECURE = "1";
     expect(cookieSecure(fakeReq({ host: "localhost" }), access)).toBe(true);
+  });
+});
+
+describe("logout ends every session", () => {
+  const cookieHeader = (r: Res): string => cookieOf(r).split(";")[0] ?? "";
+
+  it("a signed-in logout makes a copied cookie stop working", async () => {
+    const first = cookieHeader(await login(TOKEN));
+    const copy = first; // what someone who copied the cookie holds
+    expect((await call("GET", "/api/notes", { headers: { cookie: copy } })).status).toBe(200);
+    expect((await call("POST", "/api/logout", { headers: { cookie: first } })).status).toBe(200);
+    expect((await call("GET", "/api/notes", { headers: { cookie: copy } })).status).toBe(401);
+    // Signing in again works and gives a cookie of the new epoch.
+    const again = cookieHeader(await login(TOKEN));
+    expect((await call("GET", "/api/notes", { headers: { cookie: again } })).status).toBe(200);
+  });
+
+  it("an anonymous logout changes nothing for anyone else", async () => {
+    const mine = cookieHeader(await login(TOKEN));
+    const before = sessionEpoch();
+    expect((await call("POST", "/api/logout")).status).toBe(200);
+    expect(sessionEpoch()).toBe(before);
+    expect((await call("GET", "/api/notes", { headers: { cookie: mine } })).status).toBe(200);
+  });
+
+  it("raising the epoch refuses a session made before", () => {
+    const now = Date.now();
+    const fresh = makeSession(TOKEN, now, 60);
+    expect(verifySession(fresh, TOKEN, now)).toBe(true);
+    bumpSessionEpoch();
+    expect(verifySession(fresh, TOKEN, now)).toBe(false);
+    expect(verifySession(makeSession(TOKEN, now, 60), TOKEN, now)).toBe(true);
   });
 });

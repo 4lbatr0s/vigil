@@ -3,7 +3,7 @@ import { timingSafeEqual } from "node:crypto";
 import { type Access, hostNameOf } from "./access";
 import { AppError } from "./errors";
 import { isPublicAddress } from "./safe-fetch";
-import { hasValidSession, makeSession, sessionCookie } from "./session";
+import { bumpSessionEpoch, hasValidSession, makeSession, sessionCookie } from "./session";
 
 const MAX_FAILURES = 5;
 const WINDOW_MS = 60_000;
@@ -188,6 +188,8 @@ export async function handleAuth(req: IncomingMessage, res: ServerResponse, path
     return true;
   }
   if (pathname === "/api/logout" && req.method === "POST") {
+    // Only someone who is signed in can end every session; an anonymous call just clears its own (absent) cookie.
+    if (access.token !== undefined && hasValidSession(req, access.token)) bumpSessionEpoch();
     send(res, 200, { data: { ok: true } }, sessionCookie("", cookieSecure(req, access), true));
     return true;
   }

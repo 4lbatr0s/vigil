@@ -2,7 +2,7 @@ import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import type { IncomingMessage } from "node:http";
 import path from "node:path";
-import { statePath } from "./state-db";
+import { getSetting, putSetting, statePath } from "./state-db";
 
 export const COOKIE_NAME = "vigil_session";
 export const SESSION_SECONDS = 30 * 24 * 3600;
@@ -36,6 +36,21 @@ export function resetSessionKeyCache(): void {
   cached = null;
 }
 
+/**
+ * Every session carries the epoch it was made in. Logging out raises the epoch, so a copy of the cookie (taken from
+ * a browser, a backup or a log) stops working too, not only the one the browser deletes. It signs out every device.
+ */
+export function sessionEpoch(): number {
+  const v = getSetting("sessionEpoch");
+  return typeof v === "number" && Number.isInteger(v) && v >= 0 ? v : 0;
+}
+
+export function bumpSessionEpoch(): number {
+  const next = sessionEpoch() + 1;
+  putSetting("sessionEpoch", next);
+  return next;
+}
+
 const b64 = (buf: Buffer): string => buf.toString("base64url");
 
 /**
@@ -50,9 +65,9 @@ function sign(payload: string, secret: string): string {
   return b64(createHmac("sha256", signingKey(secret)).update(payload).digest());
 }
 
-/** `<payload>.<signature>`: payload is base64url of {"exp": unix seconds}. `secret` is the configured access token. */
+/** `<payload>.<signature>`: payload is base64url of {"exp": unix seconds, "ep": epoch}. `secret` is the configured access token. */
 export function makeSession(secret: string, nowMs: number = Date.now(), ttlSeconds: number = SESSION_SECONDS): string {
-  const payload = b64(Buffer.from(JSON.stringify({ exp: Math.floor(nowMs / 1000) + ttlSeconds })));
+  const payload = b64(Buffer.from(JSON.stringify({ exp: Math.floor(nowMs / 1000) + ttlSeconds, ep: sessionEpoch() })));
   return `${payload}.${sign(payload, secret)}`;
 }
 
@@ -66,8 +81,10 @@ export function verifySession(value: string | undefined, secret: string, nowMs: 
   const expected = Buffer.from(sign(payload, secret));
   if (given.length !== expected.length || !timingSafeEqual(given, expected)) return false;
   try {
-    const parsed = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as { exp?: unknown };
-    return typeof parsed.exp === "number" && Number.isFinite(parsed.exp) && parsed.exp * 1000 > nowMs;
+    const parsed = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as { exp?: unknown; ep?: unknown };
+    // A cookie from before epochs existed has none, which counts as epoch 0.
+    const ep = parsed.ep === undefined ? 0 : parsed.ep;
+    return typeof parsed.exp === "number" && Number.isFinite(parsed.exp) && parsed.exp * 1000 > nowMs && ep === sessionEpoch();
   } catch {
     return false;
   }
