@@ -155,7 +155,7 @@ Chosen from the research (spaced repetition tied to notes, active processing ove
 - [x] Calendar for daily notes (month grid, note and study-day marks, `/?daily=YYYY-MM-DD`)
 - [x] Card quality hints (`lintCard`) in the card maker, stuck-card prompt after 6 lapses
 - [x] Exam dates: migration 11 `goals`, retention steps, review cap, `/api/goals`, Study page form, Today line
-- [ ] Note recall check (migration 12, `recall-checker` agent)
+- [x] Note recall check (migration 12 `note_recall`, ladder 1/3/7/21 days, `recall-checker` agent, `/recall` page, Today card). Live check with the local 4B model: quoted real lines and caught a wrong claim; labels were a little sloppy, so the learner always rates the result themselves
 - [ ] Active note scaffold (`outliner` agent, Cornell template)
 - [ ] Anki text export and import
 - [ ] Forecast strip, desired retention and new-per-day settings, interleaving, weak-spot list

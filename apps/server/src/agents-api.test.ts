@@ -117,7 +117,7 @@ describe("agents and runs api", () => {
 
   it("lists the templates and creates an agent from one, switched off and unscheduled", async () => {
     const list = await req("GET", "/api/agent-templates");
-    expect(list.json.data).toHaveLength(9);
+    expect(list.json.data).toHaveLength(10);
     const made = await req("POST", "/api/agents/from-template/morning-digest", {});
     expect(made.status).toBe(201);
     const template = list.json.data.find((t: { id: string }) => t.id === "morning-digest");

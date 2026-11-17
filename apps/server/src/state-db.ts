@@ -185,6 +185,17 @@ export const MIGRATIONS: readonly string[] = [
     PRIMARY KEY (scope_kind, scope_value)
   );
   `,
+  `
+  -- migration 12: note recall checks (ADR-0020). A note on a short ladder of days; the learner writes what
+  -- they remember and the step moves with how it went.
+  CREATE TABLE note_recall (
+    note_id TEXT PRIMARY KEY,
+    step INTEGER NOT NULL,
+    due TEXT NOT NULL,
+    last_result TEXT,
+    updated_at TEXT NOT NULL
+  );
+  `,
 ];
 
 let current: { key: string; db: Database.Database } | null = null;
@@ -814,4 +825,30 @@ export function setGoal(goal: GoalRow, now: Date): void {
 
 export function removeGoal(kind: "note" | "tag", value: string): boolean {
   return open().prepare("DELETE FROM goals WHERE scope_kind = ? AND scope_value = ?").run(kind, value).changes > 0;
+}
+
+// ---- Note recall checks (migration 12) ----
+
+export type RecallRow = { noteId: string; step: number; due: string; lastResult: string | null };
+
+type RecallDbRow = { note_id: string; step: number; due: string; last_result: string | null };
+const toRecall = (r: RecallDbRow): RecallRow => ({ noteId: r.note_id, step: r.step, due: r.due, lastResult: r.last_result });
+
+export function listRecall(): RecallRow[] {
+  return (open().prepare("SELECT note_id, step, due, last_result FROM note_recall ORDER BY due").all() as RecallDbRow[]).map(toRecall);
+}
+
+export function getRecall(noteId: string): RecallRow | null {
+  const r = open().prepare("SELECT note_id, step, due, last_result FROM note_recall WHERE note_id = ?").get(noteId) as RecallDbRow | undefined;
+  return r ? toRecall(r) : null;
+}
+
+export function saveRecall(row: RecallRow, now: Date): void {
+  open()
+    .prepare("INSERT INTO note_recall (note_id, step, due, last_result, updated_at) VALUES (?, ?, ?, ?, ?) ON CONFLICT(note_id) DO UPDATE SET step = excluded.step, due = excluded.due, last_result = excluded.last_result, updated_at = excluded.updated_at")
+    .run(row.noteId, row.step, row.due, row.lastResult, now.toISOString());
+}
+
+export function removeRecall(noteId: string): boolean {
+  return open().prepare("DELETE FROM note_recall WHERE note_id = ?").run(noteId).changes > 0;
 }

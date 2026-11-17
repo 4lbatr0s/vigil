@@ -27,10 +27,11 @@ import { refreshSchedule } from "./scheduler";
 import { llmStatus } from "./llm-status";
 import { usage } from "./usage";
 import { getRunResult } from "./state-db";
+import { ResultBodySchema, enroll, recordResult } from "./recall";
 import { GoalBodySchema, goalStatuses, validGoalDay } from "./goals";
 import { NEW_PER_SESSION, answerCard, deckStats, dueCards, studyHistory, studyStats, undoAnswer } from "./study";
 import { cardsForNote } from "./index-db";
-import { addPin, approvalsForRun, clearHeartbeat, decideApproval, getApproval, listApprovals, listChatThreads, getAgent, getHeartbeat, getRun, getSchedule, listAgents, listEvents, listPins, listRuns, putAgent, putSchedule, removeGoal, removePin, setGoal } from "./state-db";
+import { addPin, approvalsForRun, clearHeartbeat, decideApproval, getApproval, listApprovals, listChatThreads, getAgent, getHeartbeat, getRun, getSchedule, listAgents, listEvents, listPins, listRuns, putAgent, listRecall, putSchedule, removeGoal, removePin, removeRecall, setGoal } from "./state-db";
 import { createNote, deleteNote, getNote as vaultGetNote, slugify, updateNote, validateId } from "./vault";
 
 const MAX_BODY_BYTES = 2 * 1024 * 1024;
@@ -270,6 +271,62 @@ const routes: { method: string; pattern: RegExp; keys: string[]; handler: Handle
     handler: (_req, res, params) => {
       removePin(params["id"] ?? "");
       send(res, 200, { data: listPins() });
+    },
+  },
+  {
+    method: "GET",
+    pattern: /^\/api\/recall$/,
+    keys: [],
+    handler: (_req, res) => {
+      send(res, 200, { data: listRecall().map((r) => ({ ...r, isDue: new Date(r.due).getTime() <= Date.now() })) });
+    },
+  },
+  {
+    method: "PUT",
+    pattern: /^\/api\/recall\/([^/]+)$/,
+    keys: ["id"],
+    handler: (_req, res, params) => {
+      const id = params["id"] ?? "";
+      if (indexGetNote(id) === null) throw new AppError("note-not-found", `Note not found: ${id}`, 404);
+      send(res, 200, { data: enroll(id, new Date()) });
+    },
+  },
+  {
+    method: "DELETE",
+    pattern: /^\/api\/recall\/([^/]+)$/,
+    keys: ["id"],
+    handler: (_req, res, params) => {
+      removeRecall(params["id"] ?? "");
+      send(res, 200, { data: { ok: true } });
+    },
+  },
+  {
+    method: "POST",
+    pattern: /^\/api\/recall\/([^/]+)\/result$/,
+    keys: ["id"],
+    handler: async (req, res, params) => {
+      const parsed = ResultBodySchema.safeParse(await readJsonBody(req));
+      if (!parsed.success) throw new AppError("invalid-body", "Body must be { result: most | some | little }", 400);
+      send(res, 200, { data: recordResult(params["id"] ?? "", parsed.data.result, new Date()) });
+    },
+  },
+  {
+    // Starts the Recall checker on a note and what the learner wrote from memory. The agent has no tools (ADR-0020).
+    method: "POST",
+    pattern: /^\/api\/notes\/([^/]+)\/recall-check$/,
+    keys: ["id"],
+    handler: async (req, res, params) => {
+      const id = params["id"] ?? "";
+      const parsed = z.object({ recall: z.string().max(6_000) }).safeParse(await readJsonBody(req));
+      if (!parsed.success) throw new AppError("invalid-body", "Body must be { recall: string } of at most 6000 characters", 400);
+      const note = indexGetNote(id);
+      if (note === null) throw new AppError("note-not-found", `Note not found: ${id}`, 404);
+      const agent = getAgent("recall-checker");
+      if (!agent) throw new AppError("agent-not-found", "Add the Recall checker agent first (Agents, then the Recall checker template).", 404);
+      if (!agent.enabled) throw new AppError("agent-disabled", "The Recall checker agent is switched off. Turn it on from the Agents page.", 409);
+      const text = (note.body ?? "").slice(0, 20_000);
+      const run = startRun("recall-checker", `Check what I remember of this note (id ${id}, title "${note.title}").\n\nNOTE START\n${text}\nNOTE END\n\nRECALL START\n${parsed.data.recall}\nRECALL END`, "manual");
+      send(res, 202, { data: run });
     },
   },
   {

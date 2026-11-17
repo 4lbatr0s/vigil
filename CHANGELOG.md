@@ -4,6 +4,7 @@
 
 A note app first, with agents inside it.
 
+- Study: recall checks (ADR-0020). Write what you remember of a note, an agent shows what you covered and missed from the note itself, and the note comes back after 1, 3, 7 and 21 days.
 - Study: exam dates (ADR-0019) for a note or a tag. Reviews are paced to land before the day and the retention target rises in the last weeks. Today shows where the nearest one stands.
 - Study: card hints (long answer, a list, yes or no, several blanks, front not a question) when the card maker proposes cards, and a prompt on cards you have forgotten six times.
 - Notes: a calendar for daily notes with marks for days that have a note and days you studied.

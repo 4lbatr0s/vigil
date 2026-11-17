@@ -377,6 +377,7 @@
         <div class="actions">
           <button type="button" class="act" onclick={() => (studyOpen = true)}>Study</button>
           <button type="button" class="act" onclick={() => (cardsOpen = true)}>Make cards</button>
+          <a class="act" href={`/recall?note=${encodeURIComponent(selectedId ?? "")}`} title="Write what you remember, then see what you missed">Recall</a>
           <RenameNote noteId={selectedId ?? ""} title={draft.title} onrenamed={onRenamed} />
           <DeleteNote noteId={selectedId ?? ""} title={draft.title} ondeleted={onDeleted} />
         </div>

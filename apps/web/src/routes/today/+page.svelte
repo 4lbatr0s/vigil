@@ -2,7 +2,7 @@
   import Illustration from "$lib/components/Illustration.svelte";
   import { onMount } from "svelte";
   import type { Run } from "@vigil/shared";
-  import { ApiError, getGoals, getStudyStats, listApprovals, listNotes, listRuns, undoRun, type ApprovalItem, type Goal, type StudyStats } from "$lib/api";
+  import { ApiError, getGoals, getRecall, getStudyStats, listApprovals, listNotes, listRuns, undoRun, type ApprovalItem, type Goal, type RecallItem, type StudyStats } from "$lib/api";
   import StatusDot from "$lib/components/StatusDot.svelte";
   import { refreshOnLive } from "$lib/live";
   import { goalLine, nextGoal } from "$lib/goals";
@@ -16,6 +16,7 @@
   let titles = $state(new Map<string, string>());
   let study = $state<StudyStats | null>(null);
   let goals = $state<Goal[]>([]);
+  let recallDue = $state<RecallItem[]>([]);
   const exam = $derived(nextGoal(goals));
   let since = $state<string | null>(null);
   let loading = $state(true);
@@ -31,6 +32,7 @@
     try {
       const [r, a, notes, st] = await Promise.all([listRuns({ limit: 100 }), listApprovals("pending"), listNotes(), getStudyStats()]);
       goals = await getGoals().catch(() => [] as Goal[]);
+      recallDue = (await getRecall().catch(() => [] as RecallItem[])).filter((r) => r.isDue);
       runs = r;
       pending = a;
       study = st;
@@ -95,6 +97,20 @@
           {#if exam}<p>{goalLine(exam)}</p>{/if}
           <p class="muted">A few minutes now is worth more than an hour of rereading later.</p>
           <div class="actions"><a class="btn primary" href="/study">Start studying</a></div>
+        </div>
+      </section>
+    {/if}
+
+    {#if recallDue.length > 0}
+      <section aria-labelledby="recall">
+        <h2 id="recall">Recall</h2>
+        <div class="card">
+          <p><strong>{recallDue.length === 1 ? "A note is" : `${recallDue.length} notes are`} ready to recall.</strong> Write what you remember, then see what you missed.</p>
+          <div class="actions">
+            {#each recallDue.slice(0, 3) as r (r.noteId)}
+              <a class="btn" href={`/recall?note=${encodeURIComponent(r.noteId)}`} data-sveltekit-reload>{titles.get(r.noteId) ?? r.noteId}</a>
+            {/each}
+          </div>
         </div>
       </section>
     {/if}
