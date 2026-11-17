@@ -2,7 +2,7 @@
   import Illustration from "$lib/components/Illustration.svelte";
   import { onMount } from "svelte";
   import type { Run } from "@vigil/shared";
-  import { ApiError, getGoals, getRecall, getStudyStats, listApprovals, listNotes, listRuns, undoRun, type ApprovalItem, type Goal, type RecallItem, type StudyStats } from "$lib/api";
+  import { ApiError, captureLine, createFromTemplate, getGoals, getRecall, getStudyStats, listAgents, listApprovals, listNotes, listRuns, putAgent, runAgent, undoRun, type ApprovalItem, type Goal, type RecallItem, type StudyStats } from "$lib/api";
   import StatusDot from "$lib/components/StatusDot.svelte";
   import { refreshOnLive } from "$lib/live";
   import { goalLine, nextGoal } from "$lib/goals";
@@ -23,6 +23,10 @@
   let loadError = $state("");
   let errors = $state(new Map<string, string>());
   let asking = $state<string | null>(null);
+  let captured = $state("");
+  let captureNote = $state("");
+  let capturing = $state(false);
+  let filing = $state(false);
 
   const items = $derived(sinceVisit(runs, since));
   const hour = new Date().getHours();
@@ -50,6 +54,39 @@
     void load();
     return refreshOnLive(load, ["run", "approval"], 8000);
   });
+
+  async function addCapture(event: SubmitEvent): Promise<void> {
+    event.preventDefault();
+    const text = captured.trim();
+    if (text === "" || capturing) return;
+    capturing = true;
+    try {
+      await captureLine(text);
+      captured = "";
+      captureNote = "Added to your Inbox note.";
+    } catch (err) {
+      captureNote = err instanceof ApiError ? err.detail : err instanceof Error ? err.message : "Could not add it";
+    } finally {
+      capturing = false;
+    }
+  }
+
+  /** Starts the Inbox triager once. Its writes wait in "Needs you" for your yes (the template is strict). */
+  async function fileInbox(): Promise<void> {
+    if (filing) return;
+    filing = true;
+    try {
+      let agent = (await listAgents()).find((a) => a.name === "inbox-triager");
+      if (!agent) agent = await createFromTemplate("inbox-triager");
+      if (!agent.enabled) agent = await putAgent({ ...agent, enabled: true });
+      await runAgent(agent.name);
+      captureNote = "Filing started. What it proposes will wait under “Needs you” for your yes.";
+    } catch (err) {
+      captureNote = err instanceof ApiError ? err.detail : err instanceof Error ? err.message : "Could not start filing";
+    } finally {
+      filing = false;
+    }
+  }
 
   function seen(): void {
     markSeen();
@@ -86,6 +123,15 @@
   {:else if loading}
     <p class="muted">Loading…</p>
   {:else}
+    <section aria-labelledby="capture">
+      <h2 id="capture">Capture</h2>
+      <form class="capture" onsubmit={addCapture}>
+        <input type="text" bind:value={captured} aria-label="Quick capture" placeholder="A thought, a task, a question…" maxlength="2000" />
+        <button type="submit" class="btn" disabled={capturing || captured.trim() === ""}>Add to Inbox</button>
+        <button type="button" class="btn" disabled={filing} onclick={() => void fileInbox()} title="An agent suggests which note each line belongs in; you approve each one">File my inbox</button>
+      </form>
+      <p class="muted" aria-live="polite">{captureNote}</p>
+    </section>
     {#if study && study.due + study.newOffered > 0}
       <section aria-labelledby="study">
         <h2 id="study">Study</h2>
@@ -186,6 +232,21 @@
 </div>
 
 <style>
+  .capture {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+  }
+  .capture input {
+    flex: 1;
+    min-width: 12rem;
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius);
+    background: var(--surface);
+    color: var(--ink);
+    font: inherit;
+  }
   .page {
     max-width: 760px;
     padding: var(--space-6);

@@ -3,6 +3,7 @@ import { z } from "zod";
 import { checkAccess, type Access } from "./access";
 import { handleAuth } from "./auth";
 import { serveStatic } from "./static";
+import { CaptureBodySchema, capture } from "./capture";
 import { AddBodySchema, addMisconceptions, resolveOne, shakyBlock } from "./misconceptions";
 import { McpSettingsSchema, handleMcp, mcpSettings, saveMcpSettings } from "./mcp";
 import { AskBodySchema, askTask, findPassages } from "./ask";
@@ -425,6 +426,17 @@ const routes: { method: string; pattern: RegExp; keys: string[]; handler: Handle
     handler: async (_req, res, params) => {
       resolveOne(params["id"] ?? "", new Date());
       send(res, 200, { data: { id: params["id"] } });
+    },
+  },
+  {
+    // Quick capture: a line at the end of the Inbox note.
+    method: "POST",
+    pattern: /^\/api\/capture$/,
+    keys: [],
+    handler: async (req, res) => {
+      const parsed = CaptureBodySchema.safeParse(await readJsonBody(req));
+      if (!parsed.success) throw new AppError("invalid-body", "Body must be { text: string } of 1 to 2000 characters", 400);
+      send(res, 201, { data: await capture(parsed.data.text) });
     },
   },
   {

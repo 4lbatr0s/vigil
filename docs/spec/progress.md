@@ -195,6 +195,11 @@ Chosen from the research (spaced repetition tied to notes, active processing ove
 - [x] Checked in the browser: the list shows on the write step. Live 4B run: the checker misread a recall (listed the mix-up as remembered, "None" under Check), so a hand-added entry exists for that case; a good checker model is untested
 - [ ] Not verified: saving after a rating in the browser end to end, and a card-maker run that uses SHAKY lines
 
+## Capture inbox and filing (same plan, 2026-11-17)
+- [x] `POST /api/capture` (one bullet line appended to the Inbox note under the note lock, created if missing, your own write), Today "Capture" box and "File my inbox" (creates and switches on the strict `inbox-triager`, runs it once); triager prompt now skips and marks `- [x]` lines
+- [x] Checked in the browser (capture added a line). Live 4B run of the triager: it did not read the Inbox and proposed replacing it with placeholder text; strict mode held the write in approvals, I rejected it and the Inbox was unchanged. A 4B model is too weak for filing; a larger model is untested
+- [ ] Not done: PWA share target, filing into a chosen note by you from a list
+
 ## WP13: after v1 (ordered backlog, do not start before the release)
 
 
