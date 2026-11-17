@@ -2,7 +2,7 @@
   import { onDestroy } from "svelte";
   import { goto } from "$app/navigation";
   import type { ToolGrant } from "@vigil/shared";
-  import { ApiError, createFromTemplate, getRun, getRunResult, listAgents, listConnections, putAgent, startAgentDesign, type Connection } from "$lib/api";
+  import { ApiError, createFromTemplate, getRun, getRunResult, listAgents, listConnections, putAgent, runAgent, startAgentDesign, type Connection } from "$lib/api";
   import { addHost } from "$lib/agent-form";
   import { designToAgent, parseDesign, whenToTrigger, type Design, type When } from "$lib/agent-design";
 
@@ -96,13 +96,15 @@
     step = "review";
   }
 
-  async function create(): Promise<void> {
+  async function create(tryIt = false): Promise<void> {
     if (busy || design.systemPrompt.trim().length < 20) return;
     busy = true;
     message = "";
     try {
       const agent = designToAgent({ design: { ...design, name: design.name || "new-agent" }, tools, trigger: triggerNow, hosts, taken: (await listAgents()).map((a) => a.name) });
       await putAgent(agent);
+      // "Try it once" runs the new agent a single time while it is still switched off; the result is on its page.
+      if (tryIt) await runAgent(agent.name);
       await goto(`/agents/${agent.name}`);
     } catch (err) {
       message = err instanceof ApiError ? err.detail : err instanceof Error ? err.message : "Could not create the agent";
@@ -191,6 +193,7 @@
       {#if message}<p class="error" role="alert">{message}</p>{/if}
       <div class="row">
         <button type="button" class="primary" disabled={busy || design.systemPrompt.trim().length < 20} onclick={() => void create()}>Create agent</button>
+        <button type="button" class="ghost" disabled={busy || design.systemPrompt.trim().length < 20 || !hasConnection} onclick={() => void create(true)} title="Creates it switched off and runs it once so you can see what it does">Create and try it once</button>
         <button type="button" class="ghost" onclick={() => (step = "describe")}>Back</button>
       </div>
     </div>
