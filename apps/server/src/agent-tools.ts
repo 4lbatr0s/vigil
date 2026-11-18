@@ -7,6 +7,7 @@ import { htmlToText, safeFetch, SafeFetchError } from "./safe-fetch";
 import { withNoteLock } from "./lock";
 import { getNote as indexedNote, listNotes, reindexNote, searchNotes } from "./index-db";
 import { semanticIds } from "./semantic";
+import { addressProblem, scrubUntrusted } from "./untrusted";
 import { learnerReport } from "./learner";
 import { addEvent, dropSnapshot, recordSnapshot, recordTouch, setWrittenUpdatedAt } from "./state-db";
 import { createNote, getNote, readNoteFile, slugify, updateNote, validateId } from "./vault";
@@ -141,12 +142,16 @@ export function buildTools(grants: ToolGrant[], ctx: ToolContext): StructuredToo
     tools.push(
       tool(
         async ({ url }) => {
+          const bad = addressProblem(url);
+          if (bad) return `error: ${bad}`;
           try {
             const page = await safeFetch(url, { allowedHosts: ctx.allowedHosts ?? [], maxBytes: 1_000_000, timeoutMs: 10_000, maxRedirects: 3 });
             if (page.status >= 400) return `error: the site answered HTTP ${page.status}`;
             const text = /html/.test(page.contentType) ? htmlToText(page.text) : page.text;
             const note = page.truncated ? "\n[the page was cut off at 1 MB]" : "";
-            return truncate(`${page.finalUrl} (HTTP ${page.status})\n\n${text}${note}`);
+            const clean = scrubUntrusted(text);
+            const warn = clean.removed > 0 ? `\n[${clean.removed} line(s) that looked like instructions to an AI were removed from this page]` : "";
+            return truncate(`${page.finalUrl} (HTTP ${page.status})\n\n${clean.text}${note}${warn}`);
           } catch (err) {
             return `error: ${err instanceof SafeFetchError ? err.message : "the request failed"}`;
           }
