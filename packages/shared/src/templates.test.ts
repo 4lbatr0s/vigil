@@ -4,7 +4,7 @@ import { TEMPLATES } from "./templates";
 
 describe("agent templates", () => {
   it("ships the v1 templates and the card maker with unique ids", () => {
-    expect(TEMPLATES.map((t) => t.id)).toEqual(["morning-digest", "weekly-review", "inbox-triager", "backlink-gardener", "research-scout", "card-maker", "socratic-tutor", "explain-it-back", "quiz-master", "recall-checker", "outliner", "study-review", "note-asker", "gap-checker", "agent-designer"]);
+    expect(TEMPLATES.map((t) => t.id)).toEqual(["morning-digest", "weekly-review", "inbox-triager", "backlink-gardener", "wiki-keeper", "research-scout", "card-maker", "socratic-tutor", "explain-it-back", "quiz-master", "recall-checker", "outliner", "study-review", "note-asker", "gap-checker", "agent-designer"]);
     expect(new Set(TEMPLATES.map((t) => t.id)).size).toBe(TEMPLATES.length);
   });
 
@@ -31,6 +31,20 @@ describe("agent templates", () => {
     expect(by["inbox-triager"]).toMatchObject({ trigger: { kind: "heartbeat", everyMinutes: 30 }, tokenBudget: 15000, strict: true });
     expect(by["backlink-gardener"]).toMatchObject({ trigger: { kind: "heartbeat", everyMinutes: 60 }, tokenBudget: 20000, strict: true });
     expect(by["research-scout"]).toMatchObject({ trigger: { kind: "manual" }, tokenBudget: 40000, strict: true, allowedHosts: [] });
+  });
+});
+
+describe("wiki keeper", () => {
+  const wiki = TEMPLATES.find((t) => t.id === "wiki-keeper");
+  it("writes only Wiki: pages, asks before every write, and cannot reach the web", () => {
+    expect(wiki?.agent).toMatchObject({ strict: true, tools: ["read_notes", "write_notes"], trigger: { kind: "heartbeat", everyMinutes: 240 } });
+    expect(wiki?.agent.systemPrompt).toMatch(/NEVER change it/);
+    expect(wiki?.agent.systemPrompt).toMatch(/Wiki: /);
+  });
+  it("makes the person able to tell sourced facts from the agent's own connections", () => {
+    expect(wiki?.agent.systemPrompt).toMatch(/EVERY bullet ends with its source/);
+    expect(wiki?.agent.systemPrompt).toMatch(/Inference:/);
+    expect(wiki?.agent.systemPrompt).toMatch(/Contradictions/);
   });
 });
 

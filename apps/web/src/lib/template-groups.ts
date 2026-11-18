@@ -3,7 +3,7 @@ import type { AgentTemplate } from "@vigil/shared";
 export const TEMPLATE_GROUPS = [
   { id: "study", title: "Study", blurb: "Helpers that make you think, not copy answers.", ids: ["card-maker", "socratic-tutor", "explain-it-back", "quiz-master", "recall-checker", "outliner", "study-review", "note-asker", "gap-checker"] },
   { id: "daily", title: "Your daily rhythm", blurb: "Run on a schedule while you are away.", ids: ["morning-digest", "weekly-review"] },
-  { id: "tidy", title: "Keeping notes tidy", blurb: "Look after your notes in the background.", ids: ["inbox-triager", "backlink-gardener", "research-scout"] },
+  { id: "tidy", title: "Keeping notes tidy", blurb: "Look after your notes in the background.", ids: ["inbox-triager", "backlink-gardener", "wiki-keeper", "research-scout"] },
 ] as const;
 
 /** Templates under their group headings, in the order above; a template no group names goes under "More" so none is ever lost. */
