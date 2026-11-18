@@ -55,6 +55,7 @@
   .page {
     padding: var(--space-6);
     max-width: 820px;
+    margin-inline: auto;
     display: grid;
     gap: var(--space-4);
   }

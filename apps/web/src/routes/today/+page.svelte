@@ -276,6 +276,7 @@
   }
   .page {
     max-width: 760px;
+    margin-inline: auto;
     padding: var(--space-6);
     display: grid;
     gap: var(--space-6);

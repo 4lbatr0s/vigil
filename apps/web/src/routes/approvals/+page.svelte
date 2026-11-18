@@ -128,6 +128,7 @@
   .page {
     padding: var(--space-6);
     max-width: 960px;
+    margin-inline: auto;
   }
   h1 {
     font-family: var(--font-serif);

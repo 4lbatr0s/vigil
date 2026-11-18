@@ -190,6 +190,7 @@
   .page {
     padding: var(--space-6);
     max-width: 760px;
+    margin-inline: auto;
   }
   h1 {
     font-family: var(--font-serif);

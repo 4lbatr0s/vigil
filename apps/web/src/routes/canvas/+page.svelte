@@ -122,6 +122,7 @@
   .page {
     padding: var(--space-6);
     max-width: 720px;
+    margin-inline: auto;
     display: grid;
     gap: var(--space-4);
   }

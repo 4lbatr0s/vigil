@@ -137,6 +137,7 @@
   .page {
     padding: var(--space-6);
     max-width: 960px;
+    margin-inline: auto;
   }
   .crumb {
     font-size: var(--text-label);

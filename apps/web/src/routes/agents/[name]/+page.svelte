@@ -400,6 +400,7 @@
   .page {
     padding: var(--space-6);
     max-width: 860px;
+    margin-inline: auto;
   }
   .when {
     display: flex;
