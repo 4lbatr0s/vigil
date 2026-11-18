@@ -2,6 +2,10 @@ import { Node, type Extensions } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
 import { Markdown } from "@tiptap/markdown";
 import Image from "@tiptap/extension-image";
+import CodeBlockLowlight from "@tiptap/extension-code-block-lowlight";
+import { common, createLowlight } from "lowlight";
+import { attachmentSrc } from "../editor/images";
+import { ICONS, calloutLook, iconElement } from "../editor/icons";
 import { Table, TableRow, TableHeader, TableCell } from "@tiptap/extension-table";
 import { TaskList, TaskItem } from "@tiptap/extension-list";
 
@@ -84,6 +88,72 @@ export const Callout = Node.create({
   addAttributes() {
     return { kind: { default: "note" }, fold: { default: "" }, title: { default: "" } };
   },
+  addNodeView() {
+    return ({ node: first, editor, getPos }) => {
+      const dom = document.createElement("div");
+      const head = document.createElement("div");
+      head.className = "callout-head";
+      head.contentEditable = "false";
+      const fold = document.createElement("button");
+      fold.type = "button";
+      fold.className = "callout-fold";
+      fold.setAttribute("aria-label", "Show or hide");
+      fold.append(iconElement(ICONS.chevronRight, 14));
+      const icon = document.createElement("span");
+      icon.className = "callout-icon";
+      const title = document.createElement("input");
+      title.className = "callout-title";
+      title.spellcheck = true;
+      const body = document.createElement("div");
+      body.className = "callout-body";
+      head.append(fold, icon, title);
+      dom.append(head, body);
+      let kind = "";
+      const paint = (attrs: { kind: string; fold: string; title: string }): void => {
+        const look = calloutLook(attrs.kind);
+        if (kind !== attrs.kind) {
+          icon.replaceChildren(iconElement(look.icon, 16));
+          kind = attrs.kind;
+        }
+        dom.className = `callout callout-${look.tone}`;
+        dom.dataset.callout = attrs.kind;
+        title.placeholder = look.label;
+        if (document.activeElement !== title) title.value = attrs.title;
+        fold.hidden = attrs.fold === "";
+        if (attrs.fold === "-" && !dom.dataset.touched) dom.classList.add("closed");
+        else if (dom.dataset.touched === "closed") dom.classList.add("closed");
+      };
+      let current = first.attrs as { kind: string; fold: string; title: string };
+      paint(current);
+      fold.addEventListener("click", () => {
+        const closed = dom.classList.toggle("closed");
+        dom.dataset.touched = closed ? "closed" : "open";
+      });
+      title.addEventListener("input", () => {
+        const pos = typeof getPos === "function" ? getPos() : undefined;
+        if (pos === undefined) return;
+        editor.view.dispatch(editor.state.tr.setNodeMarkup(pos, undefined, { ...current, title: title.value }));
+      });
+      title.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" || e.key === "ArrowDown") {
+          e.preventDefault();
+          editor.commands.focus();
+        }
+      });
+      return {
+        dom,
+        contentDOM: body,
+        update: (next) => {
+          if (next.type.name !== "callout") return false;
+          current = next.attrs as { kind: string; fold: string; title: string };
+          paint(current);
+          return true;
+        },
+        stopEvent: (event) => event.target instanceof window.Node && head.contains(event.target),
+        ignoreMutation: (m) => head.contains(m.target),
+      };
+    };
+  },
   parseHTML() {
     return [{ tag: "div[data-callout]", getAttrs: (el) => ({ kind: el.getAttribute("data-callout") ?? "note" }) }];
   },
@@ -122,8 +192,33 @@ export const Callout = Node.create({
   },
 });
 
+/** A picture whose file lives in the vault: the markdown keeps the relative path, the page shows it from the server. */
+const VaultImage = Image.extend({
+  renderHTML({ HTMLAttributes }) {
+    const src = typeof HTMLAttributes.src === "string" ? (attachmentSrc(HTMLAttributes.src) ?? HTMLAttributes.src) : "";
+    return ["img", { ...HTMLAttributes, src, loading: "lazy" }];
+  },
+});
+
+const lowlight = createLowlight(common);
+
+/** Everything the note editor and its markdown gate agree on. The same list builds the hidden editor in tests. */
 export function blockExtensions(): Extensions {
-  return [StarterKit, Markdown, Table, TableRow, TableHeader, TableCell, TaskList, TaskItem.configure({ nested: true }), Image, Wikilink, Cloze, Callout];
+  return [
+    StarterKit.configure({ codeBlock: false, link: { openOnClick: false, autolink: false } }),
+    CodeBlockLowlight.configure({ lowlight }),
+    Markdown,
+    Table,
+    TableRow,
+    TableHeader,
+    TableCell,
+    TaskList,
+    TaskItem.configure({ nested: true }),
+    VaultImage,
+    Wikilink,
+    Cloze,
+    Callout,
+  ];
 }
 
 /**

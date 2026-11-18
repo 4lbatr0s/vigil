@@ -234,6 +234,15 @@
     return () => clearTimeout(timer);
   });
 
+  // The block editor is behind a switch while it is built: localStorage "vigil.blocks" = "1".
+  const blockEditorOn = (() => {
+    try {
+      return localStorage.getItem("vigil.blocks") === "1";
+    } catch {
+      return false;
+    }
+  })();
+
   function onDocChange(next: string) {
     if (!draft) return;
     draft.body = next;
@@ -439,9 +448,15 @@
               <p class="title-hint" id="title-hint">The file name stays the same. Use Rename to change it.</p>
             {/if}
           <!-- The editor (CodeMirror) is the heavy part: load it after the shell and list. -->
-          {#await import("$lib/components/Editor.svelte") then { default: Editor }}
-            {#key reloadKey}<Editor value={draft.body} noteId={selectedId ?? ""} onDocChange={onDocChange} onOpenWikilink={(t) => void openWikilink(t)} getTitles={() => notes.map((n) => n.title)} getTitle={() => draft?.title} onProblem={(m) => (status = m)} onAsk={(sel) => ((askSelection = sel), (askOpen = true))} {jumpLine} />{/key}
-          {/await}
+          {#if blockEditorOn}
+            {#await import("$lib/components/NoteEditor.svelte") then { default: NoteEditor }}
+              {#key reloadKey}<NoteEditor value={draft.body} noteId={selectedId ?? ""} onDocChange={onDocChange} onOpenWikilink={(t) => void openWikilink(t)} getTitles={() => notes.map((n) => n.title)} getTitle={() => draft?.title} onProblem={(m) => (status = m)} onAsk={(sel) => ((askSelection = sel), (askOpen = true))} {jumpLine} />{/key}
+            {/await}
+          {:else}
+            {#await import("$lib/components/Editor.svelte") then { default: Editor }}
+              {#key reloadKey}<Editor value={draft.body} noteId={selectedId ?? ""} onDocChange={onDocChange} onOpenWikilink={(t) => void openWikilink(t)} getTitles={() => notes.map((n) => n.title)} getTitle={() => draft?.title} onProblem={(m) => (status = m)} onAsk={(sel) => ((askSelection = sel), (askOpen = true))} {jumpLine} />{/key}
+            {/await}
+          {/if}
           </div>
         </section>
       </div>

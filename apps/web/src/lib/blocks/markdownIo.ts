@@ -5,7 +5,7 @@ import { blockExtensions, normalize } from "./extensions";
 export function throughEditor(md: string): string {
   const editor = new Editor({ element: document.createElement("div"), extensions: blockExtensions(), content: md, contentType: "markdown" });
   try {
-    return editor.getMarkdown();
+    return tidyMarkdown(editor.getMarkdown());
   } finally {
     editor.destroy();
   }
@@ -17,4 +17,26 @@ export function throughEditor(md: string): string {
  */
 export function roundTrips(md: string): boolean {
   return normalize(throughEditor(md)) === normalize(md);
+}
+
+/**
+ * The markdown the editor wrote, tidied: no run of blank lines between blocks (code is left exactly as it is) and
+ * one line break at the end, like the files Vigil writes itself.
+ */
+export function tidyMarkdown(md: string): string {
+  const out: string[] = [];
+  let fence = false;
+  let blank = 0;
+  for (const line of md.split("\n")) {
+    if (/^\s*(```|~~~)/.test(line)) fence = !fence;
+    if (!fence && line.trim() === "") {
+      blank += 1;
+      if (blank > 1) continue;
+    } else {
+      blank = 0;
+    }
+    out.push(line);
+  }
+  const text = out.join("\n").replace(/\n+$/, "");
+  return text === "" ? "" : `${text}\n`;
 }

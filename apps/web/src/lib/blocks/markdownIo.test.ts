@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { roundTrips, throughEditor } from "./markdownIo";
+import { roundTrips, throughEditor, tidyMarkdown } from "./markdownIo";
 import { normalize } from "./extensions";
 
 const SAFE: Record<string, string> = {
@@ -27,18 +27,24 @@ describe("round trip through the block editor", () => {
   }
 
   it("writes wikilinks and cloze exactly as typed, not escaped", () => {
-    expect(throughEditor("a [[B|c]] {{c2::d}}")).toBe("a [[B|c]] {{c2::d}}");
+    expect(throughEditor("a [[B|c]] {{c2::d}}")).toBe("a [[B|c]] {{c2::d}}\n");
   });
 
   it("keeps code exactly, including blank lines and indentation", () => {
     const md = "```py\ndef f():\n\n    return 1\n```";
-    expect(throughEditor(md)).toBe(md);
+    expect(throughEditor(md)).toBe(`${md}\n`);
   });
 
   it("sends notes with syntax it cannot keep to the plain markdown editor", () => {
     expect(roundTrips("Text with a note[^1].\n\n[^1]: The note.")).toBe(false);
     expect(roundTrips("<!-- hidden comment -->\n\nText")).toBe(false);
     expect(roundTrips("<div class=\"x\">raw html</div>")).toBe(false);
+  });
+
+  it("tidies blank lines and the final line break, but never touches code", () => {
+    expect(tidyMarkdown("a\n\n\n\nb\n\n")).toBe("a\n\nb\n");
+    expect(tidyMarkdown("```\na\n\n\nb\n```\n\n\nc")).toBe("```\na\n\n\nb\n```\n\nc\n");
+    expect(tidyMarkdown("")).toBe("");
   });
 
   it("is not fooled by a changed word", () => {
