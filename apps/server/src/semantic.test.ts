@@ -8,7 +8,7 @@ import { findPassages } from "./ask";
 const note = (id: string, title: string, body: string): Note => ({ id, title, body, updatedAt: "2026-01-01T00:00:00.000Z", tags: [], author: "human" });
 
 /** A stand-in embedding server: text about animals points one way, text about money the other. */
-function fakeEmbedServer(): ReturnType<typeof vi.spyOn> {
+function fakeEmbedServer() {
   return vi.spyOn(globalThis, "fetch").mockImplementation(async (_url, init) => {
     const input = (JSON.parse(String((init as RequestInit).body)) as { input: string[] }).input;
     const vec = (t: string): number[] => (/cat|dog|pet|feline/i.test(t) ? [1, 0.05] : /tax|money|bank/i.test(t) ? [0.05, 1] : [0.5, 0.5]);
