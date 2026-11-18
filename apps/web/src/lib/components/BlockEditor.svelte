@@ -1,13 +1,21 @@
 <script lang="ts">
   import { untrack } from "svelte";
   import { Editor, Extension } from "@tiptap/core";
+  import { Selection } from "@tiptap/pm/state";
   import { Placeholder } from "@tiptap/extensions";
   import { blockExtensions } from "$lib/blocks/extensions";
   import { titleLine } from "$lib/blocks/titleLine";
   import { tidyMarkdown } from "$lib/blocks/markdownIo";
   import { tagMarks } from "$lib/blocks/tagMarks";
+  import { blockHandle } from "$lib/blocks/blockHandle";
+  import { deleteUnit, duplicateUnit, moveUnit, unitAt } from "$lib/blocks/moves";
+  import { slashItems, type SlashItem } from "$lib/blocks/slashItems";
+  import { suggest, type Popup } from "$lib/blocks/suggest";
+  import { rank } from "$lib/fuzzy";
   import { imageFiles, imageProblem } from "$lib/editor/images";
   import { uploadImage } from "$lib/api";
+  import Icon from "$lib/components/Icon.svelte";
+  import PopupMenu, { type MenuItem } from "$lib/components/PopupMenu.svelte";
 
   let {
     value = "",
@@ -15,6 +23,7 @@
     onDocChange,
     onOpenWikilink,
     onProblem,
+    getTitles,
     getTitle,
     onAsk,
   }: {
@@ -25,14 +34,25 @@
     onOpenWikilink?: (title: string) => void;
     /** A short message when a pasted or dropped image cannot be added. */
     onProblem?: (message: string) => void;
+    /** Note titles for `[[` completion, read each time the list opens. */
+    getTitles?: () => string[];
     /** The note's title: a first heading that repeats it is hidden, the page shows it already. */
     getTitle?: () => string | undefined;
-    /** Cmd/Ctrl+J: the page opens "Ask an agent" with the selected text. */
+    /** Cmd/Ctrl+J, the toolbar button or `/ask`: the page opens "Ask an agent" with the selected text. */
     onAsk?: (selection: string) => void;
   } = $props();
 
   let host = $state<HTMLDivElement | undefined>(undefined);
+  let wrap = $state<HTMLDivElement | undefined>(undefined);
+  let fileInput = $state<HTMLInputElement | undefined>(undefined);
   let editor = $state.raw<Editor | undefined>(undefined);
+  /** The pop-up list under the caret (the `/` menu or the `[[` note picker). */
+  let popup = $state<Popup | null>(null);
+  let menu = $state<{ x: number; y: number; items: MenuItem[] } | null>(null);
+  /** The floating format bar over a selection; `link` turns it into a one-line address field. */
+  let bar = $state<{ left: number; top: number } | null>(null);
+  let link = $state<string | null>(null);
+  let active = $state({ bold: false, italic: false, strike: false, code: false, link: false });
 
   async function addImages(files: File[]): Promise<void> {
     for (const file of files) {
@@ -51,6 +71,106 @@
   }
 
   const selectedText = (e: Editor): string => e.state.doc.textBetween(e.state.selection.from, e.state.selection.to, "\n");
+
+  // ---- the block menu (grip click) ----
+
+  function openBlockMenu(at: { x: number; y: number }, from: number): void {
+    const e = editor;
+    if (!e) return;
+    const unit = unitAt(e.state.doc, from + 1);
+    if (!unit) return;
+    const inside = (): void => {
+      e.view.dispatch(e.state.tr.setSelection(Selection.near(e.state.doc.resolve(Math.min(unit.from + 1, e.state.doc.content.size)), 1)));
+    };
+    const turn = (label: string, hint: string, run: (c: ReturnType<Editor["chain"]>) => ReturnType<Editor["chain"]>): MenuItem => ({
+      label,
+      hint,
+      run: () => {
+        inside();
+        run(e.chain().focus()).run();
+      },
+    });
+    const move = (gap: number): void => {
+      const tr = e.state.tr;
+      if (moveUnit(tr, unit, gap)) e.view.dispatch(tr.scrollIntoView());
+      e.commands.focus();
+    };
+    menu = {
+      ...at,
+      items: [
+        turn("Text", "", (c) => c.clearNodes()),
+        turn("Heading 1", "#", (c) => c.clearNodes().setHeading({ level: 1 })),
+        turn("Heading 2", "##", (c) => c.clearNodes().setHeading({ level: 2 })),
+        turn("Heading 3", "###", (c) => c.clearNodes().setHeading({ level: 3 })),
+        turn("Bulleted list", "-", (c) => c.toggleBulletList()),
+        turn("Numbered list", "1.", (c) => c.toggleOrderedList()),
+        turn("To-do list", "[ ]", (c) => c.toggleTaskList()),
+        turn("Quote", ">", (c) => c.clearNodes().setBlockquote()),
+        turn("Callout", "[!note]", (c) => c.clearNodes().wrapIn("callout", { kind: "note", fold: "", title: "" })),
+        turn("Code block", "```", (c) => c.clearNodes().setCodeBlock()),
+        "-",
+        { label: "Duplicate", run: () => { const tr = e.state.tr; duplicateUnit(tr, unit); e.view.dispatch(tr); e.commands.focus(); } },
+        { label: "Move up", hint: "Alt Up", disabled: unit.index === 0, run: () => move(unit.index - 1) },
+        { label: "Move down", hint: "Alt Down", disabled: unit.index >= unit.count - 1, run: () => move(unit.index + 2) },
+        "-",
+        { label: "Delete", danger: true, run: () => { const tr = e.state.tr; deleteUnit(tr, unit); e.view.dispatch(tr); e.commands.focus(); } },
+      ],
+    };
+  }
+
+  /** The plus beside a block: a new empty line below it, with the `/` menu already open. */
+  function addBelow(from: number): void {
+    const e = editor;
+    if (!e) return;
+    const unit = unitAt(e.state.doc, from + 1);
+    if (!unit) return;
+    e.chain().focus().insertContentAt(unit.parent.type.name === "doc" ? unit.to : unit.to, { type: "paragraph", content: [{ type: "text", text: "/" }] }).run();
+  }
+
+  // ---- the floating format bar ----
+
+  function placeBar(e: Editor): void {
+    const { from, to, empty } = e.state.selection;
+    const inCode = e.isActive("codeBlock");
+    if (empty || !e.isFocused || inCode || !wrap) {
+      if (link === null) bar = null;
+      return;
+    }
+    const at = e.view.coordsAtPos(from);
+    const box = wrap.getBoundingClientRect();
+    const width = 8 * 32 + 20;
+    const left = Math.min(Math.max(0, at.left - box.left), Math.max(0, box.width - width));
+    const above = at.top - box.top - 46;
+    bar = { left, top: above >= 0 ? above : e.view.coordsAtPos(to).bottom - box.top + 8 };
+    active = { bold: e.isActive("bold"), italic: e.isActive("italic"), strike: e.isActive("strike"), code: e.isActive("code"), link: e.isActive("link") };
+  }
+
+  function startLink(): void {
+    link = editor?.getAttributes("link").href ?? "";
+  }
+  function applyLink(): void {
+    const e = editor;
+    const href = (link ?? "").trim();
+    link = null;
+    if (!e) return;
+    if (href === "") e.chain().focus().unsetLink().run();
+    else e.chain().focus().setLink({ href: /^[a-z][a-z0-9+.-]*:/i.test(href) ? href : `https://${href}` }).run();
+  }
+  function cloze(): void {
+    const e = editor;
+    if (!e) return;
+    const { from, to } = e.state.selection;
+    e.chain().focus().insertContentAt({ from, to }, { type: "cloze", attrs: { raw: `{{c1::${e.state.doc.textBetween(from, to, " ")}}}` } }).run();
+  }
+
+  const bubble: { label: string; icon: "type" | "pilcrow" | "code" | "link" | "brain" | "bot"; on: () => void; pressed?: () => boolean; text?: string }[] = [
+    { label: "Bold", icon: "type", text: "B", on: () => void editor?.chain().focus().toggleBold().run(), pressed: () => active.bold },
+    { label: "Italic", icon: "type", text: "I", on: () => void editor?.chain().focus().toggleItalic().run(), pressed: () => active.italic },
+    { label: "Strikethrough", icon: "type", text: "S", on: () => void editor?.chain().focus().toggleStrike().run(), pressed: () => active.strike },
+    { label: "Code", icon: "code", on: () => void editor?.chain().focus().toggleCode().run(), pressed: () => active.code },
+    { label: "Link", icon: "link", on: startLink, pressed: () => active.link },
+    { label: "Study blank", icon: "brain", on: cloze },
+  ];
 
   $effect(() => {
     // Recreate the editor when the note changes; never while typing.
@@ -91,18 +211,56 @@
           },
           "Mod-Shift-x": () => this.editor.commands.toggleStrike(),
           "Mod-Shift-h": () => {
-            const { from, to, empty } = this.editor.state.selection;
-            if (empty) return false;
-            const text = this.editor.state.doc.textBetween(from, to, " ");
-            return this.editor.chain().focus().insertContentAt({ from, to }, { type: "cloze", attrs: { raw: `{{c1::${text}}}` } }).run();
+            cloze();
+            return !this.editor.state.selection.empty;
           },
+          "Mod-Shift-k": () => {
+            startLink();
+            return true;
+          },
+          "Alt-ArrowUp": () => moveSelected(this.editor, -1),
+          "Alt-ArrowDown": () => moveSelected(this.editor, 1),
         };
       },
     });
 
     const instance: Editor = new Editor({
       element: host,
-      extensions: [...blockExtensions(), Placeholder.configure({ placeholder: "Write, or press / for blocks" }), titleLine(() => getTitle?.()), tagMarks, keys],
+      extensions: [
+        ...blockExtensions(),
+        Placeholder.configure({ placeholder: "Write, or press / for blocks" }),
+        titleLine(() => getTitle?.()),
+        tagMarks,
+        keys,
+        blockHandle({ onMenu: openBlockMenu, onAdd: addBelow }),
+        suggest<SlashItem>({
+          name: "slash",
+          char: "/",
+          allow: ({ editor: e, range }) => {
+            const at = e.state.doc.resolve(range.from);
+            return at.parent.type.name === "paragraph" && at.parent.textBetween(0, range.from - at.start()).trim() === "";
+          },
+          items: (q) => slashItems(q, { onImage: () => fileInput?.click(), ...(onAsk ? { onAsk: () => onAsk(selectedText(instance)) } : {}) }),
+          describe: (i) => ({ key: i.id, label: i.label, detail: i.hint, group: i.group, icon: i.icon }),
+          pick: (e, range, item) => {
+            e.chain().focus().deleteRange(range).run();
+            item.run(e);
+            if (item.id === "wikilink") e.chain().focus().insertContent("[").run();
+          },
+          show: (p) => (popup = p),
+        }),
+        suggest<string>({
+          name: "wikilink",
+          char: "[[",
+          allowSpaces: true,
+          items: (q) => rank(getTitles?.() ?? [], q, (t) => t).slice(0, 8),
+          describe: (t) => ({ key: t, label: t, icon: "link" }),
+          pick: (e, range, title) => {
+            e.chain().focus().deleteRange(range).insertContent([{ type: "wikilink", attrs: { target: title, label: "" } }, { type: "text", text: " " }]).run();
+          },
+          show: (p) => (popup = p),
+        }),
+      ],
       content: initial,
       contentType: "markdown",
       editorProps: {
@@ -149,20 +307,298 @@
           return true;
         },
       },
-      onUpdate: touched,
+      onUpdate: () => {
+        touched();
+        placeBar(instance);
+      },
+      onSelectionUpdate: () => placeBar(instance),
+      onFocus: () => placeBar(instance),
+      onBlur: () => {
+        if (link === null) bar = null;
+      },
     });
     editor = instance;
     return () => {
       clearTimeout(timer);
       instance.destroy();
       editor = undefined;
+      popup = null;
+      bar = null;
     };
+  });
+
+  /** Alt+Up and Alt+Down: the block with the caret trades places with its neighbour. */
+  function moveSelected(e: Editor, delta: -1 | 1): boolean {
+    const unit = unitAt(e.state.doc, e.state.selection.from);
+    if (!unit) return false;
+    const gap = delta < 0 ? unit.index - 1 : unit.index + 2;
+    const tr = e.state.tr;
+    if (!moveUnit(tr, unit, gap)) return true;
+    e.view.dispatch(tr.scrollIntoView());
+    return true;
+  }
+
+  const popupStyle = $derived.by(() => {
+    if (!popup) return "";
+    const left = Math.max(8, Math.min(popup.left, window.innerWidth - 300));
+    return popup.bottom + 340 > window.innerHeight ? `bottom:${window.innerHeight - popup.top + 6}px;left:${left}px` : `top:${popup.bottom + 6}px;left:${left}px`;
+  });
+
+  const popupGroups = $derived.by(() => {
+    if (!popup) return [];
+    const out: { name: string; rows: { i: number; item: Popup["items"][number] }[] }[] = [];
+    popup.items.forEach((item, i) => {
+      const name = item.group ?? "";
+      const last = out[out.length - 1];
+      if (last && last.name === name) last.rows.push({ i, item });
+      else out.push({ name, rows: [{ i, item }] });
+    });
+    return out;
   });
 </script>
 
-<div class="block-editor" bind:this={host}></div>
+<div class="block-editor" bind:this={wrap}>
+  <div class="host" bind:this={host}></div>
+
+  {#if bar}
+    <div class="bubble" role="toolbar" aria-label="Format selected text" style:left={`${bar.left}px`} style:top={`${bar.top}px`}>
+      {#if link !== null}
+        <input
+          class="link-input"
+          type="text"
+          placeholder="Paste or type an address, Enter to apply"
+          bind:value={link}
+          onkeydown={(ev) => {
+            if (ev.key === "Enter") {
+              ev.preventDefault();
+              applyLink();
+            } else if (ev.key === "Escape") {
+              ev.preventDefault();
+              link = null;
+              editor?.commands.focus();
+            }
+          }}
+          {@attach (el) => el.focus()}
+        />
+      {:else}
+        {#each bubble as b (b.label)}
+          <button type="button" aria-label={b.label} title={b.label} aria-pressed={b.pressed?.() ?? false} class:on={b.pressed?.() ?? false} onmousedown={(ev) => ev.preventDefault()} onclick={b.on}>
+            {#if b.text}<span class={`glyph g-${b.text}`}>{b.text}</span>{:else}<Icon name={b.icon} size={15} />{/if}
+          </button>
+        {/each}
+        {#if onAsk}
+          <button type="button" aria-label="Ask an agent" title="Ask an agent (Ctrl/Cmd+J)" onmousedown={(ev) => ev.preventDefault()} onclick={() => editor && onAsk(selectedText(editor))}><Icon name="bot" size={15} /></button>
+        {/if}
+      {/if}
+    </div>
+  {/if}
+</div>
+
+{#if popup}
+  <div class="popup" role="listbox" aria-label="Blocks" style={popupStyle}>
+    {#each popupGroups as g (g.name)}
+      {#if g.name}<div class="group">{g.name}</div>{/if}
+      {#each g.rows as { i, item } (item.key)}
+        <button type="button" role="option" aria-selected={i === popup.index} class:sel={i === popup.index} onmousedown={(ev) => ev.preventDefault()} onclick={() => popup?.choose(i)}>
+          {#if item.icon}<Icon name={item.icon} size={16} />{/if}
+          <span class="label">{item.label}</span>
+          {#if item.detail}<span class="detail">{item.detail}</span>{/if}
+        </button>
+      {/each}
+    {/each}
+  </div>
+{/if}
+
+{#if menu}
+  <PopupMenu x={menu.x} y={menu.y} items={menu.items} onclose={() => (menu = null)} />
+{/if}
+
+<input
+  bind:this={fileInput}
+  type="file"
+  accept="image/png,image/jpeg,image/gif,image/webp"
+  multiple
+  hidden
+  onchange={() => {
+    void addImages([...(fileInput?.files ?? [])]);
+    if (fileInput) fileInput.value = "";
+  }}
+/>
 
 <style>
+
+  .block-editor {
+    position: relative;
+  }
+  .host {
+    position: relative;
+  }
+  .bubble {
+    position: absolute;
+    z-index: 5;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    padding: var(--space-1);
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius);
+    background: var(--surface);
+    box-shadow: var(--shadow-pop);
+    font-family: var(--font-chrome);
+  }
+  .bubble button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 28px;
+    padding: 0;
+    border: 0;
+    border-radius: var(--radius);
+    background: transparent;
+    color: var(--ink);
+    cursor: pointer;
+  }
+  .bubble button:hover,
+  .bubble button:focus-visible {
+    background: var(--surface-hover);
+  }
+  .bubble button.on {
+    background: var(--surface-hover);
+    color: var(--canvas-5);
+  }
+  .glyph {
+    font-family: var(--font-serif);
+    font-size: 15px;
+    font-weight: 700;
+  }
+  .g-I {
+    font-style: italic;
+    font-weight: 600;
+  }
+  .g-S {
+    text-decoration: line-through;
+  }
+  .link-input {
+    width: 280px;
+    padding: 4px var(--space-2);
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius);
+    background: var(--bg);
+    color: var(--ink);
+    font: inherit;
+    font-size: var(--text-label);
+  }
+  .popup {
+    position: fixed;
+    z-index: 30;
+    width: 288px;
+    max-height: 320px;
+    overflow-y: auto;
+    padding: var(--space-1);
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius);
+    background: var(--surface);
+    box-shadow: var(--shadow-pop);
+    font-family: var(--font-chrome);
+    font-size: var(--text-ui);
+  }
+  .popup .group {
+    padding: var(--space-2) var(--space-2) var(--space-1);
+    color: var(--ink-muted);
+    font-size: var(--text-label);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .popup button {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    width: 100%;
+    padding: var(--space-1) var(--space-2);
+    border: 0;
+    border-radius: var(--radius);
+    background: transparent;
+    color: var(--ink);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+  .popup button :global(svg) {
+    flex: none;
+    color: var(--ink-muted);
+  }
+  .popup button.sel,
+  .popup button:hover {
+    background: var(--surface-hover);
+  }
+  .popup .label {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .popup .detail {
+    color: var(--ink-muted);
+    font-family: var(--font-mono);
+    font-size: var(--text-label);
+  }
+  .block-editor :global(.bh) {
+    position: absolute;
+    left: -60px;
+    display: none;
+    align-items: center;
+    gap: 2px;
+    z-index: 3;
+  }
+  .block-editor :global(.bh.on) {
+    display: flex;
+  }
+  .block-editor :global(.bh button) {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border: 0;
+    border-radius: var(--radius);
+    background: transparent;
+    color: var(--ink-muted);
+    cursor: pointer;
+  }
+  .block-editor :global(.bh button:hover),
+  .block-editor :global(.bh button:focus-visible) {
+    background: var(--surface-hover);
+    color: var(--ink);
+  }
+  .block-editor :global(.bh button:last-child) {
+    cursor: grab;
+    touch-action: none;
+  }
+  .block-editor :global(.bh-line) {
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 2px;
+    display: none;
+    background: var(--canvas-5);
+    pointer-events: none;
+    z-index: 3;
+  }
+  .block-editor :global(.bh-line.on) {
+    display: block;
+  }
+  :global(body.bh-dragging) {
+    cursor: grabbing;
+    user-select: none;
+  }
+  @media (hover: none) {
+    .block-editor :global(.bh) {
+      display: none !important;
+    }
+  }
   .block-editor {
     font-family: var(--font-serif);
     font-size: var(--text-prose);

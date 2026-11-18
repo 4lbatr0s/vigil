@@ -82,7 +82,7 @@
 </div>
 {#if mode === "blocks"}
   {#key `${noteId}:${forced}`}
-    <BlockEditor value={text} {noteId} onDocChange={remember} {onOpenWikilink} {onProblem} {getTitle} {onAsk} />
+    <BlockEditor value={text} {noteId} onDocChange={remember} {onOpenWikilink} {onProblem} {getTitles} {getTitle} {onAsk} />
   {/key}
 {:else if mode === "raw"}
   {#key `${noteId}:${forced}`}
