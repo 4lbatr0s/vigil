@@ -188,6 +188,7 @@ export const PermissionSettingsSchema = z.object({
 export type PermissionSettings = z.infer<typeof PermissionSettingsSchema>;
 
 export * from "./templates";
+export * from "./skill";
 
 // ---- Study cards (ADR-0017) ----
 

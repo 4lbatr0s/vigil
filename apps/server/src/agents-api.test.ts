@@ -115,6 +115,20 @@ describe("agents and runs api", () => {
     expect((await req("GET", "/api/agents/nope/schedule")).status).toBe(404);
   });
 
+  it("exports an agent as SKILL.md and imports a skill with no tools, switched off and asking first", async () => {
+    await req("PUT", "/api/agents/writer", { name: "writer", description: "Writes things.", systemPrompt: "Write well.", tools: ["read_notes", "write_notes", "web_fetch"], allowedHosts: ["example.com"] });
+    const out = await req("GET", "/api/agents/writer/skill");
+    expect(out.status).toBe(200);
+    const text = out.json.data.text as string;
+    expect(text).toContain("name: writer");
+    expect(text).not.toContain("example.com");
+    const made = await req("POST", "/api/agents/import-skill", { markdown: text });
+    expect(made.status).toBe(201);
+    expect(made.json.data).toMatchObject({ name: "writer-2", systemPrompt: "Write well.", tools: [], allowedHosts: [], enabled: false, strict: true, callable: [] });
+    expect((await req("POST", "/api/agents/import-skill", { markdown: "not a skill" })).json.error?.code).toBe("invalid-skill");
+    expect((await req("GET", "/api/agents/nope/skill")).status).toBe(404);
+  });
+
   it("lists the templates and creates an agent from one, switched off and unscheduled", async () => {
     const list = await req("GET", "/api/agent-templates");
     expect(list.json.data).toHaveLength(16);

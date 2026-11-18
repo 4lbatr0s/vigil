@@ -5,7 +5,7 @@
   import { onMount } from "svelte";
   import { goto } from "$app/navigation";
   import type { Agent, AgentTemplate, Run } from "@vigil/shared";
-  import { createFromTemplate, getLlmStatus, getSchedule, listAgents, listRuns, listTemplates, type LlmStatus } from "$lib/api";
+  import { ApiError, createFromTemplate, getLlmStatus, importSkill, getSchedule, listAgents, listRuns, listTemplates, type LlmStatus } from "$lib/api";
   import { formatStamp } from "$lib/format";
   import { refreshOnLive } from "$lib/live";
   import { describeTrigger, lastRunByAgent, statusDot } from "$lib/schedule";
@@ -54,6 +54,22 @@
   });
 
   const llmReady = $derived(llm !== null && bannerFor(llm, null) === null);
+
+  let skillText = $state("");
+  let importing = $state(false);
+  let importError = $state("");
+  /** A SKILL.md pasted here becomes an agent with no tools that is switched off; the person grants what it needs. */
+  async function addSkill(): Promise<void> {
+    importError = "";
+    importing = true;
+    try {
+      const agent = await importSkill(skillText);
+      await goto(`/agents/${agent.name}`);
+    } catch (err) {
+      importError = err instanceof ApiError ? err.detail : err instanceof Error ? err.message : "Could not import the skill";
+      importing = false;
+    }
+  }
 
   async function add(id: string): Promise<void> {
     adding = id;
@@ -106,6 +122,14 @@
   {/if}
 
   {#if loaded}
+    <details class="skill">
+      <summary>Import a skill (SKILL.md)</summary>
+      <p class="muted">Paste the text of a SKILL.md from another tool. Only its words come in: the agent has no tools, is switched off and asks before it writes. You choose what it may do on its page.</p>
+      <textarea bind:value={skillText} rows="6" placeholder="---&#10;name: my-skill&#10;description: What it is for&#10;---&#10;&#10;Instructions…" aria-label="SKILL.md text"></textarea>
+      <button type="button" class="add" disabled={importing || skillText.trim() === ""} onclick={() => void addSkill()}>{importing ? "Importing…" : "Import"}</button>
+      {#if importError}<p class="error" role="alert">{importError}</p>{/if}
+    </details>
+
     <section class="gallery" aria-labelledby="gallery-title">
       <h2 id="gallery-title">Ready-made agents</h2>
       <input type="search" class="find" bind:value={find} placeholder="Find one, for example recall, digest or writes notes" aria-label="Find a ready-made agent" />
@@ -147,6 +171,24 @@
     font: inherit;
     width: 100%;
     max-width: 24rem;
+  }
+  .skill {
+    margin: var(--space-6) 0 0;
+  }
+  .skill summary {
+    cursor: pointer;
+    color: var(--ink-muted);
+  }
+  .skill textarea {
+    display: block;
+    width: 100%;
+    margin: var(--space-2) 0;
+    padding: var(--space-3);
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius);
+    background: var(--surface);
+    font-family: var(--font-mono);
+    font-size: var(--text-label);
   }
   .titlebar {
     display: flex;

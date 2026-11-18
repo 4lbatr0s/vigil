@@ -3,7 +3,7 @@
   import { goto } from "$app/navigation";
   import { page } from "$app/state";
   import { AgentNameSchema, type Agent, type PermissionSettings, type Run, type ToolGrant } from "@vigil/shared";
-  import { ApiError, createChat, getAgent, listAgents, listConnections, probeConnection, type Connection, getPermissions, getSchedule, listRuns, putAgent, runAgent, type Schedule } from "$lib/api";
+  import { ApiError, createChat, getAgent, getAgentSkill, listAgents, listConnections, probeConnection, type Connection, getPermissions, getSchedule, listRuns, putAgent, runAgent, type Schedule } from "$lib/api";
   import { duplicateAgent } from "$lib/agent-design";
   import { TOOL_LABELS, addHost, agentToForm, describeGrants, exposure, formToAgent, noHostsWarning, riskyCombination, triggerProblem, type AgentForm } from "$lib/agent-form";
   import { describeCheck, formatStamp } from "$lib/format";
@@ -146,6 +146,18 @@
   }
 
   /** A switched-off copy with its own name, opened right away: a quick way to start a variation. */
+  let skillCopied = $state(false);
+  /** The agent as a SKILL.md, copied to the clipboard, for other tools or to share. */
+  async function copySkill(): Promise<void> {
+    try {
+      const { text } = await getAgentSkill(agent?.name ?? "");
+      await navigator.clipboard.writeText(text);
+      skillCopied = true;
+    } catch (err) {
+      runError = err instanceof ApiError ? err.detail : err instanceof Error ? err.message : "Could not copy the skill";
+    }
+  }
+
   async function duplicate(): Promise<void> {
     if (!agent) return;
     try {
@@ -383,6 +395,7 @@
         <button type="button" class="ghost" disabled={running} onclick={() => void runNow()}>{running ? "Running…" : "Run now"}</button>
         <button type="button" class="ghost" onclick={() => void startChatWith()}>Chat</button>
         <button type="button" class="ghost" onclick={() => void duplicate()}>Duplicate</button>
+        <button type="button" class="ghost" onclick={() => void copySkill()} title="Copy this agent as a SKILL.md file, the open format other AI tools read">{skillCopied ? "Copied" : "Copy as SKILL.md"}</button>
         {#if notice && !dirty}<span class="muted" aria-live="polite">{notice}</span>{/if}
       </div>
       {#if runError}<p class="error" role="alert">{runError}</p>{/if}

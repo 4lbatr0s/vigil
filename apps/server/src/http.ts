@@ -21,7 +21,7 @@ import {
   removeNote,
   searchNotes,
 } from "./index-db";
-import { AgentNameSchema, AgentSchema, PermissionSettingsSchema, TEMPLATES, ToolGrantSchema } from "@vigil/shared";
+import { AgentNameSchema, AgentSchema, PermissionSettingsSchema, TEMPLATES, ToolGrantSchema, agentToSkill, skillToAgent } from "@vigil/shared";
 import { withNoteLock } from "./lock";
 import { chatTurn, chatWithMessages, newChat, removeChat, saveChatAsNote, type ChatLine } from "./chat";
 import { cronError, nextTickAfter } from "./cron";
@@ -1033,6 +1033,33 @@ const routes: { method: string; pattern: RegExp; keys: string[]; handler: Handle
       if (getAgent(name)) throw new AppError("agent-exists", `An agent named ${name} already exists`, 409);
       // Templates ship switched off: nothing runs or is scheduled until the owner turns the agent on.
       const saved = putAgent(AgentSchema.parse({ ...template.agent, name, enabled: false, strict: getPermissions().newAgentsStrict }));
+      send(res, 201, { data: saved });
+    },
+  },
+  {
+    // An agent as a SKILL.md (the open Agent Skills format), for other tools or for sharing.
+    method: "GET",
+    pattern: /^\/api\/agents\/([^/]+)\/skill$/,
+    keys: ["name"],
+    handler: (_req, res, params) => {
+      const agent = getAgent(params["name"] ?? "");
+      if (!agent) throw new AppError("agent-not-found", `Agent not found: ${params["name"]}`, 404);
+      send(res, 200, { data: { text: agentToSkill(agent) } });
+    },
+  },
+  {
+    // A SKILL.md becomes an agent that is switched off, asks before writing and has no tools: only its words come in.
+    method: "POST",
+    pattern: /^\/api\/agents\/import-skill$/,
+    keys: [],
+    handler: async (req, res) => {
+      const parsed = z.object({ markdown: z.string().min(1).max(100_000) }).safeParse(await readJsonBody(req));
+      if (!parsed.success) throw new AppError("invalid-body", "Body must be { markdown: string }", 400);
+      const read = skillToAgent(parsed.data.markdown);
+      if (!read.ok) throw new AppError("invalid-skill", read.message, 400);
+      let name = read.skill.name;
+      for (let n = 2; getAgent(name); n++) name = `${read.skill.name.slice(0, 55)}-${n}`;
+      const saved = putAgent(AgentSchema.parse({ name, description: read.skill.description, systemPrompt: read.skill.systemPrompt, tools: [], enabled: false, strict: true, allowedHosts: [], callable: [] }));
       send(res, 201, { data: saved });
     },
   },

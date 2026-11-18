@@ -183,6 +183,8 @@ export const getSchedule = (name: string) => request<Schedule>(`/api/agents/${se
 export const runAgent = (name: string, task?: string) => request<Run>(`/api/agents/${seg(name)}/run`, json("POST", task === undefined ? {} : { task }));
 export const startAgentDesign = (goal: string, tools: ToolGrant[]) => request<Run>("/api/agents/design", json("POST", { goal, tools }));
 export const listTemplates = () => request<AgentTemplate[]>("/api/agent-templates");
+export const getAgentSkill = (name: string) => request<{ text: string }>(`/api/agents/${encodeURIComponent(name)}/skill`);
+export const importSkill = (markdown: string) => request<Agent>("/api/agents/import-skill", json("POST", { markdown }));
 export const createFromTemplate = (id: string, name?: string) =>
   request<Agent>(`/api/agents/from-template/${seg(id)}`, json("POST", name === undefined ? {} : { name }));
 
