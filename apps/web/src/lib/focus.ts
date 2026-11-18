@@ -10,6 +10,8 @@ type Input = {
   newOffered: number;
   stuck: readonly StuckCard[];
   pendingApprovals: number;
+  /** Notes you wrote lately that have no study cards yet, newest first. */
+  uncarded?: readonly { id: string; title: string }[];
   titles: ReadonlyMap<string, string>;
 };
 
@@ -33,5 +35,7 @@ export function startHere(i: Input): Focus[] {
   const cards = i.studyDue + i.newOffered;
   if (cards > 0 && !out.some((f) => f.key === "exam")) out.push({ key: "cards", text: `${plural(cards, "card is", "cards are")} ready to review.`, href: "/study", label: "Study" });
   if (i.stuck.length > 0) out.push({ key: "stuck", text: `${plural(i.stuck.length, "card keeps", "cards keep")} slipping: reword or split ${i.stuck.length === 1 ? "it" : "them"}.`, href: "/study", label: "See them" });
+  const fresh = i.uncarded?.[0];
+  if (fresh) out.push({ key: "uncarded", text: `You wrote "${fresh.title}" recently and it has no study cards yet.`, href: `/?note=${encodeURIComponent(fresh.id)}`, label: "Make cards" });
   return out.slice(0, 3);
 }

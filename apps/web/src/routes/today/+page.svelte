@@ -2,7 +2,7 @@
   import Illustration from "$lib/components/Illustration.svelte";
   import { onMount } from "svelte";
   import type { Run } from "@vigil/shared";
-  import { ApiError, captureLine, getStuckCards, createFromTemplate, getGoals, getRecall, getStudyStats, listAgents, listApprovals, listNotes, listRuns, putAgent, runAgent, undoRun, type ApprovalItem, type Goal, type RecallItem, type StuckCard, type StudyStats } from "$lib/api";
+  import { ApiError, captureLine, getDecks, type DeckStats, getStuckCards, createFromTemplate, getGoals, getRecall, getStudyStats, listAgents, listApprovals, listNotes, listRuns, putAgent, runAgent, undoRun, type ApprovalItem, type Goal, type RecallItem, type StuckCard, type StudyStats } from "$lib/api";
   import StatusDot from "$lib/components/StatusDot.svelte";
   import { refreshOnLive } from "$lib/live";
   import { startHere } from "$lib/focus";
@@ -19,8 +19,9 @@
   let goals = $state<Goal[]>([]);
   let recallDue = $state<RecallItem[]>([]);
   let stuck = $state<StuckCard[]>([]);
+  let uncarded = $state<{ id: string; title: string }[]>([]);
   const exam = $derived(nextGoal(goals));
-  const focus = $derived(startHere({ goals, recallDue, studyDue: study?.due ?? 0, newOffered: study?.newOffered ?? 0, stuck, pendingApprovals: pending.length, titles }));
+  const focus = $derived(startHere({ goals, recallDue, studyDue: study?.due ?? 0, newOffered: study?.newOffered ?? 0, stuck, pendingApprovals: pending.length, uncarded, titles }));
   let since = $state<string | null>(null);
   let loading = $state(true);
   let loadError = $state("");
@@ -45,6 +46,13 @@
       pending = a;
       study = st;
       titles = new Map(notes.map((n) => [n.id, n.title]));
+      // Notes written by you in the last three days that hold no cards (source notes are reading material, not for cards).
+      const withCards = new Set((await getDecks().catch(() => [] as DeckStats[])).filter((d) => d.cards > 0).map((d) => d.noteId));
+      const cutoff = Date.now() - 3 * 86_400_000;
+      uncarded = notes
+        .filter((n) => n.author === "human" && Date.parse(n.updatedAt) >= cutoff && !withCards.has(n.id) && !n.tags.includes("source") && (n.snippet ?? "").length > 60)
+        .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+        .map((n) => ({ id: n.id, title: n.title }));
       loadError = "";
     } catch (err) {
       loadError = err instanceof Error ? err.message : "Could not load";

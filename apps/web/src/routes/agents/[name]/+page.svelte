@@ -180,6 +180,26 @@
     }
   }
 
+  let newTest = $state("");
+  /** Saved sample tasks: keep a few, re-run them after editing the instructions to see what changed. */
+  async function saveTests(next: string[]): Promise<void> {
+    if (!agent) return;
+    try {
+      agent = await putAgent({ ...agent, testTasks: next });
+      newTest = "";
+    } catch (err) {
+      runError = err instanceof ApiError ? err.detail : err instanceof Error ? err.message : "Could not save the test task";
+    }
+  }
+  async function runTest(task: string): Promise<void> {
+    try {
+      const started = await runAgent(agent?.name ?? "", task);
+      await goto(`/runs/${started.id}`);
+    } catch (err) {
+      runError = err instanceof ApiError ? err.detail : err instanceof Error ? err.message : "Could not start the run";
+    }
+  }
+
   async function runNow(): Promise<void> {
     runError = "";
     try {
@@ -251,6 +271,26 @@
           {#each agent.tools as t (t)}<span class="chip">{t}</span>{:else}<span class="muted">none</span>{/each}
         </dd>
       </dl>
+    </section>
+
+    <section class="tests" aria-label="Saved test tasks">
+      <h2 class="reach-title">Test tasks</h2>
+      <p class="hint">Keep a few sample tasks and run them again after you change the instructions, to see what changed.</p>
+      <ul>
+        {#each agent.testTasks ?? [] as t, i (i)}
+          <li>
+            <span class="test-text">{t}</span>
+            <button type="button" class="ghost" onclick={() => void runTest(t)}>Run</button>
+            <button type="button" class="ghost" aria-label="Remove this test task" onclick={() => void saveTests((agent?.testTasks ?? []).filter((_, j) => j !== i))}>Remove</button>
+          </li>
+        {/each}
+      </ul>
+      {#if (agent.testTasks ?? []).length < 5}
+        <form class="test-add" onsubmit={(e) => { e.preventDefault(); if (newTest.trim() !== "") void saveTests([...(agent?.testTasks ?? []), newTest.trim()]); }}>
+          <input type="text" bind:value={newTest} placeholder="A sample task, for example: Summarise yesterday's notes" aria-label="New test task" maxlength="2000" />
+          <button type="submit" class="ghost" disabled={newTest.trim() === ""}>Save</button>
+        </form>
+      {/if}
     </section>
 
     {#if reach}
@@ -423,6 +463,40 @@
 </main>
 
 <style>
+  .tests {
+    margin: var(--space-4) 0;
+  }
+  .tests ul {
+    list-style: none;
+    margin: 0 0 var(--space-2);
+    padding: 0;
+    display: grid;
+    gap: var(--space-1);
+  }
+  .tests li {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+  }
+  .test-text {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .test-add {
+    display: flex;
+    gap: var(--space-2);
+  }
+  .test-add input {
+    flex: 1;
+    min-width: 0;
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius);
+    background: var(--surface);
+  }
   .reach {
     margin: var(--space-4) 0;
     padding: var(--space-3) var(--space-4);

@@ -62,6 +62,16 @@ describe("describeGrants and riskyCombination", () => {
   });
 });
 
+describe("saved test tasks", () => {
+  it("survive editing the form", () => {
+    const withTests = AgentSchema.parse({ name: "a", systemPrompt: "x", testTasks: ["Summarise yesterday"] });
+    expect(formToAgent(withTests, agentToForm(withTests)).testTasks).toEqual(["Summarise yesterday"]);
+  });
+  it("hold at most five", () => {
+    expect(AgentSchema.safeParse({ name: "a", systemPrompt: "x", testTasks: ["1", "2", "3", "4", "5", "6"] }).success).toBe(false);
+  });
+});
+
 describe("exposure", () => {
   const agent = (tools: Agent["tools"], allowedHosts: string[]) => AgentSchema.parse({ name: "a", systemPrompt: "x", tools, allowedHosts });
 

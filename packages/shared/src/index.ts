@@ -119,6 +119,8 @@ export const AgentSchema = z.object({
   callable: z.array(AgentNameSchema).default([]),
   /** Instruction for a chat agent: appended to the system prompt in chat threads (WP9). */
   archetypeHint: z.string().optional(),
+  /** Up to five sample tasks the owner keeps to re-run after changing the agent's instructions. */
+  testTasks: z.array(z.string().trim().min(1).max(2000)).max(5).optional(),
 });
 export type Agent = z.infer<typeof AgentSchema>;
 
