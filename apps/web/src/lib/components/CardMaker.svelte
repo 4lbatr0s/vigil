@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onDestroy, tick } from "svelte";
   import { ApiError, createFromTemplate, getNote, getNoteCards, getRun, getRunResult, listAgents, putAgent, putNote, startCardProposals } from "$lib/api";
-  import { extractCards, lintCard } from "@vigil/shared";
+  import { extractCards, groundingHint, lintCard } from "@vigil/shared";
   import { appendCards, isCardLine, proposalsFrom, type Proposal } from "$lib/card-review";
 
   let { open = $bindable(false), noteId, onsaved }: { open: boolean; noteId: string; onsaved: () => void } = $props();
@@ -35,9 +35,14 @@
   });
   onDestroy(() => clearTimeout(timer));
 
+  /** The note's text, to check each proposed answer against what the note actually says. */
+  let noteBody = $state("");
+
   function hintsFor(line: string) {
     const card = extractCards(line)[0];
-    return card ? lintCard(card) : [];
+    if (!card) return [];
+    const grounded = noteBody === "" ? null : groundingHint(card, noteBody);
+    return [...lintCard(card), ...(grounded ? [grounded] : [])];
   }
 
   function fail(text: string): void {
@@ -89,7 +94,8 @@
       fail(run.error ?? `The card maker stopped: ${run.status}`);
       return;
     }
-    const [{ text }, existing] = await Promise.all([getRunResult(runId), getNoteCards(noteId)]);
+    const [{ text }, existing, note] = await Promise.all([getRunResult(runId), getNoteCards(noteId), getNote(noteId)]);
+    noteBody = note.body;
     proposals = proposalsFrom(text ?? "", existing);
     step = proposals.length === 0 ? "empty" : "review";
   }

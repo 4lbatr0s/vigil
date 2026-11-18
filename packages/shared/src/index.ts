@@ -262,7 +262,7 @@ export function extractCards(body: string): Card[] {
   return cards;
 }
 
-export type CardHint = { code: "long-answer" | "list" | "yes-no" | "many-blanks" | "not-a-question"; message: string };
+export type CardHint = { code: "long-answer" | "list" | "yes-no" | "many-blanks" | "not-a-question" | "not-in-note"; message: string };
 
 const words = (s: string): number => s.split(/\s+/).filter(Boolean).length;
 
@@ -270,6 +270,21 @@ const words = (s: string): number => s.split(/\s+/).filter(Boolean).length;
  * Plain-language hints that a card is hard to learn from: the "one fact per card" rule of thumb
  * (Wozniak's minimum information principle). Hints only; nothing is changed or blocked.
  */
+const wordsOf = (text: string): string[] => (text.toLowerCase().match(/[\p{L}\p{N}]{4,}/gu) ?? []).map((w) => w.slice(0, 5));
+
+/**
+ * A check that the answer of a card (often written by an AI) is grounded in the note it came from: most of the answer's
+ * longer words must appear in the note. A hint, not a verdict. A short answer with no long word cannot be judged, so it
+ * passes. Words are compared by their first five letters, so "produces" matches "produce".
+ */
+export function groundingHint(card: Pick<Card, "back">, noteBody: string): CardHint | null {
+  const answer = [...new Set(wordsOf(card.back))];
+  if (answer.length === 0) return null;
+  const note = new Set(wordsOf(noteBody));
+  const found = answer.filter((w) => note.has(w)).length;
+  return found / answer.length >= 0.6 ? null : { code: "not-in-note", message: "Part of this answer is not in your note. Check it is true before you keep it." };
+}
+
 export function lintCard(card: Pick<Card, "kind" | "front" | "back">): CardHint[] {
   const hints: CardHint[] = [];
   if (card.kind === "cloze") {
