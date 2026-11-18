@@ -573,9 +573,17 @@
     .head {
       padding: var(--space-3) var(--space-4);
     }
-    .actions {
-      order: 1;
-      margin-left: auto;
+    /* The buttons join the Notes button in one wrapping row instead of making a second block. */
+    .head.head {
+      gap: var(--space-2);
+      justify-content: flex-start;
+    }
+    .actions.actions {
+      display: contents;
+    }
+    .status.status {
+      padding: var(--space-2) var(--space-4);
+      padding-bottom: calc(var(--space-2) + env(safe-area-inset-bottom));
     }
   }
 
@@ -693,8 +701,10 @@
   }
 
   /* Room on the left for the block handle that appears beside the line you point at. */
-  .editor-pane {
-    padding-left: calc(var(--space-12) + var(--space-8));
+  @media (min-width: 1024px) {
+    .editor-pane {
+      padding-left: calc(var(--space-12) + var(--space-8));
+    }
   }
 
   .status {

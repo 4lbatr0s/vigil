@@ -144,6 +144,7 @@
     display: grid;
     grid-template-columns: var(--rail-width) 1fr;
     height: 100vh;
+    height: 100dvh;
   }
 
   .rail {
@@ -223,6 +224,7 @@
 
   .column {
     display: grid;
+    grid-template-columns: minmax(0, 1fr);
     grid-template-rows: auto auto 1fr;
     min-width: 0;
     min-height: 0;
@@ -260,6 +262,7 @@
     align-items: center;
     gap: var(--space-2);
     width: min(420px, 100%);
+    min-width: 0;
     height: 34px;
     margin-left: auto;
     padding: 0 var(--space-3);
@@ -354,7 +357,7 @@
   /* Narrow: the navigation is a drawer opened from the top bar. */
   @media (max-width: 639px) {
     .shell {
-      grid-template-columns: 1fr;
+      grid-template-columns: minmax(0, 1fr);
     }
     .rail {
       position: fixed;

@@ -355,6 +355,7 @@
   .empty {
     margin: auto;
     max-width: 28rem;
+    padding: var(--space-4);
     text-align: center;
     display: grid;
     gap: var(--space-2);

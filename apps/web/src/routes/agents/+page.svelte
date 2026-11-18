@@ -145,6 +145,7 @@
     background: var(--surface);
     color: var(--ink);
     font: inherit;
+    width: 100%;
     max-width: 24rem;
   }
   .titlebar {
@@ -155,6 +156,7 @@
     justify-content: space-between;
   }
   .primary-link {
+    display: inline-block;
     padding: var(--space-2) var(--space-4);
     border: 1px solid var(--ink);
     border-radius: var(--radius);
@@ -189,6 +191,9 @@
   .empty {
     padding: var(--space-12) 0;
     text-align: center;
+  }
+  .empty p:last-child {
+    margin-top: var(--space-4);
   }
   .empty-title {
     font-family: var(--font-serif);
@@ -254,6 +259,7 @@
     padding: var(--space-3) var(--space-2);
   }
   .template-text {
+    min-width: 0;
     display: grid;
     gap: var(--space-1);
   }
@@ -302,6 +308,19 @@
     font-family: var(--font-serif);
     font-size: var(--text-h3);
     font-weight: 600;
+  }
+
+  @media (max-width: 639px) {
+    .page {
+      padding: var(--space-4);
+    }
+    .blurb {
+      display: block;
+      margin-top: var(--space-1);
+    }
+    .template {
+      align-items: flex-start;
+    }
   }
 
   .blurb {

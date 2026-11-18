@@ -415,10 +415,19 @@
     position: absolute;
     top: var(--space-3);
     left: var(--space-3);
+    right: var(--space-3);
     z-index: 3;
     display: flex;
+    flex-wrap: wrap;
     gap: var(--space-2);
     align-items: center;
+  }
+  .bar :global(button) {
+    white-space: nowrap;
+  }
+  .bar input {
+    flex: 1 1 8rem;
+    min-width: 0;
   }
   input {
     padding: var(--space-1) var(--space-3);
@@ -441,13 +450,17 @@
   .legend {
     position: absolute;
     left: var(--space-3);
+    right: var(--space-3);
     bottom: var(--space-3);
     z-index: 2;
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius);
+    background: color-mix(in srgb, var(--bg) 80%, transparent);
     font-size: var(--text-label);
   }
   .notice {
     position: absolute;
-    top: 52px;
+    top: 96px;
     left: var(--space-3);
     z-index: 3;
     font-size: var(--text-label);
@@ -472,6 +485,12 @@
     inset: 56px 0 0 0;
     overflow-y: auto;
     padding: var(--space-2) var(--space-6) var(--space-6);
+  }
+  @media (max-width: 639px) {
+    .list {
+      inset: 128px 0 0 0;
+      padding-inline: var(--space-4);
+    }
   }
   .list h2 {
     font-size: var(--text-label);

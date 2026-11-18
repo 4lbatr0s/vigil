@@ -129,6 +129,12 @@ body {
   height: 100%;
 }
 
+html {
+  accent-color: var(--ink);
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
 body {
   margin: 0;
   background: var(--bg);
@@ -158,9 +164,33 @@ button {
   cursor: pointer;
 }
 
-input {
+input,
+textarea,
+select {
   font: inherit;
   color: inherit;
+}
+
+/* The file chooser looks like the app's other buttons instead of the browser's grey one. */
+input[type="file"] {
+  max-width: 100%;
+  color: var(--ink-muted);
+  font-size: var(--text-label);
+}
+
+input[type="file"]::file-selector-button {
+  margin-right: var(--space-3);
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  cursor: pointer;
+}
+
+input[type="file"]::file-selector-button:hover {
+  background: var(--surface-hover);
 }
 
 h1,
@@ -192,4 +222,31 @@ pre {
 
 ::selection {
   background: var(--hairline);
+}
+
+/* Phones: smaller headings so they do not wrap every other word. */
+@media (max-width: 480px) {
+  :root {
+    --text-h1: 28px;
+    --text-h2: 22px;
+    --text-h3: 18px;
+  }
+}
+
+/* Touch: fingers need bigger targets, and a text field under 16px makes iOS zoom the page on focus. */
+@media (pointer: coarse) {
+  :root:root .act,
+  :root:root .primary-link,
+  :root:root button.add {
+    min-height: 40px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  input,
+  textarea,
+  select {
+    font-size: 16px;
+  }
 }
