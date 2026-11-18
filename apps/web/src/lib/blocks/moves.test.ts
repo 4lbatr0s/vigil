@@ -1,10 +1,18 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { Editor } from "@tiptap/core";
 import { blockExtensions } from "./extensions";
 import { deleteUnit, duplicateUnit, moveUnit, unitAt } from "./moves";
 import { tidyMarkdown } from "./markdownIo";
 
-const open = (md: string): Editor => new Editor({ element: document.createElement("div"), extensions: blockExtensions(), content: md, contentType: "markdown" });
+const opened: Editor[] = [];
+const open = (md: string): Editor => {
+  const e = new Editor({ element: document.createElement("div"), extensions: blockExtensions(), content: md, contentType: "markdown" });
+  opened.push(e);
+  return e;
+};
+afterEach(() => {
+  while (opened.length > 0) opened.pop()?.destroy();
+});
 const md = (e: Editor): string => tidyMarkdown(e.getMarkdown());
 const posOf = (e: Editor, text: string): number => {
   let found = -1;

@@ -44,6 +44,7 @@
     "dompurify": "^3",
     "graphology": "0.26.0",
     "graphology-layout-forceatlas2": "0.10.1",
+    "highlight.js": "11.11.1",
     "html-to-image": "1.11.13",
     "lowlight": "3.3.0",
     "marked": "^15",

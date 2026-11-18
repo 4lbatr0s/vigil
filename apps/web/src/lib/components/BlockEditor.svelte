@@ -26,6 +26,7 @@
     getTitles,
     getTitle,
     onAsk,
+    onSwitch,
   }: {
     value?: string;
     noteId?: string;
@@ -40,6 +41,8 @@
     getTitle?: () => string | undefined;
     /** Cmd/Ctrl+J, the toolbar button or `/ask`: the page opens "Ask an agent" with the selected text. */
     onAsk?: (selection: string) => void;
+    /** Switch this note to the plain markdown editor. */
+    onSwitch?: () => void;
   } = $props();
 
   let host = $state<HTMLDivElement | undefined>(undefined);
@@ -52,7 +55,31 @@
   /** The floating format bar over a selection; `link` turns it into a one-line address field. */
   let bar = $state<{ left: number; top: number } | null>(null);
   let link = $state<string | null>(null);
+  /** Row and column controls above the table the caret is in. */
+  let tableBar = $state<{ left: number; top: number } | null>(null);
   let active = $state({ bold: false, italic: false, strike: false, code: false, link: false });
+
+  /** The headings of the note, for the outline list; read when the list opens. */
+  let outline = $state<{ level: number; text: string; pos: number }[] | null>(null);
+  function toggleOutline(): void {
+    const e = editor;
+    if (outline !== null || !e) {
+      outline = null;
+      return;
+    }
+    const items: { level: number; text: string; pos: number }[] = [];
+    e.state.doc.descendants((n, pos) => {
+      if (n.type.name === "heading" && n.textContent.trim() !== "") items.push({ level: Number(n.attrs.level), text: n.textContent, pos });
+    });
+    outline = items;
+  }
+  function jumpTo(pos: number): void {
+    const e = editor;
+    outline = null;
+    if (!e) return;
+    e.view.dispatch(e.state.tr.setSelection(Selection.near(e.state.doc.resolve(pos + 1), 1)).scrollIntoView());
+    e.commands.focus();
+  }
 
   async function addImages(files: File[]): Promise<void> {
     for (const file of files) {
@@ -145,6 +172,32 @@
     active = { bold: e.isActive("bold"), italic: e.isActive("italic"), strike: e.isActive("strike"), code: e.isActive("code"), link: e.isActive("link") };
   }
 
+  function placeTable(e: Editor): void {
+    if (!wrap || !e.isFocused || !e.isActive("table")) {
+      tableBar = null;
+      return;
+    }
+    const dom = e.view.domAtPos(e.state.selection.from).node;
+    const table = (dom instanceof Element ? dom : dom.parentElement)?.closest("table");
+    if (!table) {
+      tableBar = null;
+      return;
+    }
+    const box = wrap.getBoundingClientRect();
+    const r = table.getBoundingClientRect();
+    tableBar = { left: Math.max(0, r.left - box.left), top: Math.max(0, r.top - box.top - 38) };
+  }
+
+  const tableActions: { label: string; run: (e: Editor) => void }[] = [
+    { label: "Row above", run: (e) => void e.chain().focus().addRowBefore().run() },
+    { label: "Row below", run: (e) => void e.chain().focus().addRowAfter().run() },
+    { label: "Column left", run: (e) => void e.chain().focus().addColumnBefore().run() },
+    { label: "Column right", run: (e) => void e.chain().focus().addColumnAfter().run() },
+    { label: "Delete row", run: (e) => void e.chain().focus().deleteRow().run() },
+    { label: "Delete column", run: (e) => void e.chain().focus().deleteColumn().run() },
+    { label: "Delete table", run: (e) => void e.chain().focus().deleteTable().run() },
+  ];
+
   function startLink(): void {
     link = editor?.getAttributes("link").href ?? "";
   }
@@ -216,6 +269,10 @@
           },
           "Mod-Shift-k": () => {
             startLink();
+            return true;
+          },
+          "Mod-Shift-o": () => {
+            toggleOutline();
             return true;
           },
           "Alt-ArrowUp": () => moveSelected(this.editor, -1),
@@ -311,10 +368,18 @@
         touched();
         placeBar(instance);
       },
-      onSelectionUpdate: () => placeBar(instance),
-      onFocus: () => placeBar(instance),
+      onSelectionUpdate: () => {
+        placeBar(instance);
+        placeTable(instance);
+      },
+      onFocus: () => {
+        placeBar(instance);
+        placeTable(instance);
+      },
       onBlur: () => {
         if (link === null) bar = null;
+        // A click on the table controls blurs the text first; the controls keep the focus out of the way (mousedown is cancelled).
+        tableBar = null;
       },
     });
     editor = instance;
@@ -358,7 +423,30 @@
 </script>
 
 <div class="block-editor" bind:this={wrap}>
+  <div class="strip">
+    <button type="button" onclick={toggleOutline} aria-expanded={outline !== null} title="Headings of this note (Ctrl/Cmd+Shift+O)">Outline</button>
+    {#if onSwitch}<button type="button" onclick={onSwitch} title="Edit the plain markdown text">Markdown</button>{/if}
+    {#if outline !== null}
+      <div class="outline" role="menu" aria-label="Outline">
+        {#if outline.length === 0}
+          <p>No headings yet. Start a line with # to make one.</p>
+        {:else}
+          {#each outline as h (h.pos)}
+            <button type="button" role="menuitem" style:padding-left={`${(h.level - 1) * 14 + 8}px`} onclick={() => jumpTo(h.pos)}>{h.text}</button>
+          {/each}
+        {/if}
+      </div>
+    {/if}
+  </div>
   <div class="host" bind:this={host}></div>
+
+  {#if tableBar}
+    <div class="bubble tablebar" role="toolbar" aria-label="Table" style:left={`${tableBar.left}px`} style:top={`${tableBar.top}px`}>
+      {#each tableActions as a (a.label)}
+        <button type="button" class:danger={a.label.startsWith("Delete")} onmousedown={(ev) => ev.preventDefault()} onclick={() => editor && a.run(editor)}>{a.label}</button>
+      {/each}
+    </div>
+  {/if}
 
   {#if bar}
     <div class="bubble" role="toolbar" aria-label="Format selected text" style:left={`${bar.left}px`} style:top={`${bar.top}px`}>
@@ -433,6 +521,68 @@
   .host {
     position: relative;
   }
+  .strip {
+    position: relative;
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--space-1);
+    min-height: 28px;
+    font-family: var(--font-chrome);
+    font-size: var(--text-label);
+  }
+  .strip > button {
+    border: 1px solid transparent;
+    border-radius: var(--radius);
+    background: transparent;
+    color: var(--ink-muted);
+    font: inherit;
+    padding: 2px var(--space-2);
+    cursor: pointer;
+  }
+  .strip > button:hover,
+  .strip > button:focus-visible,
+  .strip > button[aria-expanded="true"] {
+    background: var(--surface-hover);
+    color: var(--ink);
+  }
+  .outline {
+    position: absolute;
+    top: 30px;
+    right: 0;
+    z-index: 6;
+    width: 260px;
+    max-height: 320px;
+    overflow-y: auto;
+    padding: var(--space-1);
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius);
+    background: var(--surface);
+    box-shadow: var(--shadow-pop);
+  }
+  .outline p {
+    margin: 0;
+    padding: var(--space-2);
+    color: var(--ink-muted);
+  }
+  .outline button {
+    display: block;
+    width: 100%;
+    padding: var(--space-1) var(--space-2);
+    border: 0;
+    border-radius: var(--radius);
+    background: transparent;
+    color: var(--ink);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .outline button:hover,
+  .outline button:focus-visible {
+    background: var(--surface-hover);
+  }
   .bubble {
     position: absolute;
     z-index: 5;
@@ -466,6 +616,18 @@
   .bubble button.on {
     background: var(--surface-hover);
     color: var(--canvas-5);
+  }
+  .bubble.tablebar button {
+    width: auto;
+    padding: 0 var(--space-2);
+    font-size: var(--text-label);
+    white-space: nowrap;
+  }
+  .bubble.tablebar button.danger {
+    color: var(--ink-muted);
+  }
+  .bubble.tablebar button.danger:hover {
+    color: var(--ink);
   }
   .glyph {
     font-family: var(--font-serif);

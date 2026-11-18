@@ -3,7 +3,22 @@ import StarterKit from "@tiptap/starter-kit";
 import { Markdown } from "@tiptap/markdown";
 import Image from "@tiptap/extension-image";
 import CodeBlockLowlight from "@tiptap/extension-code-block-lowlight";
-import { common, createLowlight } from "lowlight";
+import { createLowlight } from "lowlight";
+import bash from "highlight.js/lib/languages/bash";
+import c from "highlight.js/lib/languages/c";
+import cpp from "highlight.js/lib/languages/cpp";
+import css from "highlight.js/lib/languages/css";
+import go from "highlight.js/lib/languages/go";
+import java from "highlight.js/lib/languages/java";
+import javascript from "highlight.js/lib/languages/javascript";
+import json from "highlight.js/lib/languages/json";
+import markdownLang from "highlight.js/lib/languages/markdown";
+import python from "highlight.js/lib/languages/python";
+import rust from "highlight.js/lib/languages/rust";
+import sql from "highlight.js/lib/languages/sql";
+import typescript from "highlight.js/lib/languages/typescript";
+import xml from "highlight.js/lib/languages/xml";
+import yaml from "highlight.js/lib/languages/yaml";
 import { attachmentSrc } from "../editor/images";
 import { ICONS, calloutLook, iconElement } from "../editor/icons";
 import { Table, TableRow, TableHeader, TableCell } from "@tiptap/extension-table";
@@ -200,7 +215,8 @@ const VaultImage = Image.extend({
   },
 });
 
-const lowlight = createLowlight(common);
+/** The languages people put in notes; others still show as plain code. (The whole set would add about 80 KB.) */
+const lowlight = createLowlight({ bash, c, cpp, css, go, java, javascript, json, markdown: markdownLang, python, rust, sql, typescript, xml, yaml });
 
 /** Everything the note editor and its markdown gate agree on. The same list builds the hidden editor in tests. */
 export function blockExtensions(): Extensions {

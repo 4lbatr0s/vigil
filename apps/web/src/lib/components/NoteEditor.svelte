@@ -1,6 +1,6 @@
 <script lang="ts">
   import { untrack } from "svelte";
-  import Editor from "$lib/components/Editor.svelte";
+  import type { Component } from "svelte";
   import BlockEditor from "$lib/components/BlockEditor.svelte";
 
   let {
@@ -32,6 +32,11 @@
   let mode = $state<"checking" | "blocks" | "raw">("checking");
   let why = $state("");
   let text = $state(untrack(() => value));
+  /** The plain markdown editor (CodeMirror) is loaded only when a note needs it. */
+  let RawEditor = $state.raw<Component<Record<string, unknown>> | null>(null);
+  $effect(() => {
+    if (mode === "raw" && !RawEditor) void import("$lib/components/Editor.svelte").then((m) => (RawEditor = m.default as unknown as Component<Record<string, unknown>>));
+  });
   let forced = $state<"blocks" | "raw" | null>(null);
 
   function remember(next: string): void {
@@ -72,21 +77,19 @@
   }
 </script>
 
-<div class="modes">
-  {#if why}<span class="why">{why}</span>{/if}
-  {#if mode === "blocks"}
-    <button type="button" onclick={() => switchTo("raw")} title="Edit the plain markdown text">Markdown</button>
-  {:else if mode === "raw"}
+{#if mode === "raw"}
+  <div class="modes">
+    {#if why}<span class="why">{why}</span>{/if}
     <button type="button" onclick={() => switchTo("blocks")} title="Edit with blocks">Blocks</button>
-  {/if}
-</div>
+  </div>
+{/if}
 {#if mode === "blocks"}
   {#key `${noteId}:${forced}`}
-    <BlockEditor value={text} {noteId} onDocChange={remember} {onOpenWikilink} {onProblem} {getTitles} {getTitle} {onAsk} />
+    <BlockEditor value={text} {noteId} onDocChange={remember} {onOpenWikilink} {onProblem} {getTitles} {getTitle} {onAsk} onSwitch={() => switchTo("raw")} />
   {/key}
-{:else if mode === "raw"}
+{:else if mode === "raw" && RawEditor}
   {#key `${noteId}:${forced}`}
-    <Editor value={text} {noteId} onDocChange={remember} {onOpenWikilink} {onProblem} {getTitles} {getTitle} {onAsk} {jumpLine} />
+    <RawEditor value={text} {noteId} onDocChange={remember} {onOpenWikilink} {onProblem} {getTitles} {getTitle} {onAsk} {jumpLine} />
   {/key}
 {/if}
 
