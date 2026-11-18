@@ -185,7 +185,7 @@
     }
     const box = wrap.getBoundingClientRect();
     const r = table.getBoundingClientRect();
-    tableBar = { left: Math.max(0, r.left - box.left), top: Math.max(0, r.top - box.top - 38) };
+    tableBar = { left: Math.max(0, r.left - box.left), top: r.bottom - box.top + 6 };
   }
 
   const tableActions: { label: string; run: (e: Editor) => void }[] = [
