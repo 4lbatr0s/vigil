@@ -5,7 +5,8 @@ import type { ToolGrant } from "@vigil/shared";
 import { isAppError } from "./errors";
 import { htmlToText, safeFetch, SafeFetchError } from "./safe-fetch";
 import { withNoteLock } from "./lock";
-import { listNotes, reindexNote, searchNotes } from "./index-db";
+import { getNote as indexedNote, listNotes, reindexNote, searchNotes } from "./index-db";
+import { semanticIds } from "./semantic";
 import { learnerReport } from "./learner";
 import { addEvent, dropSnapshot, recordSnapshot, recordTouch, setWrittenUpdatedAt } from "./state-db";
 import { createNote, getNote, readNoteFile, slugify, updateNote, validateId } from "./vault";
@@ -84,11 +85,18 @@ export function buildTools(grants: ToolGrant[], ctx: ToolContext): StructuredToo
       tool(
         async ({ query }) => {
           const hits = searchNotes(query).slice(0, 20);
-          return hits.length === 0 ? "no matches" : hits.map((h) => `${h.id} | ${h.title} | ${h.snippet}`).join("\n");
+          // With meaning search on, notes close in meaning to the query follow the word matches.
+          const seen = new Set(hits.map((h) => h.id));
+          const extra = (await semanticIds(query, 5)).filter((id) => !seen.has(id)).flatMap((id) => {
+            const n = indexedNote(id);
+            return n ? [`${n.id} | ${n.title} | (similar meaning)`] : [];
+          });
+          const lines = [...hits.map((h) => `${h.id} | ${h.title} | ${h.snippet}`), ...extra];
+          return lines.length === 0 ? "no matches" : lines.join("\n");
         },
         {
           name: "search_notes",
-          description: "Full-text search over notes: id | title | snippet.",
+          description: "Search notes by words, and by meaning when that is switched on: id | title | snippet.",
           schema: z.object({ query: z.string() }),
         },
       ),

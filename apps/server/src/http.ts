@@ -6,8 +6,10 @@ import { serveStatic } from "./static";
 import { ImageSettingsSchema, imageSettings, picturesFor, saveImageSettings } from "./note-images";
 import { CaptureBodySchema, capture } from "./capture";
 import { AddBodySchema, addMisconceptions, resolveOne, shakyBlock } from "./misconceptions";
+import { embedModel, setEmbedModel } from "./embeddings";
+import { hybridIds, relatedIds, semanticStatus, syncVectors } from "./semantic";
 import { McpSettingsSchema, handleMcp, mcpSettings, saveMcpSettings } from "./mcp";
-import { AskBodySchema, GapBodySchema, askTask, findPassages, gapPassages, gapTask } from "./ask";
+import { AskBodySchema, GapBodySchema, askTask, findPassages, gapPassages, gapTask, questionWords } from "./ask";
 import { AppError, isAppError } from "./errors";
 import { healthPayload } from "./health";
 import {
@@ -388,7 +390,8 @@ const routes: { method: string; pattern: RegExp; keys: string[]; handler: Handle
     handler: async (req, res) => {
       const parsed = AskBodySchema.safeParse(await readJsonBody(req));
       if (!parsed.success) throw new AppError("invalid-body", "Body must be { question: string } of 3 to 500 characters", 400);
-      const passages = findPassages(parsed.data.question);
+      const extra = (await hybridIds(parsed.data.question, questionWords(parsed.data.question), 8)).filter((id) => id !== "");
+      const passages = findPassages(parsed.data.question, undefined, undefined, extra);
       if (passages.length === 0) {
         send(res, 200, { data: { run: null, passages } });
         return;
@@ -436,6 +439,39 @@ const routes: { method: string; pattern: RegExp; keys: string[]; handler: Handle
       const parsed = McpSettingsSchema.safeParse(await readJsonBody(req));
       if (!parsed.success) throw new AppError("invalid-body", "Body must be { enabled: boolean, write: boolean }", 400);
       send(res, 200, { data: saveMcpSettings(parsed.data) });
+    },
+  },
+  {
+    // Meaning search: which embedding model the owner chose, and how far along the notes are.
+    method: "GET",
+    pattern: /^\/api\/settings\/embeddings$/,
+    keys: [],
+    handler: async (_req, res) => send(res, 200, { data: semanticStatus() }),
+  },
+  {
+    method: "PUT",
+    pattern: /^\/api\/settings\/embeddings$/,
+    keys: [],
+    handler: async (req, res) => {
+      const parsed = z.object({ model: z.string().trim().max(200).nullable() }).safeParse(await readJsonBody(req));
+      if (!parsed.success) throw new AppError("invalid-body", "Body must be { model: string | null }", 400);
+      setEmbedModel(parsed.data.model === "" ? null : parsed.data.model);
+      if (embedModel() !== null) void syncVectors();
+      send(res, 200, { data: semanticStatus() });
+    },
+  },
+  {
+    // Notes closest in meaning to one note. Empty with meaning search off.
+    method: "GET",
+    pattern: /^\/api\/notes\/([^/]+)\/related$/,
+    keys: ["id"],
+    handler: async (_req, res, params) => {
+      const id = validateId(params["id"] ?? "");
+      const rows = relatedIds(id, 5).flatMap((r) => {
+        const n = indexGetNote(r.id);
+        return n ? [{ id: n.id, title: n.title, score: Math.round(r.score * 100) / 100 }] : [];
+      });
+      send(res, 200, { data: rows });
     },
   },
   {

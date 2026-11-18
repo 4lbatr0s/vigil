@@ -149,6 +149,7 @@ export function reindexNote(note: Note): void {
     );
   }
   db.prepare("DELETE FROM cards WHERE note_id = ?").run(note.id);
+  for (const l of listeners) l(note.id);
   const addCard = db.prepare("INSERT OR IGNORE INTO cards (id, note_id, kind, front, back, line, context) VALUES (?, ?, ?, ?, ?, ?, ?)");
   for (const c of extractCards(note.body)) addCard.run(c.id, note.id, c.kind, c.front, c.back, c.line, c.context);
   db.prepare("DELETE FROM links WHERE src = ?").run(note.id);
@@ -306,6 +307,19 @@ export function searchNotesAny(words: string[], limit: number): string[] {
   const args = clean.flatMap((w) => [`%${w}%`, `%${w}%`]);
   const rows = db.prepare(`SELECT n.id AS id FROM notes n LEFT JOIN notes_body b ON b.id = n.id WHERE ${where} LIMIT ?`).all(...args, limit) as { id: string }[];
   return rows.map((r) => r.id);
+}
+
+/** For meaning search: the open index database, and every note with its content hash. */
+export const indexDb = (): Database.Database => open().db;
+export function notesForEmbedding(): { id: string; title: string; body: string; hash: string }[] {
+  return open().db.prepare("SELECT n.id AS id, n.title AS title, COALESCE(b.body, '') AS body, COALESCE(n.hash, '') AS hash FROM notes n LEFT JOIN notes_body b ON b.id = n.id").all() as { id: string; title: string; body: string; hash: string }[];
+}
+
+type IndexListener = (noteId: string) => void;
+const listeners: IndexListener[] = [];
+/** Called after a note is (re)indexed, so a background job can follow changes. */
+export function onNoteIndexed(listener: IndexListener): void {
+  listeners.push(listener);
 }
 
 export function isFtsAvailable(): boolean {

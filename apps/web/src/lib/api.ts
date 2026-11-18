@@ -141,6 +141,11 @@ export const startGap = (source: string) => request<{ run: Run; passages: Passag
 export type McpSettings = { enabled: boolean; write: boolean };
 export const getMcpSettings = () => request<McpSettings>("/api/mcp/settings");
 export const putMcpSettings = (s: McpSettings) => request<McpSettings>("/api/mcp/settings", json("PUT", s));
+export type MeaningStatus = { model: string | null; notes: number; embedded: number; working: boolean; error: string | null };
+export const getMeaning = () => request<MeaningStatus>("/api/settings/embeddings");
+export const putMeaning = (model: string | null) => request<MeaningStatus>("/api/settings/embeddings", json("PUT", { model }));
+export type RelatedNote = { id: string; title: string; score: number };
+export const getRelated = (id: string) => request<RelatedNote[]>(`/api/notes/${encodeURIComponent(id)}/related`);
 export type Passage = { n: number; noteId: string; title: string; line: number; text: string };
 export const startAsk = (question: string) => request<{ run: Run | null; passages: Passage[] }>("/api/ask", json("POST", { question }));
 export type StudySettings = { newPerDay: number; retention: number };

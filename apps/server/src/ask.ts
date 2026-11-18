@@ -33,19 +33,26 @@ export function questionWords(question: string): string[] {
 }
 
 /** The best lines for a question, best first, numbered from 1. Empty when no note shares a word with it. */
-export function findPassages(question: string, wordsOverride?: string[], max: number = MAX_PASSAGES): Passage[] {
+export function findPassages(question: string, wordsOverride?: string[], max: number = MAX_PASSAGES, extraNoteIds: string[] = []): Passage[] {
   const words = wordsOverride ?? questionWords(question);
-  if (words.length === 0) return [];
+  if (words.length === 0 && extraNoteIds.length === 0) return [];
   const out: (Omit<Passage, "n"> & { score: number })[] = [];
-  for (const id of searchNotesAny(words, MAX_NOTES)) {
+  const ids = [...new Set([...(words.length > 0 ? searchNotesAny(words, MAX_NOTES) : []), ...extraNoteIds])];
+  for (const id of ids) {
     const note = getNote(id);
     if (note === null) continue;
     const lines = (note.body ?? "").split("\n");
+    // A note found only by meaning shares no word with the question: its opening lines stand in, ranked below word matches.
+    let opening = 0;
     lines.forEach((raw, i) => {
       const text = raw.trim();
       if (text.length < 3 || /^#{1,6}\s*$/.test(text)) return;
       const lower = text.toLowerCase();
-      const score = words.filter((w) => lower.includes(w)).length;
+      let score = words.filter((w) => lower.includes(w)).length;
+      if (score === 0 && extraNoteIds.includes(id) && opening < 3) {
+        opening += 1;
+        score = 0.5;
+      }
       if (score > 0) out.push({ noteId: id, title: note.title, line: i + 1, text: text.slice(0, MAX_LINE), score });
     });
   }

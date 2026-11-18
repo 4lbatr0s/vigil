@@ -1,5 +1,6 @@
 import { accessFromEnv } from "./access";
 import { rebuildAll, isEmpty } from "./index-db";
+import { startSemanticIndex } from "./semantic";
 import { resumeDecidedRuns, startRun } from "./runs";
 import { startHousekeeping } from "./housekeeping";
 import { createScheduler } from "./scheduler";
@@ -22,6 +23,7 @@ async function main(): Promise<void> {
     const count = await rebuildAll();
     console.log(`vigil-server indexed ${count} note(s) from the vault`);
   }
+  startSemanticIndex();
   const running = start({ port });
   const { server } = running;
   server.on("listening", () => {

@@ -3,6 +3,7 @@
   import { goto } from "$app/navigation";
   import ModelsSettings from "$lib/components/ModelsSettings.svelte";
   import McpSettingsSection from "$lib/components/McpSettings.svelte";
+  import MeaningSettings from "$lib/components/MeaningSettings.svelte";
   import TidyPictures from "$lib/components/TidyPictures.svelte";
   import StudySettingsSection from "$lib/components/StudySettings.svelte";
   import { ApiError, getPermissions, getSession, getUsage, logout, putPermissions, type Session, type Usage } from "$lib/api";
@@ -119,6 +120,8 @@
   </section>
 
   <StudySettingsSection />
+
+  <MeaningSettings />
 
   <McpSettingsSection />
   <TidyPictures />

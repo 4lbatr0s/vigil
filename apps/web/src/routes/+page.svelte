@@ -10,6 +10,7 @@
   import { refreshOnLive } from "$lib/live";
   import NoteList from "$lib/components/NoteList.svelte";
   import Backlinks from "$lib/components/Backlinks.svelte";
+  import RelatedNotes from "$lib/components/RelatedNotes.svelte";
   import RenameNote from "$lib/components/RenameNote.svelte";
   import DeleteNote from "$lib/components/DeleteNote.svelte";
   import { nextAfterDelete } from "$lib/after-delete";
@@ -448,6 +449,7 @@
 
       <NoteActivity runs={noteRuns} />
       <Backlinks noteId={selectedId ?? ""} signature={notes.map((n) => n.updatedAt).join("|")} />
+      <RelatedNotes noteId={selectedId ?? ""} signature={notes.map((n) => n.updatedAt).join("|")} />
 
       <footer class="status">
         <span class="path">{selectedId}.md{#if cardStats && cardStats.total > 0}
