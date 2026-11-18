@@ -141,6 +141,25 @@ export function riskyCombination(agent: Pick<Agent, "tools" | "strict">): boolea
   return agent.tools.includes("read_notes") && agent.tools.includes("web_fetch") && !agent.strict;
 }
 
+export type Exposure = { label: string; on: boolean; text: string };
+
+/**
+ * The three things that together let a web page steal notes: the agent sees private notes, reads text from outside
+ * (web pages), and can send something out (a request to a site). Plain lines for the agent page, so the person sees at
+ * a glance which of the three are on. `all` is true when every one is.
+ */
+export function exposure(agent: Pick<Agent, "tools" | "allowedHosts" | "strict">): { lines: Exposure[]; all: boolean } {
+  const reads = agent.tools.includes("read_notes");
+  const web = agent.tools.includes("web_fetch");
+  const hosts = agent.allowedHosts.length;
+  const lines: Exposure[] = [
+    { label: "Sees your notes", on: reads, text: reads ? "It can read every note." : "It cannot read your notes." },
+    { label: "Reads outside text", on: web && hosts > 0, text: web && hosts > 0 ? `It reads pages from ${hosts === 1 ? "1 site" : `${hosts} sites`}. A page can contain tricks aimed at the agent.` : "It reads nothing from the web." },
+    { label: "Can send data out", on: web && hosts > 0, text: web && hosts > 0 ? "Each page it asks for is a request to that site." : "It sends nothing out." },
+  ];
+  return { lines, all: lines.every((l) => l.on) };
+}
+
 export type HostAdd = { ok: true; hosts: string[] } | { ok: false; message: string };
 
 /** Adds a host to the list: normalizes it, refuses non-host text and duplicates, keeps the list sorted by entry order. */

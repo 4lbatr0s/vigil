@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { ApiError, getMcpSettings, putMcpSettings, type McpSettings } from "$lib/api";
+  import { claudeCodeCommand, vaultRules } from "$lib/vault-rules";
 
   let settings = $state<McpSettings | null>(null);
   let notice = $state("");
@@ -14,6 +15,17 @@
       error = err instanceof Error ? err.message : "Could not load the MCP settings";
     }
   });
+
+  let copied = $state("");
+  async function copy(what: string, text: string): Promise<void> {
+    try {
+      await navigator.clipboard.writeText(text);
+      copied = what;
+    } catch {
+      copied = "";
+      error = "Copy did not work in this browser. Select the text and copy it by hand.";
+    }
+  }
 
   async function save(next: McpSettings): Promise<void> {
     error = "";
@@ -42,6 +54,16 @@
     {#if settings.enabled}
       <p class="muted">Address: <code>{url}</code></p>
     {/if}
+    <details class="rules">
+      <summary>Use it with Claude Code, Codex or another tool</summary>
+      <p class="muted">Two copy-and-paste helps. The first adds Vigil to Claude Code. The second is a short rules file: save it in your vault as <code>AGENTS.md</code> (or <code>CLAUDE.md</code>) so any tool that works in the folder keeps your notes safe.</p>
+      {#if settings.enabled}
+        <pre><code>{claudeCodeCommand(url)}</code></pre>
+        <button type="button" class="copy" onclick={() => void copy("command", claudeCodeCommand(url))}>{copied === "command" ? "Copied" : "Copy command"}</button>
+      {/if}
+      <pre><code>{vaultRules(settings.enabled ? url : "")}</code></pre>
+      <button type="button" class="copy" onclick={() => void copy("rules", vaultRules(settings?.enabled ? url : ""))}>{copied === "rules" ? "Copied" : "Copy rules"}</button>
+    </details>
     <p class="muted" aria-live="polite">{notice}</p>
     {#if error}<p class="error" role="alert">{error}</p>{/if}
   </section>
@@ -53,6 +75,29 @@
     gap: var(--space-3);
     align-items: center;
     margin-bottom: var(--space-2);
+  }
+  .rules {
+    margin: var(--space-3) 0;
+  }
+  .rules summary {
+    cursor: pointer;
+  }
+  pre {
+    margin: var(--space-2) 0;
+    padding: var(--space-3);
+    max-height: 16rem;
+    overflow: auto;
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius);
+    background: var(--surface);
+    white-space: pre-wrap;
+  }
+  .copy {
+    padding: var(--space-1) var(--space-3);
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius);
+    background: var(--surface);
+    font-size: var(--text-label);
   }
   code {
     font-family: var(--font-mono);

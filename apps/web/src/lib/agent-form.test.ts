@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { AgentSchema, PermissionSettingsSchema } from "@vigil/shared";
-import { addHost, agentToForm, describeGrants, formToAgent, noHostsWarning, riskyCombination } from "./agent-form";
+import { AgentSchema, PermissionSettingsSchema, type Agent } from "@vigil/shared";
+import { addHost, agentToForm, describeGrants, exposure, formToAgent, noHostsWarning, riskyCombination } from "./agent-form";
 
 const base = AgentSchema.parse({
   name: "digest",
@@ -59,6 +59,22 @@ describe("describeGrants and riskyCombination", () => {
     expect(riskyCombination({ tools: ["read_notes", "web_fetch"], strict: false })).toBe(true);
     expect(riskyCombination({ tools: ["read_notes", "web_fetch"], strict: true })).toBe(false);
     expect(riskyCombination({ tools: ["read_notes"], strict: false })).toBe(false);
+  });
+});
+
+describe("exposure", () => {
+  const agent = (tools: Agent["tools"], allowedHosts: string[]) => AgentSchema.parse({ name: "a", systemPrompt: "x", tools, allowedHosts });
+
+  it("lights all three when notes, the web and a site are present", () => {
+    const e = exposure(agent(["read_notes", "web_fetch"], ["example.com"]));
+    expect(e.all).toBe(true);
+    expect(e.lines.map((l) => l.on)).toEqual([true, true, true]);
+  });
+
+  it("breaks the chain when any leg is off", () => {
+    expect(exposure(agent(["read_notes"], [])).all).toBe(false);
+    expect(exposure(agent(["web_fetch"], ["example.com"])).lines[0]?.on).toBe(false);
+    expect(exposure(agent(["read_notes", "web_fetch"], [])).all).toBe(false);
   });
 });
 

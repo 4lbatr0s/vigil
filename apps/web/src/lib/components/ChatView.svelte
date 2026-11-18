@@ -255,6 +255,7 @@
           <article class="msg" class:err={m.role === "error"}>
             <span class="speaker">{speakerOf(m.role, thread.agent)}</span>
             <p class="text">{m.content}</p>
+            {#if m.runId && m.role !== "user"}<a class="how" href={`/runs/${encodeURIComponent(m.runId)}`}>How it worked</a>{/if}
           </article>
         {/each}
         {#if live}
@@ -399,6 +400,11 @@
     max-width: var(--measure);
     display: grid;
     gap: var(--space-1);
+  }
+  .how {
+    align-self: flex-start;
+    font-size: var(--text-label);
+    color: var(--ink-muted);
   }
   .speaker {
     font-family: var(--font-mono);

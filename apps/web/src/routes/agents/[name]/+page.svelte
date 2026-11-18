@@ -5,7 +5,7 @@
   import { AgentNameSchema, type Agent, type PermissionSettings, type Run, type ToolGrant } from "@vigil/shared";
   import { ApiError, createChat, getAgent, listAgents, listConnections, probeConnection, type Connection, getPermissions, getSchedule, listRuns, putAgent, runAgent, type Schedule } from "$lib/api";
   import { duplicateAgent } from "$lib/agent-design";
-  import { TOOL_LABELS, addHost, agentToForm, describeGrants, formToAgent, noHostsWarning, riskyCombination, triggerProblem, type AgentForm } from "$lib/agent-form";
+  import { TOOL_LABELS, addHost, agentToForm, describeGrants, exposure, formToAgent, noHostsWarning, riskyCombination, triggerProblem, type AgentForm } from "$lib/agent-form";
   import { describeCheck, formatStamp } from "$lib/format";
   import { refreshOnLive } from "$lib/live";
   import { describeTrigger, describeTriggerSentence, statusDot } from "$lib/schedule";
@@ -55,6 +55,7 @@
 
   const running = $derived(runs.some((r) => r.status === "running"));
   const grants = $derived(agent && settings ? describeGrants(agent, settings) : []);
+  const reach = $derived(agent ? exposure({ tools: agent.tools, allowedHosts: agent.allowedHosts, strict: agent.strict }) : null);
   const risky = $derived(agent && form ? riskyCombination({ tools: agent.tools, strict: form.strict }) : false);
   const dirty = $derived(agent !== null && form !== null && JSON.stringify(agentToForm(agent)) !== JSON.stringify(form));
 
@@ -240,6 +241,18 @@
       </dl>
     </section>
 
+    {#if reach}
+      <section class="reach" aria-label="What this agent can reach">
+        <h2 class="reach-title">What it can reach</h2>
+        <ul>
+          {#each reach.lines as l (l.label)}
+            <li class:on={l.on}><span class="reach-label">{l.label}</span><span class="reach-text">{l.text}</span></li>
+          {/each}
+        </ul>
+        {#if reach.all}<p class="reach-note">All three together are the risky mix: keep approvals on, and list only sites you trust.</p>{/if}
+      </section>
+    {/if}
+
     {#if risky}
       <p class="warn" role="note">
         This agent can read your notes and fetch web pages without asking you first. A web page could try to make it send your notes out. Turn on approvals, or limit the allowed sites.
@@ -397,6 +410,50 @@
 </main>
 
 <style>
+  .reach {
+    margin: var(--space-4) 0;
+    padding: var(--space-3) var(--space-4);
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius);
+    background: var(--surface);
+  }
+  .reach-title {
+    margin: 0 0 var(--space-2);
+    font-size: var(--text-label);
+    font-weight: 600;
+    color: var(--ink-muted);
+  }
+  .reach ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: var(--space-1);
+  }
+  .reach li {
+    display: grid;
+    grid-template-columns: 11rem 1fr;
+    gap: var(--space-3);
+    color: var(--ink-muted);
+    font-size: var(--text-label);
+  }
+  .reach li.on {
+    color: var(--ink);
+  }
+  .reach-label {
+    font-weight: 600;
+  }
+  .reach-note {
+    margin: var(--space-2) 0 0;
+    font-size: var(--text-label);
+    color: var(--ink);
+  }
+  @media (max-width: 639px) {
+    .reach li {
+      grid-template-columns: 1fr;
+      gap: 0;
+    }
+  }
   .page {
     padding: var(--space-6);
     max-width: 860px;
