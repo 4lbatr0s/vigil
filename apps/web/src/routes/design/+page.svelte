@@ -4,7 +4,7 @@
   import Ellipsis from "@lucide/svelte/icons/ellipsis";
   import Trash2 from "@lucide/svelte/icons/trash-2";
   import NotebookText from "@lucide/svelte/icons/notebook-text";
-  import { Badge, Button, Cluster, Dialog, EmptyState, Field, IconButton, Input, Kbd, Menu, Row, Stack, Switch, Tabs } from "$lib/ui";
+  import { Badge, Button, Checkbox, Cluster, Dialog, EmptyState, Field, IconButton, Input, Kbd, Menu, Row, Select, Stack, Switch, Tabs, Textarea } from "$lib/ui";
 
   let theme = $state<"system" | "light" | "dark">("system");
   let density = $state<"comfortable" | "compact">("comfortable");
@@ -13,6 +13,9 @@
   let selected = $state("enthalpy");
   let autoFile = $state(true);
   let tab = $state("notes");
+  let level = $state("daily");
+  let notes2 = $state("");
+  let agree = $state(true);
 
   $effect(() => {
     const root = document.documentElement;
@@ -126,6 +129,18 @@
               <Input {id} aria-describedby={describedby} {invalid} value="" />
             {/snippet}
           </Field>
+          <Field label="Runs">
+            {#snippet children({ id })}
+              <Select {id} bind:value={level}>
+                <option value="manual">Only when I start it</option>
+                <option value="daily">Every day</option>
+              </Select>
+            {/snippet}
+          </Field>
+          <Field label="Your answer">
+            {#snippet children({ id })}<Textarea {id} rows={3} bind:value={notes2} placeholder="Write what you remember" />{/snippet}
+          </Field>
+          <Checkbox label="Keep this card" detail="Saved with the form." bind:checked={agree} />
           <Switch label="File my inbox automatically" bind:checked={autoFile} />
         </Stack>
       </div>

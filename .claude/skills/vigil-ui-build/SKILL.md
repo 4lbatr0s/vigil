@@ -15,7 +15,7 @@ Vigil's UI is built from one component library and one token file. Your job is t
 
 ## While you write
 
-- Compose the screen from `$lib/ui` (`Page`, `Stack`, `Cluster`, `Row`, `Button`, `IconButton`, `Field`, `Input`, `Menu`, `Dialog`, `Tabs`, `Switch`, `Badge`, `Kbd`, `EmptyState`, `Tooltip`).
+- Compose the screen from `$lib/ui` (`Page`, `Stack`, `Cluster`, `Row`, `Button`, `IconButton`, `Field`, `Input`, `Textarea`, `Select`, `Checkbox`, `Menu`, `Dialog`, `Tabs`, `Switch`, `Badge`, `Kbd`, `EmptyState`, `Tooltip`).
 - Need something that is not there? Stop. Add it to `src/lib/ui/` with a usage comment, export it, add it to `src/routes/design/+page.svelte`, and only then use it.
 - Style only with tokens. If a value you need has no token, add a role to `tokens.css` and say why; do not write the number in the component.
 - One primary action per screen. Secondary actions go in a `Menu` or the command palette.
