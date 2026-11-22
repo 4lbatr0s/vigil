@@ -220,6 +220,15 @@ export const MIGRATIONS: readonly string[] = [
     updated_at TEXT NOT NULL
   );
   `,
+  `
+  -- migration 15: the short summary of the older part of a long chat, kept so a restart does not lose it
+  CREATE TABLE chat_summaries (
+    thread_id TEXT PRIMARY KEY,
+    covered INTEGER NOT NULL,
+    text TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+  `,
 ];
 
 let current: { key: string; db: Database.Database } | null = null;
@@ -692,8 +701,23 @@ export function setChatTitle(id: string, title: string): void {
   open().prepare("UPDATE chat_threads SET title = ? WHERE id = ?").run(title, id);
 }
 
+/** The summary of the part of a chat that no longer fits the prompt: how many dropped messages it covers, and the text. */
+export type ChatSummary = { covered: number; text: string };
+
+export function getChatSummary(threadId: string): ChatSummary | null {
+  const row = open().prepare("SELECT covered, text FROM chat_summaries WHERE thread_id = ?").get(threadId) as ChatSummary | undefined;
+  return row ?? null;
+}
+
+export function putChatSummary(threadId: string, summary: ChatSummary): void {
+  open()
+    .prepare("INSERT INTO chat_summaries (thread_id, covered, text, updated_at) VALUES (?, ?, ?, ?) ON CONFLICT(thread_id) DO UPDATE SET covered = excluded.covered, text = excluded.text, updated_at = excluded.updated_at")
+    .run(threadId, summary.covered, summary.text, new Date().toISOString());
+}
+
 export function deleteChatThread(id: string): void {
   const db = open();
+  db.prepare("DELETE FROM chat_summaries WHERE thread_id = ?").run(id);
   db.prepare("DELETE FROM chat_messages WHERE thread_id = ?").run(id);
   db.prepare("DELETE FROM chat_threads WHERE id = ?").run(id);
 }

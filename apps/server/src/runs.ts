@@ -59,10 +59,12 @@ export function startRun(agentName: string, task?: string, trigger: Run["trigger
 
 /**
  * An agent with no tools exists only to give an answer. An empty one (a thinking model that ran out of room, or a
- * model that said nothing) is a failure to tell the person about, not a success with nothing to read.
+ * model that said nothing) is a failure to tell the person about, not a success with nothing to read. The same holds
+ * for an agent with tools that answered with nothing and never used a tool: the model did nothing at all.
  */
 export function noEmptyAnswer(agent: Agent, outcome: RunOutcome): RunOutcome {
-  if (outcome.status !== "succeeded" || agent.tools.length > 0 || (outcome.finalText ?? "").trim() !== "") return outcome;
+  if (outcome.status !== "succeeded" || (outcome.finalText ?? "").trim() !== "") return outcome;
+  if (agent.tools.length > 0 && (outcome.toolCalls ?? 0) > 0) return outcome;
   return { ...outcome, status: "failed", error: "The model sent an empty reply. It may have run out of room: try again, or use a model with a larger context." };
 }
 

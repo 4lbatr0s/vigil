@@ -5,6 +5,7 @@ import { ChatOllama } from "@langchain/ollama";
 import { ChatOpenAI } from "@langchain/openai";
 import { DEFAULT_URLS, envConnection, resolveConnection, type ResolvedConnection } from "./connections";
 import { knownSecrets } from "./secrets";
+import { withRetry } from "./llm-retry";
 
 /**
  * All the runtime needs from a model: messages in, one AI message out (tools already bound).
@@ -20,11 +21,24 @@ export const DEFAULT_OLLAMA_CTX = 16384;
 
 export type ModelFactory = (
   tools: StructuredToolInterface[],
-  options: { model: string | undefined; maxTokens: number; /** A saved connection id (an agent's), else the default one is used. */ connection?: string | undefined },
+  options: {
+    model: string | undefined;
+    maxTokens: number;
+    /** A saved connection id (an agent's), else the default one is used. */
+    connection?: string | undefined;
+    /** Told before each retry of a failed call (the run log shows it). */
+    onRetry?: (retry: number, err: unknown) => void;
+    /** Cancelling the run stops the retrying. */
+    signal?: AbortSignal | undefined;
+  },
 ) => ChatModel;
 
 /** Builds the chat model for one resolved connection. The key stays inside the library object. */
-export function buildChatModel(conn: ResolvedConnection, tools: StructuredToolInterface[], model: string | undefined, maxTokens: number): ChatModel {
+export function buildChatModel(conn: ResolvedConnection, tools: StructuredToolInterface[], model: string | undefined, maxTokens: number, retry: { onRetry?: (retry: number, err: unknown) => void; signal?: AbortSignal | undefined } = {}): ChatModel {
+  return withRetry(buildPlainChatModel(conn, tools, model, maxTokens), retry);
+}
+
+function buildPlainChatModel(conn: ResolvedConnection, tools: StructuredToolInterface[], model: string | undefined, maxTokens: number): ChatModel {
   const name = model ?? conn.model;
   if (!name) throw new Error("No model configured: choose a model for the connection, or set the agent's model.");
   const bind = (chat: { bindTools(t: StructuredToolInterface[]): unknown }): ChatModel => (tools.length > 0 ? (chat.bindTools(tools) as unknown as ChatModel) : (chat as unknown as ChatModel));
@@ -40,9 +54,7 @@ export function buildChatModel(conn: ResolvedConnection, tools: StructuredToolIn
       }),
     );
   }
-  if (conn.kind === "anthropic") {
-    return bind(new ChatAnthropic({ model: name, apiKey: conn.apiKey ?? "", ...(conn.baseUrl && conn.baseUrl !== DEFAULT_URLS.anthropic ? { anthropicApiUrl: conn.baseUrl } : {}), maxTokens }));
-  }
+  if (conn.kind === "anthropic") return anthropicRunnable(conn, tools, name, maxTokens) as unknown as ChatModel;
   return bind(
     new ChatOpenAI({
       model: name,
@@ -56,19 +68,42 @@ export function buildChatModel(conn: ResolvedConnection, tools: StructuredToolIn
 }
 
 /**
+ * Sent with every Anthropic call. `cache_control` turns on automatic prompt caching: the system prompt, the tool list
+ * and the older turns of a chat are the same on every call, so after the first call the provider reads them from its
+ * cache, which is faster and cheaper. (It is a call option in this adapter, not a constructor option.)
+ */
+export const ANTHROPIC_CALL_OPTIONS = { cache_control: { type: "ephemeral" as const } };
+
+/** An Anthropic chat model with the tools bound and prompt caching on. */
+export function anthropicRunnable(conn: ResolvedConnection, tools: StructuredToolInterface[], model: string, maxTokens: number) {
+  const chat = new ChatAnthropic(anthropicOptions(conn, model, maxTokens));
+  return tools.length > 0 ? chat.bindTools(tools, ANTHROPIC_CALL_OPTIONS) : chat.withConfig(ANTHROPIC_CALL_OPTIONS);
+}
+
+/** Constructor options for an Anthropic model. */
+export function anthropicOptions(conn: ResolvedConnection, model: string, maxTokens: number) {
+  return {
+    model,
+    apiKey: conn.apiKey ?? "",
+    maxTokens,
+    ...(conn.baseUrl && conn.baseUrl !== DEFAULT_URLS.anthropic ? { anthropicApiUrl: conn.baseUrl } : {}),
+  };
+}
+
+/**
  * The model factory the app runs on: each call resolves the connection (the agent's, else the default, else the
  * VIGIL_LLM_* environment), so a connection added or changed in Settings applies to the next run without a restart.
  */
 export function modelFactoryFromConnections(): ModelFactory {
-  return (tools, { model, maxTokens, connection }) => buildChatModel(resolveConnection(connection), tools, model, maxTokens);
+  return (tools, { model, maxTokens, connection, onRetry, signal }) => buildChatModel(resolveConnection(connection), tools, model, maxTokens, { onRetry, signal });
 }
 
 /** The environment alone (VIGIL_LLM_*). Kept for tests and for a server that is configured only that way. */
 export function modelFactoryFromEnv(env: NodeJS.ProcessEnv = process.env): ModelFactory {
-  return (tools, { model, maxTokens }) => {
+  return (tools, { model, maxTokens, onRetry, signal }) => {
     const conn = envConnection(env) ?? { id: "env", name: "Environment", kind: "openai" as const, baseUrl: DEFAULT_URLS.openai, apiKey: undefined, model: undefined };
     if (!(model ?? conn.model)) throw new Error("No model configured: set VIGIL_LLM_MODEL or the agent's model.");
-    return buildChatModel(conn, tools, model, maxTokens);
+    return buildChatModel(conn, tools, model, maxTokens, { onRetry, signal });
   };
 }
 

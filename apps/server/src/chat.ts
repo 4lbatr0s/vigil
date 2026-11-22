@@ -5,7 +5,6 @@ import { getCheckpointer } from "./checkpoints";
 import { withNoteLock } from "./lock";
 import { reindexNote } from "./index-db";
 import { effectiveAgent } from "./permissions";
-import { summaries } from "./history";
 import { picturesFor } from "./note-images";
 import { runChatTurn } from "./runs";
 import {
@@ -50,7 +49,6 @@ export async function removeChat(id: string): Promise<void> {
   if (!getChatThread(id)) throw new AppError("chat-not-found", `Chat not found: ${id}`, 404);
   await getCheckpointer().deleteThread(id);
   deleteChatThread(id);
-  summaries.delete(id);
 }
 
 /**

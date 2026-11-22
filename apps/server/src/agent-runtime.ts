@@ -7,12 +7,12 @@ import { redact, type ModelFactory } from "./llm";
 import { randomUUID } from "node:crypto";
 import { effectiveAgent } from "./permissions";
 import { getCheckpointer } from "./checkpoints";
-import { MIN_BUDGET_FOR_SUMMARY, RESUMMARIZE_AFTER_CHARS, SUMMARY_MAX_TOKENS, SUMMARY_PROMPT, droppedMessages, summaries, summaryNote, transcriptOf, trimHistory } from "./history";
-import { addEvent, createApproval, createRun, finishRun, getAgent, getRun, hasRunning, setTokensUsed } from "./state-db";
+import { MIN_BUDGET_FOR_SUMMARY, RESUMMARIZE_AFTER_CHARS, SUMMARY_MAX_TOKENS, SUMMARY_PROMPT, droppedMessages, summaryNote, transcriptOf, trimHistory } from "./history";
+import { addEvent, createApproval, createRun, finishRun, getAgent, getChatSummary, getRun, hasRunning, putChatSummary, setTokensUsed } from "./state-db";
 import { getNote as vaultGetNote, slugify, validateId } from "./vault";
 
 /** What the rest of Vigil sees. LangGraph stays behind this (ADR-0009). */
-export type RunOutcome = { status: RunStatus; tokensUsed: number; error: string | null; /** The model's last answer text (used as a child's result). */ finalText?: string };
+export type RunOutcome = { status: RunStatus; tokensUsed: number; error: string | null; /** The model's last answer text (used as a child's result). */ finalText?: string; /** How many tool calls the run made (0 with an empty answer means the model did nothing). */ toolCalls?: number };
 export type AgentRunner = (input: {
   agent: Agent;
   task: string;
@@ -69,6 +69,7 @@ export const runAgent: AgentRunner = async ({ agent, task, runId, makeModel, dep
   // A resumed run continues its token count; it never starts from zero.
   let used = resume ? (getRun(runId)?.tokensUsed ?? 0) : 0;
   let finalText = "";
+  let toolCalls = 0;
 
   /** Runs `name` as a child of this run: its own row and log, its budget inside ours, one level deep. */
   const runChild = async (name: string, message: string): Promise<ChildResult> => {
@@ -113,6 +114,11 @@ export const runAgent: AgentRunner = async ({ agent, task, runId, makeModel, dep
     decisions: z.record(z.string(), z.enum(["approve", "reject"])).default({}),
   });
 
+  /** A failed model call that is tried again leaves a line in the run log, so a slow run explains itself. */
+  const noteRetry = (retry: number, err: unknown): void => {
+    addEvent(runId, "note", `model call failed (${redact(err instanceof Error ? err.message : "error")}); trying again (${retry})`);
+  };
+
   const agentNode = async (state: { messages: BaseMessage[] }) => {
     const remaining = agent.tokenBudget - used;
     if (remaining <= 0) {
@@ -130,20 +136,20 @@ export const runAgent: AgentRunner = async ({ agent, task, runId, makeModel, dep
     // enough has slid out since the last one and the run can afford it.
     if (chat && sent.length < state.messages.length) {
       const dropped = droppedMessages(state.messages, sent);
-      const known = summaries.get(chat.threadId);
+      const known = getChatSummary(chat.threadId);
       const fresh = dropped.slice(known?.covered ?? 0);
       const freshChars = fresh.reduce((n, m) => n + (typeof m.content === "string" ? m.content.length : JSON.stringify(m.content).length), 0);
       if (dropped.length > 0 && freshChars >= RESUMMARIZE_AFTER_CHARS && remaining >= MIN_BUDGET_FOR_SUMMARY) {
         try {
           const input = `${known ? `Earlier summary:\n${known.text}\n\nNewer messages:\n` : ""}${transcriptOf(fresh)}`;
-          const summarizer = makeModel([], { model: agent.model, connection: agent.connection, maxTokens: Math.min(remaining, SUMMARY_MAX_TOKENS) });
+          const summarizer = makeModel([], { model: agent.model, connection: agent.connection, maxTokens: Math.min(remaining, SUMMARY_MAX_TOKENS), onRetry: noteRetry, signal });
           const made = await summarizer.invoke([new SystemMessage(SUMMARY_PROMPT), new HumanMessage(input)]);
           const text = messageText(made).trim();
           const cost = made.usage_metadata?.total_tokens ?? estimateTokens([new HumanMessage(input)], made);
           used += cost;
           setTokensUsed(runId, used);
           if (text !== "") {
-            summaries.set(chat.threadId, { covered: dropped.length, text });
+            putChatSummary(chat.threadId, { covered: dropped.length, text });
             addEvent(runId, "note", `summarized ${fresh.length} older messages (${cost} tokens)`);
           }
         } catch (err) {
@@ -151,12 +157,12 @@ export const runAgent: AgentRunner = async ({ agent, task, runId, makeModel, dep
           addEvent(runId, "note", `could not summarize older messages: ${redact(err instanceof Error ? err.message : "error")}`);
         }
       }
-      const summary = summaries.get(chat.threadId);
+      const summary = getChatSummary(chat.threadId);
       // A user-role message, not a system one: the summary was written by a model from text that may be untrusted,
       // so it must not carry the authority of the system prompt.
       if (summary) sent = [...sent.slice(0, sent[0] instanceof SystemMessage ? 1 : 0), new HumanMessage(summaryNote(summary.text)), ...sent.slice(sent[0] instanceof SystemMessage ? 1 : 0)];
     }
-    const model = makeModel(tools, { model: agent.model, connection: agent.connection, maxTokens: remaining });
+    const model = makeModel(tools, { model: agent.model, connection: agent.connection, maxTokens: remaining, onRetry: noteRetry, signal });
     // Wait for the model, but let a cancel win at once instead of after the (possibly long) call.
     let streamed = false;
     const ask = async (): Promise<AIMessage> => {
@@ -253,6 +259,7 @@ export const runAgent: AgentRunner = async ({ agent, task, runId, makeModel, dep
       ctx.lastChildRunId = null;
       addEvent(runId, "tool-result", truncate(output, 300), { tool: call.name, ...(childRunId ? { childRunId } : {}) });
       onEvent?.({ type: "tool", name: call.name, status: "result" });
+      toolCalls += 1;
       results.push(new ToolMessage({ content: output, tool_call_id: id, name: call.name }));
     }
     return { messages: results };
@@ -325,19 +332,19 @@ export const runAgent: AgentRunner = async ({ agent, task, runId, makeModel, dep
         createApproval({ id: randomUUID(), runId, toolCallId: c.id, tool: c.name, args: c.args, baseUpdatedAt: base });
       }
       addEvent(runId, "stop", `waiting for approval of ${calls.length} write${calls.length === 1 ? "" : "s"}`);
-      return { status: "waiting-approval", tokensUsed: used, error: null, finalText };
+      return { status: "waiting-approval", tokensUsed: used, error: null, finalText, toolCalls };
     }
   } catch (err) {
     if (err instanceof GraphRecursionError) {
       addEvent(runId, "stop", "step limit reached");
-      return { status: "step-limit", tokensUsed: used, error: "step limit reached", finalText };
+      return { status: "step-limit", tokensUsed: used, error: "step limit reached", finalText, toolCalls };
     }
     const message = redact(err instanceof Error ? err.message : "run failed");
     addEvent(runId, "stop", `failed: ${message}`);
-    return { status: "failed", tokensUsed: used, error: message, finalText };
+    return { status: "failed", tokensUsed: used, error: message, finalText, toolCalls };
   }
   const status: RunStatus = stop ?? "succeeded";
   addEvent(runId, "stop", cancelled ? "cancelled" : status);
   const error = cancelled ? "cancelled" : status === "budget-exceeded" ? `token budget of ${agent.tokenBudget} used up` : null;
-  return { status, tokensUsed: used, error, finalText };
+  return { status, tokensUsed: used, error, finalText, toolCalls };
 };
