@@ -1,5 +1,6 @@
 <script lang="ts">
-  import Illustration from "$lib/components/Illustration.svelte";
+  import ChevronRight from "@lucide/svelte/icons/chevron-right";
+  import { Badge, Button, Dialog, EmptyState, Input, Page, Row, Stack } from "$lib/ui";
   import { onMount } from "svelte";
   import type { Run } from "@vigil/shared";
   import { ApiError, captureLine, getDecks, type DeckStats, getStuckCards, createFromTemplate, getGoals, getRecall, getStudyStats, listAgents, listApprovals, listNotes, listRuns, putAgent, runAgent, undoRun, type ApprovalItem, type Goal, type RecallItem, type StuckCard, type StudyStats } from "$lib/api";
@@ -26,7 +27,8 @@
   let loading = $state(true);
   let loadError = $state("");
   let errors = $state(new Map<string, string>());
-  let asking = $state<string | null>(null);
+  let asking = $state<Run | null>(null);
+  let askOpen = $state(false);
   let captured = $state("");
   let captureNote = $state("");
   let capturing = $state(false);
@@ -107,7 +109,7 @@
   }
 
   async function undo(run: Run): Promise<void> {
-    asking = null;
+    askOpen = false;
     errors.delete(run.id);
     try {
       await undoRun(run.id);
@@ -121,301 +123,188 @@
   const label = (r: Run): string => (r.undone ? "undone" : r.status === "waiting-approval" ? "waiting for you" : r.status);
 </script>
 
-<div class="page">
-  <header class="head">
-    <div>
-      <h1>{greeting}</h1>
-      <p class="lede">What your agents did{since ? " since you last looked" : " in the last day"}.</p>
-    </div>
-    {#if items.length > 0}<button type="button" class="btn" onclick={seen}>Mark all as seen</button>{/if}
-  </header>
+<Page title={greeting}>
+  {#snippet actions()}
+    {#if items.length > 0}<Button variant="ghost" onclick={seen}>Mark all as seen</Button>{/if}
+  {/snippet}
 
   {#if loadError}
-    <p class="error">{loadError}</p>
+    <p class="error" role="alert">{loadError}</p>
   {:else if loading}
     <p class="muted">Loading…</p>
   {:else}
-    {#if focus.length > 0}
-      <section aria-labelledby="first">
-        <h2 id="first">Start here</h2>
-        <ul class="first">
-          {#each focus as f (f.key)}
-            <li><span>{f.text}</span> <a class="btn" href={f.href}>{f.label}</a></li>
-          {/each}
-        </ul>
-      </section>
-    {/if}
-    <section aria-labelledby="capture">
-      <h2 id="capture">Capture</h2>
-      <form class="capture" onsubmit={addCapture}>
-        <input type="text" bind:value={captured} aria-label="Quick capture" placeholder="A thought, a task, a question…" maxlength="2000" />
-        <button type="submit" class="btn" disabled={capturing || captured.trim() === ""}>Add to Inbox</button>
-        <button type="button" class="btn" disabled={filing} onclick={() => void fileInbox()} title="An agent suggests which note each line belongs in; you approve each one">File my inbox</button>
-      </form>
-      <p class="muted" aria-live="polite">{captureNote}</p>
-    </section>
-    {#if study && study.due + study.newOffered > 0}
-      <section aria-labelledby="study">
-        <h2 id="study">Study</h2>
-        <div class="card">
-          <div class="line">
-            <strong>{study.due > 0 ? `${study.due} ${study.due === 1 ? "card is" : "cards are"} ready to review` : `${study.newOffered} new ${study.newOffered === 1 ? "card" : "cards"} to learn`}</strong>
-            {#if study.reviewedToday > 0}<span class="state">{study.reviewedToday} done today</span>{/if}
-          </div>
-          {#if exam}<p>{goalLine(exam)}</p>{/if}
-          <p class="muted">A few minutes now is worth more than an hour of rereading later.</p>
-          <div class="actions"><a class="btn primary" href="/study">Start studying</a></div>
-        </div>
-      </section>
-    {/if}
-
-    {#if recallDue.length > 0}
-      <section aria-labelledby="recall">
-        <h2 id="recall">Recall</h2>
-        <div class="card">
-          <p><strong>{recallDue.length === 1 ? "A note is" : `${recallDue.length} notes are`} ready to recall.</strong> Write what you remember, then see what you missed.</p>
-          <div class="actions">
-            {#each recallDue.slice(0, 3) as r (r.noteId)}
-              <a class="btn" href={`/recall?note=${encodeURIComponent(r.noteId)}`} data-sveltekit-reload>{titles.get(r.noteId) ?? r.noteId}</a>
+    <Stack gap={8}>
+      {#if focus.length > 0}
+        <section aria-labelledby="first">
+          <h2 id="first">Start here</h2>
+          <div class="list">
+            {#each focus as f (f.key)}
+              <Row title={f.text} href={f.href}>
+                {#snippet trail()}<span class="go">{f.label}<ChevronRight size={14} strokeWidth={1.5} /></span>{/snippet}
+              </Row>
             {/each}
           </div>
-        </div>
-      </section>
-    {/if}
-
-    {#if pending.length > 0}
-      <section aria-labelledby="needs">
-        <h2 id="needs">Needs you</h2>
-        <ul class="cards">
-          {#each pending as p (p.id)}
-            <li class="card">
-              <div class="line">
-                <span class="dot amber" aria-hidden="true"></span>
-                <strong>{p.agent ?? "An agent"}</strong> wants to change
-                <a href={`/?note=${encodeURIComponent(p.noteId)}`}>{p.title || p.noteId}</a>
-                <span class="when">{relativeTime(p.createdAt)}</span>
-              </div>
-              <div class="actions"><a class="btn primary" href="/approvals">Review</a></div>
-            </li>
-          {/each}
-        </ul>
-      </section>
-    {/if}
-
-    <section aria-labelledby="ran">
-      <h2 id="ran">Since your last visit</h2>
-      {#if items.length === 0}
-        <div class="empty">
-          <Illustration kind="calm" />
-          <p>All quiet.</p>
-          <p class="muted">Your agents have not done anything since you last looked. <a href="/agents">See your agents</a>.</p>
-        </div>
-      {:else}
-        <ul class="cards">
-          {#each items as r (r.id)}
-            <li class="card">
-              <div class="line">
-                <StatusDot state={r.undone ? "idle" : statusDot({ enabled: true }, r)} />
-                <strong>{r.agent}</strong>
-                <span class="state">{label(r)}</span>
-                <span class="when" title={r.startedAt}>{relativeTime(r.startedAt)}</span>
-              </div>
-              {#if r.touched.length > 0}
-                <p class="wrote">
-                  Changed
-                  {#each r.touched as id, i (id)}{i > 0 ? ", " : " "}<a href={`/?note=${encodeURIComponent(id)}`}>{titles.get(id) ?? id}</a>{/each}
-                </p>
-              {:else if r.error}
-                <p class="wrote err">{r.error}</p>
-              {:else}
-                <p class="wrote muted">No notes changed.</p>
-              {/if}
-              <div class="actions">
-                <a class="btn" href={`/runs/${encodeURIComponent(r.id)}`}>View run</a>
-                {#if canUndo(r)}
-                  {#if asking === r.id}
-                    <span class="ask" role="alertdialog" aria-label="Confirm undo">
-                      Restore what this run changed?
-                      <button type="button" class="btn danger" onclick={() => void undo(r)}>Undo</button>
-                      <button type="button" class="btn" onclick={() => (asking = null)}>Keep</button>
-                    </span>
-                  {:else}
-                    <button type="button" class="btn" onclick={() => (asking = r.id)}>Undo this run</button>
-                  {/if}
-                {/if}
-              </div>
-              {#if errors.get(r.id)}<p class="error" role="alert">{errors.get(r.id)}</p>{/if}
-            </li>
-          {/each}
-        </ul>
+        </section>
       {/if}
-    </section>
+
+      <section aria-labelledby="capture">
+        <h2 id="capture">Capture</h2>
+        <form class="capture" onsubmit={addCapture}>
+          <Input bind:value={captured} aria-label="Quick capture" placeholder="A thought, a task, a question" maxlength={2000} />
+          <Button type="submit" disabled={capturing || captured.trim() === ""}>Add to inbox</Button>
+          <Button variant="ghost" disabled={filing} onclick={() => void fileInbox()}>File my inbox</Button>
+        </form>
+        <p class="muted" aria-live="polite">{captureNote}</p>
+      </section>
+
+      {#if study && study.due + study.newOffered > 0}
+        <section aria-labelledby="study">
+          <h2 id="study">Study</h2>
+          <p class="lead">{study.due > 0 ? `${study.due} ${study.due === 1 ? "card is" : "cards are"} ready to review.` : `${study.newOffered} new ${study.newOffered === 1 ? "card" : "cards"} to learn.`}{#if study.reviewedToday > 0}<span class="muted"> {study.reviewedToday} done today.</span>{/if}</p>
+          {#if exam}<p class="muted">{goalLine(exam)}</p>{/if}
+          <div class="act"><Button variant="primary" href="/study">Start studying</Button></div>
+        </section>
+      {/if}
+
+      {#if recallDue.length > 0}
+        <section aria-labelledby="recall">
+          <h2 id="recall">Recall</h2>
+          <p class="lead">{recallDue.length === 1 ? "A note is" : `${recallDue.length} notes are`} ready to recall.</p>
+          <div class="list">
+            {#each recallDue.slice(0, 3) as r (r.noteId)}
+              <Row title={titles.get(r.noteId) ?? r.noteId} href={`/recall?note=${encodeURIComponent(r.noteId)}`} />
+            {/each}
+          </div>
+        </section>
+      {/if}
+
+      {#if pending.length > 0}
+        <section aria-labelledby="needs">
+          <h2 id="needs">Needs you</h2>
+          <div class="list">
+            {#each pending as p (p.id)}
+              <Row title={`${p.agent ?? "An agent"} wants to change ${p.title || p.noteId}`} meta={relativeTime(p.createdAt)} href="/approvals">
+                {#snippet lead()}<span class="agent-dot" aria-hidden="true"></span>{/snippet}
+                {#snippet trail()}<Badge tone="agent">Review</Badge>{/snippet}
+              </Row>
+            {/each}
+          </div>
+        </section>
+      {/if}
+
+      <section aria-labelledby="ran">
+        <h2 id="ran">Since your last visit</h2>
+        {#if items.length === 0}
+          <EmptyState title="Nothing new since you last looked." />
+        {:else}
+          <div class="list">
+            {#each items as r (r.id)}
+              <div class="item">
+                <Row
+                  title={r.agent}
+                  meta={relativeTime(r.startedAt)}
+                  snippet={r.touched.length > 0 ? `${label(r)}. Changed ${r.touched.map((id) => titles.get(id) ?? id).join(", ")}` : r.error ? `${label(r)}. ${r.error}` : `${label(r)}. No notes changed.`}
+                  href={`/runs/${encodeURIComponent(r.id)}`}
+                >
+                  {#snippet lead()}<StatusDot state={r.undone ? "idle" : statusDot({ enabled: true }, r)} />{/snippet}
+                </Row>
+                {#if canUndo(r)}
+                  <span class="undo"><Button variant="ghost" size="sm" onclick={() => ((asking = r), (askOpen = true))}>Undo</Button></span>
+                {/if}
+                {#if errors.get(r.id)}<p class="error" role="alert">{errors.get(r.id)}</p>{/if}
+              </div>
+            {/each}
+          </div>
+        {/if}
+      </section>
+    </Stack>
   {/if}
-</div>
+</Page>
+
+<Dialog bind:open={askOpen} title="Undo this run?" description={asking ? `This restores what ${asking.agent} changed.` : ""}>
+  {#snippet actions()}
+    <Button variant="ghost" onclick={() => (askOpen = false)}>Keep changes</Button>
+    <Button variant="danger" onclick={() => asking && void undo(asking)}>Undo run</Button>
+  {/snippet}
+</Dialog>
 
 <style>
-  .first {
-    display: grid;
-    gap: var(--space-2);
-    list-style: none;
-    padding: 0;
+  h2 {
+    margin-bottom: var(--s-2);
+    font: var(--weight-strong) var(--type-heading-size) / var(--type-heading-lh) var(--font-ui);
   }
-  .first li {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-3);
-    align-items: center;
-    justify-content: space-between;
+
+  .list {
+    margin: 0 calc(var(--s-3) * -1);
   }
+
+  .lead {
+    margin: 0 0 var(--s-1);
+    font: var(--weight-regular) var(--type-body-size) / var(--type-body-lh) var(--font-ui);
+  }
+
+  .muted {
+    margin: var(--s-1) 0 0;
+    color: var(--text-2);
+    font: var(--weight-regular) var(--type-ui-size) / var(--type-ui-lh) var(--font-ui);
+  }
+
+  .lead .muted {
+    margin: 0;
+  }
+
+  .act {
+    margin-top: var(--s-3);
+  }
+
   .capture {
     display: flex;
     flex-wrap: wrap;
-    gap: var(--space-2);
+    align-items: center;
+    gap: var(--s-2);
   }
-  .capture input {
+
+  .capture :global(input) {
     flex: 1;
     min-width: 12rem;
-    padding: var(--space-2) var(--space-3);
-    border: 1px solid var(--hairline);
-    border-radius: var(--radius);
-    background: var(--surface);
-    color: var(--ink);
-    font: inherit;
-  }
-  .page {
-    max-width: 760px;
-    margin-inline: auto;
-    padding: var(--space-6);
-    display: grid;
-    gap: var(--space-6);
   }
 
-  .head {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: var(--space-4);
-  }
-
-  h1 {
-    font-family: var(--font-serif);
-    font-size: var(--text-h1);
-    font-weight: 600;
-  }
-
-  h2 {
-    margin-bottom: var(--space-3);
-    font-size: var(--text-label);
-    letter-spacing: 0.09em;
-    text-transform: uppercase;
-    color: var(--ink-muted);
-    font-weight: 500;
-  }
-
-  .lede,
-  .muted {
-    color: var(--ink-muted);
-  }
-
-  .cards {
-    display: grid;
-    gap: var(--space-3);
-    margin: 0;
-    padding: 0;
-    list-style: none;
-  }
-
-  .card {
-    display: grid;
-    gap: var(--space-2);
-    padding: var(--space-4);
-    border: 1px solid var(--hairline);
-    border-radius: var(--radius-lg);
-    background: var(--surface-raised);
-  }
-
-  .line {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: baseline;
-    gap: var(--space-2);
-  }
-
-  .dot {
-    align-self: center;
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-  }
-
-  .dot.amber {
-    background: var(--amber);
-  }
-
-  .state,
-  .when {
-    color: var(--ink-muted);
-    font-size: var(--text-label);
-  }
-
-  .when {
-    margin-left: auto;
-  }
-
-  .wrote {
-    font-family: var(--font-serif);
-    font-size: var(--text-prose);
-  }
-
-  .wrote.err,
-  .error {
-    color: var(--err-ink);
-    font-family: var(--font-mono);
-    font-size: var(--text-label);
-  }
-
-  .actions {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: var(--space-2);
-  }
-
-  .ask {
+  .go {
     display: inline-flex;
     align-items: center;
-    gap: var(--space-2);
-    font-size: var(--text-label);
-    color: var(--ink-muted);
+    gap: var(--s-1);
+    color: var(--text-2);
+    font: var(--weight-medium) var(--type-ui-size) / 1 var(--font-ui);
   }
 
-  .btn {
-    padding: var(--space-1) var(--space-3);
-    border: 1px solid var(--hairline);
-    border-radius: var(--radius);
-    color: var(--ink);
-    text-decoration: none;
-    font-size: var(--text-label);
+  .agent-dot {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    margin-top: var(--s-1);
+    border-radius: var(--r-pill);
+    background: var(--agent);
   }
 
-  .btn:hover {
-    background: var(--surface-hover);
+  .item {
+    position: relative;
   }
 
-  .btn.primary {
-    background: var(--ink);
-    border-color: var(--ink);
-    color: var(--bg);
+  .undo {
+    position: absolute;
+    right: var(--s-2);
+    bottom: var(--s-1);
+    display: none;
   }
 
-  .btn.danger {
-    border-color: var(--err);
-    color: var(--err-ink);
+  .item:hover .undo,
+  .item:focus-within .undo {
+    display: inline-flex;
   }
 
-  .empty {
-    padding: var(--space-6) 0;
-    font-size: var(--text-ui);
-    text-align: center;
+  .error {
+    margin: var(--s-1) 0 0;
+    color: var(--danger);
+    font: var(--weight-regular) var(--type-ui-size) / var(--type-ui-lh) var(--font-ui);
   }
 </style>

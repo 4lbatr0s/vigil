@@ -14,6 +14,7 @@ const src = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 const MIGRATED: string[] = [
   "routes/design/+page.svelte",
   "routes/+page.svelte",
+  "routes/today/+page.svelte",
   "lib/components/Shell.svelte",
   "lib/components/Banner.svelte",
   "lib/components/NoteList.svelte",
