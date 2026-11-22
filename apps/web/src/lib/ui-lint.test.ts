@@ -17,6 +17,8 @@ const MIGRATED: string[] = [
   "routes/today/+page.svelte",
   "routes/study/+page.svelte",
   "routes/agents/+page.svelte",
+  "routes/approvals/+page.svelte",
+  "lib/components/ChatView.svelte",
   "routes/agents/[name]/+page.svelte",
   "routes/agents/new/+page.svelte",
   "lib/components/ExamDates.svelte",

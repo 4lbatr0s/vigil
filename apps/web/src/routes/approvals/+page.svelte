@@ -1,5 +1,5 @@
 <script lang="ts">
-  import Illustration from "$lib/components/Illustration.svelte";
+  import { Badge, Button, Cluster, EmptyState, Kbd, Page, Row, Stack } from "$lib/ui";
   import { onMount } from "svelte";
   import { ApiError, decideApproval, listApprovals, type ApprovalItem } from "$lib/api";
   import { diffLines, diffStats } from "$lib/diff";
@@ -71,198 +71,129 @@
 <svelte:head><title>Approvals · Vigil</title></svelte:head>
 <svelte:window onkeydown={onWindowKey} />
 
-<main class="page">
-  <h1>Approvals</h1>
-  {#if error}<p class="error" role="alert">{error}</p>{/if}
+<Page title="Approvals">
+  <Stack gap={4}>
+    {#if error}<p class="error" role="alert">{error}</p>{/if}
 
-  {#if !loaded}
-    <p class="muted">Loading…</p>
-  {:else if items.length === 0}
-    <section class="empty">
-      <Illustration kind="calm" />
-      <p class="empty-title">All caught up. Nothing is waiting for you.</p>
-      <p class="muted">Agents in approval mode will appear here before they write.</p>
-    </section>
-  {:else}
-    <ul class="ledger" aria-label="Writes waiting for approval">
-      {#each items as item (item.id)}
-        {@const lines = diffLines(item.currentBody, item.proposedBody)}
-        {@const stats = diffStats(lines)}
-        <li>
-          <button type="button" class="row" aria-expanded={openId === item.id} onclick={() => (openId = openId === item.id ? null : item.id)}>
-            <span class="stamp">{agoText(item.createdAt)}</span>
-            <span class="title">{item.title || item.noteId}</span>
-            <span class="meta">{item.agent ?? "agent"} · {item.currentBody === null ? "creates" : "replaces"}</span>
-            {#if done[item.id]}<span class="result">{done[item.id]?.text}</span>{/if}
-          </button>
-          {#if done[item.id]?.runId}
-            <p class="muted continues">Run continues. <a href={`/runs/${item.runId}`}>Open the run</a></p>
-          {/if}
-          {#if openId === item.id && !done[item.id]}
-            <section class="review" aria-label={`Review ${item.title}`}>
-              {#if stale[item.id] || item.stale}
-                <p class="warn" role="status">This note changed after the agent proposed this write.</p>
-              {/if}
-              <p class="muted stats">+{stats.added} −{stats.removed}</p>
-              <pre class="diff" aria-label="Changes">{#each lines as l, i (i)}<span class={l.kind}>{l.kind === "add" ? "+ " : l.kind === "del" ? "- " : "  "}{l.text}
-</span>{/each}</pre>
-              <div class="actions">
+    {#if !loaded}
+      <p class="muted">Loading…</p>
+    {:else if items.length === 0}
+      <EmptyState title="Nothing is waiting for you. Agents in approval mode show up here before they write." />
+    {:else}
+      <div class="list" role="list" aria-label="Writes waiting for approval">
+        {#each items as item (item.id)}
+          {@const lines = diffLines(item.currentBody, item.proposedBody)}
+          {@const stats = diffStats(lines)}
+          <div role="listitem">
+            <Row
+              title={item.title || item.noteId}
+              meta={agoText(item.createdAt)}
+              snippet={`${item.agent ?? "agent"} · ${item.currentBody === null ? "creates a note" : "replaces the note"}`}
+              selected={openId === item.id}
+              onclick={() => (openId = openId === item.id ? null : item.id)}
+            >
+              {#snippet lead()}<span class="agent-dot" aria-hidden="true"></span>{/snippet}
+              {#snippet trail()}{#if done[item.id]}<Badge>{done[item.id]?.text}</Badge>{/if}{/snippet}
+            </Row>
+            {#if done[item.id]?.runId}
+              <p class="muted continues">Run continues. <a href={`/runs/${item.runId}`}>Open the run</a></p>
+            {/if}
+            {#if openId === item.id && !done[item.id]}
+              <section class="review" aria-label={`Review ${item.title}`}>
                 {#if stale[item.id] || item.stale}
-                  <button type="button" class="danger" disabled={busy === item.id} onclick={() => void decide(item, "approve", true)}>Apply anyway</button>
-                {:else}
-                  <button type="button" class="primary" disabled={busy === item.id} onclick={() => void decide(item, "approve")}>Approve</button>
+                  <p class="warn" role="status">This note changed after the agent proposed this write.</p>
                 {/if}
-                <button type="button" class="ghost" disabled={busy === item.id} onclick={() => void decide(item, "reject")}>Reject</button>
-                <span class="muted keys">A approve · R reject</span>
-              </div>
-              {#if stale[item.id] || item.stale}<p class="muted">Apply anyway saves the current text first, so Undo on the run can bring it back.</p>{/if}
-            </section>
-          {/if}
-        </li>
-      {/each}
-    </ul>
-  {/if}
-</main>
+                <p class="muted">+{stats.added} −{stats.removed}</p>
+                <pre class="diff" aria-label="Changes">{#each lines as l, i (i)}<span class={l.kind}>{l.kind === "add" ? "+ " : l.kind === "del" ? "- " : "  "}{l.text}
+</span>{/each}</pre>
+                <Cluster gap={2}>
+                  {#if stale[item.id] || item.stale}
+                    <Button variant="danger" disabled={busy === item.id} onclick={() => void decide(item, "approve", true)}>Apply anyway</Button>
+                  {:else}
+                    <Button variant="primary" disabled={busy === item.id} onclick={() => void decide(item, "approve")}>Approve <Kbd keys="A" /></Button>
+                  {/if}
+                  <Button variant="ghost" disabled={busy === item.id} onclick={() => void decide(item, "reject")}>Reject <Kbd keys="R" /></Button>
+                </Cluster>
+                {#if stale[item.id] || item.stale}<p class="muted">Apply anyway saves the current text first, so Undo on the run can bring it back.</p>{/if}
+              </section>
+            {/if}
+          </div>
+        {/each}
+      </div>
+    {/if}
+  </Stack>
+</Page>
 
 <style>
-  .page {
-    padding: var(--space-6);
-    max-width: 960px;
-    margin-inline: auto;
-  }
-  h1 {
-    font-family: var(--font-serif);
-    font-size: var(--text-h2);
-    font-weight: 600;
-    margin-bottom: var(--space-4);
-  }
-  .muted {
-    color: var(--ink-muted);
-  }
-  .error {
-    color: var(--err-ink);
-    margin-bottom: var(--space-3);
-  }
-  .empty {
-    padding: var(--space-12) 0;
-    text-align: center;
-  }
-  .empty-title {
-    font-family: var(--font-serif);
-    font-size: var(--text-h3);
-    margin-bottom: var(--space-2);
-  }
-  .ledger {
-    list-style: none;
-    padding: 0;
+  p {
     margin: 0;
-    border-top: 1px solid var(--hairline);
   }
-  .ledger > li {
-    border-bottom: 1px solid var(--hairline);
+
+  .muted {
+    color: var(--text-2);
+    font: var(--weight-regular) var(--type-ui-size) / var(--type-ui-lh) var(--font-ui);
   }
-  .row {
-    display: grid;
-    grid-template-columns: 110px 1fr 220px auto;
-    gap: var(--space-3);
-    align-items: baseline;
-    width: 100%;
-    padding: var(--space-3) var(--space-2);
-    text-align: left;
+
+  .error {
+    color: var(--danger);
+    font: var(--weight-regular) var(--type-ui-size) / var(--type-ui-lh) var(--font-ui);
   }
-  .row:hover {
-    background: var(--surface);
+
+  .list {
+    margin: 0 calc(var(--s-3) * -1);
   }
-  .stamp,
-  .meta,
-  .result {
-    font-family: var(--font-mono);
-    font-size: var(--text-label);
-    color: var(--ink-muted);
+
+  .agent-dot {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    margin-top: var(--s-1);
+    border-radius: var(--r-pill);
+    background: var(--agent);
   }
-  .title {
-    font-family: var(--font-serif);
-    font-size: var(--text-prose);
-  }
+
   .continues {
-    padding: 0 var(--space-2) var(--space-3);
-    font-size: var(--text-label);
+    padding: 0 var(--s-3) var(--s-3);
   }
+
   .review {
-    padding: var(--space-2) var(--space-2) var(--space-4);
+    display: flex;
+    flex-direction: column;
+    gap: var(--s-3);
+    padding: var(--s-2) var(--s-3) var(--s-5);
   }
+
   .warn {
-    border: 1px solid var(--amber);
-    border-radius: var(--radius);
-    padding: var(--space-2) var(--space-3);
-    margin-bottom: var(--space-2);
-    font-size: var(--text-label);
+    padding: var(--s-2) var(--s-3);
+    border-radius: var(--r-control);
+    background: var(--agent-fill);
+    font: var(--weight-regular) var(--type-ui-size) / var(--type-ui-lh) var(--font-ui);
   }
-  .stats {
-    font-family: var(--font-mono);
-    font-size: var(--text-label);
-    margin-bottom: var(--space-1);
-  }
+
   .diff {
-    margin: 0 0 var(--space-3);
-    padding: var(--space-3);
-    background: var(--surface);
-    border: 1px solid var(--hairline);
-    border-radius: var(--radius);
-    font-family: var(--font-mono);
-    font-size: var(--text-label);
-    line-height: 1.5;
+    margin: 0;
+    padding: var(--s-3);
+    border-radius: var(--r-surface);
+    background: var(--fill-hover);
+    font: var(--weight-regular) var(--type-ui-size) / var(--type-body-lh) var(--font-code);
     max-height: 50vh;
     overflow: auto;
     white-space: pre-wrap;
     overflow-wrap: anywhere;
   }
+
   .diff .add {
-    color: var(--ok);
     display: block;
+    color: var(--good);
   }
+
   .diff .del {
-    color: var(--err-ink);
     display: block;
+    color: var(--danger);
   }
+
   .diff .same {
-    color: var(--ink-muted);
     display: block;
-  }
-  .actions {
-    display: flex;
-    gap: var(--space-3);
-    align-items: center;
-  }
-  .primary,
-  .ghost,
-  .danger {
-    padding: var(--space-2) var(--space-4);
-    border: 1px solid var(--ink);
-    border-radius: var(--radius);
-    font-size: var(--text-label);
-  }
-  .primary {
-    background: var(--ink);
-    color: var(--bg);
-  }
-  .ghost {
-    border-color: var(--hairline);
-    background: var(--surface);
-  }
-  .danger {
-    border-color: var(--err);
-    color: var(--err-ink);
-  }
-  button:disabled {
-    opacity: 0.5;
-  }
-  .keys {
-    font-size: var(--text-label);
-  }
-  @media (max-width: 800px) {
-    .row {
-      grid-template-columns: 1fr;
-    }
+    color: var(--text-3);
   }
 </style>
