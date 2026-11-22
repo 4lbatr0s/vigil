@@ -487,7 +487,7 @@
 
 {#if popup}
   <div class="popup" role="listbox" aria-label="Blocks" style={popupStyle}>
-    {#each popupGroups as g (g.name)}
+    {#each popupGroups as g, gi (`${gi}:${g.name}`)}
       {#if g.name}<div class="group">{g.name}</div>{/if}
       {#each g.rows as { i, item } (item.key)}
         <button type="button" role="option" aria-selected={i === popup.index} class:sel={i === popup.index} onmousedown={(ev) => ev.preventDefault()} onclick={() => popup?.choose(i)}>
@@ -1005,6 +1005,43 @@
     border-bottom: 1px dashed var(--ink-muted);
     border-radius: var(--r-control);
     padding: 0 2px;
+  }
+  .block-editor :global(.toc) {
+    display: flex;
+    flex-direction: column;
+    gap: var(--s-1);
+    margin: var(--s-3) 0;
+    padding: var(--s-3) var(--s-4);
+    border-radius: var(--r-surface);
+    background: var(--fill-hover);
+  }
+  .block-editor :global(.toc.ProseMirror-selectednode) {
+    box-shadow: 0 0 0 2px var(--focus);
+  }
+  .block-editor :global(.toc-title) {
+    margin: 0 0 var(--s-1);
+    color: var(--text-2);
+    font: var(--weight-strong) var(--type-ui-size) / var(--type-ui-lh) var(--font-ui);
+  }
+  .block-editor :global(.toc-none) {
+    margin: 0;
+    color: var(--text-3);
+    font: var(--weight-regular) var(--type-ui-size) / var(--type-ui-lh) var(--font-ui);
+  }
+  .block-editor :global(.toc-item) {
+    padding-block: 2px;
+    border: 0;
+    background: none;
+    color: var(--text);
+    font: var(--weight-regular) var(--type-ui-size) / var(--type-ui-lh) var(--font-ui);
+    text-align: left;
+    text-decoration: underline;
+    text-decoration-color: var(--line);
+    text-underline-offset: 3px;
+    cursor: pointer;
+  }
+  .block-editor :global(.toc-item:hover) {
+    text-decoration-color: var(--text);
   }
   .block-editor :global(.callout) {
     --tone: var(--canvas-5);

@@ -15,6 +15,11 @@ describe("slashItems", () => {
     expect(slashItems("zzzz")).toEqual([]);
   });
 
+  it("offers a table of contents", () => {
+    expect(slashItems("contents")[0]?.label).toBe("Table of contents");
+    expect(slashItems("toc")[0]?.label).toBe("Table of contents");
+  });
+
   it("offers Image and Ask an agent only when the page can handle them", () => {
     expect(slashItems("image").length).toBe(0);
     expect(slashItems("image", { onImage: () => undefined })[0]?.label).toBe("Image");

@@ -16,6 +16,7 @@ const SAFE: Record<string, string> = {
   "emphasis and links": "**bold** *italic* ~~gone~~ `code` [text](https://example.com)",
   image: "![alt text](/api/images/a.png)",
   divider: "Above\n\n---\n\nBelow",
+  "table of contents": "# One\n\n[TOC]\n\n## Two\n\nText.",
 };
 
 describe("round trip through the block editor", () => {
