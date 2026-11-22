@@ -2,11 +2,13 @@
   import { onMount } from "svelte";
   import { ApiError, deleteConnection, listConnections, probeConnection, setDefaultConnection, type Connection } from "$lib/api";
   import ConnectionWizard from "$lib/components/ConnectionWizard.svelte";
+  import { Badge, Button, Cluster, Dialog, Stack } from "$lib/ui";
 
   let connections = $state<Connection[] | null>(null);
   let adding = $state(false);
   let editing = $state<Connection | null>(null);
   let confirmRemove = $state<string | null>(null);
+  let removeOpen = $state(false);
   let results = $state<Record<string, string>>({});
   let error = $state("");
 
@@ -63,121 +65,86 @@
 
 <section aria-labelledby="models-h" id="models">
   <h2 id="models-h">AI models</h2>
-  <p class="muted">Connect a model on this computer or one of your own accounts. Agents use the default connection unless you pick another on their page. Keys are stored encrypted here and never shown again.</p>
+  <p class="muted">Connect a model on this computer or one of your own accounts. Agents use the default unless you pick another on their page. Keys are stored encrypted here and never shown again.</p>
 
   {#if connections === null}
     <p class="muted">Loading…</p>
   {:else}
-    <ul class="list">
-      {#each connections as c (c.id)}
-        <li>
-          <div class="top">
-            <strong>{c.name}</strong>
-            <span class="tag">{kindLabel(c.kind)}</span>
-            {#if c.isDefault}<span class="tag on">default</span>{/if}
-            {#if c.readOnly}<span class="tag">from the environment</span>{/if}
-          </div>
-          <div class="mono muted">{c.baseUrl} · {c.defaultModel ?? "no model chosen"} · {c.hasKey ? "key saved" : "no key"}</div>
-          <div class="actions">
-            <button type="button" class="ghost" onclick={() => void test(c)}>Test</button>
-            {#if !c.isDefault}<button type="button" class="ghost" onclick={() => void makeDefault(c)}>Make default</button>{/if}
-            {#if !c.readOnly}
-              <button type="button" class="ghost" onclick={() => ((editing = c), (adding = false))}>Change</button>
-              {#if confirmRemove === c.id}
-                <span class="muted">Remove it? Agents using it will stop until you pick another.</span>
-                <button type="button" class="ghost danger" onclick={() => void remove(c)}>Remove</button>
-                <button type="button" class="ghost" onclick={() => (confirmRemove = null)}>Keep</button>
-              {:else}
-                <button type="button" class="ghost" onclick={() => (confirmRemove = c.id)}>Remove</button>
+    <Stack gap={4}>
+      <ul class="list">
+        {#each connections as c (c.id)}
+          <li>
+            <div class="top">
+              <strong>{c.name}</strong>
+              <Badge>{kindLabel(c.kind)}</Badge>
+              {#if c.isDefault}<Badge tone="agent">default</Badge>{/if}
+              {#if c.readOnly}<Badge>from the environment</Badge>{/if}
+            </div>
+            <div class="detail">{c.baseUrl} · {c.defaultModel ?? "no model chosen"} · {c.hasKey ? "key saved" : "no key"}</div>
+            <Cluster gap={1}>
+              <Button variant="ghost" size="sm" onclick={() => void test(c)}>Test</Button>
+              {#if !c.isDefault}<Button variant="ghost" size="sm" onclick={() => void makeDefault(c)}>Make default</Button>{/if}
+              {#if !c.readOnly}
+                <Button variant="ghost" size="sm" onclick={() => ((editing = c), (adding = false))}>Change</Button>
+                <Button variant="ghost" size="sm" onclick={() => ((confirmRemove = c.id), (removeOpen = true))}>Remove</Button>
               {/if}
-            {/if}
-            {#if results[c.id]}<span class="muted" aria-live="polite">{results[c.id]}</span>{/if}
-          </div>
-        </li>
-      {/each}
-    </ul>
-    {#if editing}
-      <ConnectionWizard existing={connections} {editing} onDone={saved} onCancel={() => (editing = null)} />
-    {:else if adding}
-      <ConnectionWizard existing={connections} onDone={saved} onCancel={() => (adding = false)} />
-    {:else}
-      <p><button type="button" class="primary" onclick={() => (adding = true)}>Add a connection</button></p>
-    {/if}
+              {#if results[c.id]}<span class="muted" aria-live="polite">{results[c.id]}</span>{/if}
+            </Cluster>
+          </li>
+        {/each}
+      </ul>
+      {#if editing}
+        <ConnectionWizard existing={connections} {editing} onDone={saved} onCancel={() => (editing = null)} />
+      {:else if adding}
+        <ConnectionWizard existing={connections} onDone={saved} onCancel={() => (adding = false)} />
+      {:else}
+        <div><Button variant="primary" onclick={() => (adding = true)}>Add a connection</Button></div>
+      {/if}
+    </Stack>
   {/if}
   {#if error}<p class="error" role="alert">{error}</p>{/if}
 </section>
 
+<Dialog bind:open={removeOpen} title="Remove this connection?" description="Agents using it stop until you pick another.">
+  {#snippet actions()}
+    <Button variant="ghost" onclick={() => (removeOpen = false)}>Keep it</Button>
+    <Button variant="danger" onclick={() => { const c = connections?.find((x) => x.id === confirmRemove); removeOpen = false; if (c) void remove(c); }}>Remove connection</Button>
+  {/snippet}
+</Dialog>
+
 <style>
   .list {
     list-style: none;
+    margin: 0;
     padding: 0;
-    display: grid;
-    gap: var(--space-3);
+    display: flex;
+    flex-direction: column;
+    gap: var(--s-4);
   }
-  li {
-    display: grid;
-    gap: var(--space-2);
-    padding: var(--space-3);
-    border: 1px solid var(--hairline);
-    border-radius: var(--radius);
-  }
+
   .top {
     display: flex;
     flex-wrap: wrap;
-    gap: var(--space-2);
+    gap: var(--s-2);
     align-items: center;
   }
-  .tag {
-    padding: 0 var(--space-2);
-    border: 1px solid var(--hairline);
-    border-radius: var(--radius);
-    font-size: var(--text-label);
-    color: var(--ink-muted);
-  }
-  .tag.on {
-    color: var(--ink);
-    border-color: var(--ink);
-  }
-  .mono {
-    font-family: var(--font-mono);
-    font-size: var(--text-label);
+
+  .detail {
+    margin: var(--s-1) 0 var(--s-1);
+    color: var(--text-2);
+    font: var(--weight-regular) var(--type-meta-size) / var(--type-meta-lh) var(--font-code);
     overflow-wrap: anywhere;
   }
+
   .muted {
-    color: var(--ink-muted);
-    font-size: var(--text-label);
+    margin: 0;
+    color: var(--text-2);
+    font: var(--weight-regular) var(--type-ui-size) / var(--type-ui-lh) var(--font-ui);
   }
-  .actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-2);
-    align-items: center;
-  }
-  button.ghost,
-  button.primary {
-    padding: var(--space-1) var(--space-3);
-    border: 1px solid var(--hairline);
-    border-radius: var(--radius);
-    font: inherit;
-    font-size: var(--text-label);
-    cursor: pointer;
-  }
-  button.primary {
-    padding: var(--space-2) var(--space-4);
-    background: var(--ink);
-    border-color: var(--ink);
-    color: var(--bg);
-    font-size: var(--text-ui);
-  }
-  button.ghost {
-    background: transparent;
-    color: var(--ink);
-  }
-  button.danger {
-    color: var(--err-ink);
-    border-color: var(--err);
-  }
+
   .error {
-    color: var(--err-ink);
+    margin: 0;
+    color: var(--danger);
+    font: var(--weight-regular) var(--type-ui-size) / var(--type-ui-lh) var(--font-ui);
   }
 </style>

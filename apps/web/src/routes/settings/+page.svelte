@@ -5,6 +5,7 @@
   import McpSettingsSection from "$lib/components/McpSettings.svelte";
   import MeaningSettings from "$lib/components/MeaningSettings.svelte";
   import TidyPictures from "$lib/components/TidyPictures.svelte";
+  import { Button, Cluster, Field, Input, Page, Select, Stack, Switch } from "$lib/ui";
   import StudySettingsSection from "$lib/components/StudySettings.svelte";
   import { ApiError, getPermissions, getSession, getUsage, logout, putPermissions, type Session, type Usage } from "$lib/api";
   import { applyAppearance, loadAppearance, saveAppearance, type Appearance } from "$lib/appearance";
@@ -81,271 +82,195 @@
 
 <svelte:head><title>Settings · Vigil</title></svelte:head>
 
-<main class="page">
-  <h1>Settings</h1>
+<Page title="Settings">
   {#if loadError}<p class="error" role="alert">{loadError}</p>{/if}
   <nav class="jump" aria-label="Jump to a section">
-    <a href="#models">AI models</a>
-    <a href="#look">Appearance</a>
-    <a href="#study-settings">Study</a>
-    <a href="#mcp-settings">Other agents</a>
-    <a href="#pictures">Pictures</a>
-    <a href="#perm">Permissions</a>
-    <a href="#use">Usage</a>
+    <Cluster gap={1}>
+      <Button variant="ghost" size="sm" href="#models">AI models</Button>
+      <Button variant="ghost" size="sm" href="#look">Appearance</Button>
+      <Button variant="ghost" size="sm" href="#study-settings">Study</Button>
+      <Button variant="ghost" size="sm" href="#mcp-settings">Other agents</Button>
+      <Button variant="ghost" size="sm" href="#pictures">Pictures</Button>
+      <Button variant="ghost" size="sm" href="#perm">Permissions</Button>
+      <Button variant="ghost" size="sm" href="#use">Usage</Button>
+    </Cluster>
   </nav>
 
-  <ModelsSettings />
+  <div class="sections">
+    <ModelsSettings />
 
-  <section aria-labelledby="look">
-    <h2 id="look">Appearance</h2>
-    <p class="muted">Kept in this browser only.</p>
-    <div class="look">
-      <label class="look-field">
-        <span>Theme</span>
-        <select value={look.theme} onchange={(e) => changeLook({ ...look, theme: e.currentTarget.value === "light" || e.currentTarget.value === "dark" ? e.currentTarget.value : "system" })}>
-          <option value="system">Same as the system</option>
-          <option value="dark">Dark</option>
-          <option value="light">Light</option>
-        </select>
-      </label>
-      <label class="look-field">
-        <span>Note text size</span>
-        <select value={look.size} onchange={(e) => changeLook({ ...look, size: e.currentTarget.value === "small" || e.currentTarget.value === "large" ? e.currentTarget.value : "medium" })}>
-          <option value="small">Small</option>
-          <option value="medium">Medium</option>
-          <option value="large">Large</option>
-        </select>
-      </label>
-    </div>
-  </section>
-
-  <StudySettingsSection />
-
-  <MeaningSettings />
-
-  <McpSettingsSection />
-  <TidyPictures />
-
-  {#if form}
-    <section aria-labelledby="perm">
-      <h2 id="perm">Permissions</h2>
-      <p class="muted">What agents may do. A switch that is off wins over any single agent's own settings.</p>
-      <ul class="switches">
-        {#each tools as t (t.key)}
-          <li>
-            <label class="switch">
-              <input type="checkbox" bind:checked={form.tools[t.key]} />
-              <span>{t.label}</span>
-            </label>
-            <span class="why">{t.why}</span>
-          </li>
-        {/each}
-        <li>
-          <label class="switch">
-            <input type="checkbox" bind:checked={form.newAgentsStrict} />
-            <span>New agents ask for my approval before writing</span>
-          </label>
-          <span class="why">Only sets the starting value for agents you add later. You can change any agent on its own page.</span>
-        </li>
-      </ul>
-
-      <label class="field">
-        <span>Highest token budget any run may use</span>
-        <input type="text" inputmode="numeric" class="mono narrow" bind:value={form.maxTokenBudget} aria-describedby="err-budget" />
-        {#if saveError?.field === "maxTokenBudget"}<span id="err-budget" class="error" role="alert">{saveError.text}</span>{/if}
-      </label>
-      <label class="field">
-        <span>Keep run history for (days, 0 = forever)</span>
-        <input type="text" inputmode="numeric" class="mono narrow" bind:value={form.retentionDays} aria-describedby="err-retention" />
-        <span class="why">After this, run logs and undo copies are removed. Undo is no longer possible for older runs.</span>
-        {#if saveError?.field === "retentionDays"}<span id="err-retention" class="error" role="alert">{saveError.text}</span>{/if}
-      </label>
-
-      {#if saveError && saveError.field === null}<p class="error" role="alert">{saveError.text}</p>{/if}
-      <div class="actions">
-        <button type="button" class="primary" disabled={busy || !dirty} onclick={() => void save()}>Save</button>
-        {#if notice && !dirty}<span class="muted" aria-live="polite">{notice}</span>{/if}
+    <section aria-labelledby="look">
+      <h2 id="look">Appearance</h2>
+      <p class="muted">Kept in this browser only.</p>
+      <div class="look">
+        <Field label="Theme">
+          {#snippet children({ id })}
+            <Select {id} value={look.theme} onchange={(e) => changeLook({ ...look, theme: e.currentTarget.value === "light" || e.currentTarget.value === "dark" ? e.currentTarget.value : "system" })}>
+              <option value="system">Same as the system</option>
+              <option value="dark">Dark</option>
+              <option value="light">Light</option>
+            </Select>
+          {/snippet}
+        </Field>
+        <Field label="Note text size">
+          {#snippet children({ id })}
+            <Select {id} value={look.size} onchange={(e) => changeLook({ ...look, size: e.currentTarget.value === "small" || e.currentTarget.value === "large" ? e.currentTarget.value : "medium" })}>
+              <option value="small">Small</option>
+              <option value="medium">Medium</option>
+              <option value="large">Large</option>
+            </Select>
+          {/snippet}
+        </Field>
       </div>
     </section>
-  {/if}
 
-  <section aria-labelledby="use">
-    <h2 id="use">Usage this month</h2>
-    {#if usage}
-      <p class="mono">{usage.tokens.toLocaleString("en")} tokens{usage.cap ? ` of ${usage.cap.toLocaleString("en")} (${pct}%)` : " (no cap set)"}</p>
-      {#if usage.cap}
-        <div class="bar" role="img" aria-label={`${pct}% of the monthly cap`}><span class="fill" style:width={`${pct}%`}></span></div>
-        <p class="muted">The cap is a warning only. It never stops an agent.</p>
+    <StudySettingsSection />
+
+    <MeaningSettings />
+
+    <McpSettingsSection />
+    <TidyPictures />
+
+    {#if form}
+      <section aria-labelledby="perm">
+        <h2 id="perm">Permissions</h2>
+        <p class="muted">What agents may do. A switch that is off wins over any single agent's own settings.</p>
+        <Stack gap={4}>
+          <Stack gap={3}>
+            {#each tools as t (t.key)}
+              <div class="setting">
+                <Switch label={t.label} bind:checked={form.tools[t.key]} />
+                <p class="why">{t.why}</p>
+              </div>
+            {/each}
+            <div class="setting">
+              <Switch label="New agents ask for my approval before writing" bind:checked={form.newAgentsStrict} />
+              <p class="why">Only sets the starting value for agents you add later. You can change any agent on its own page.</p>
+            </div>
+          </Stack>
+
+          <Field label="Highest token budget any run may use" error={saveError?.field === "maxTokenBudget" ? saveError.text : undefined}>
+            {#snippet children({ id, describedby, invalid })}
+              <span class="narrow"><Input {id} aria-describedby={describedby} {invalid} inputmode="numeric" bind:value={form!.maxTokenBudget} /></span>
+            {/snippet}
+          </Field>
+          <Field label="Keep run history for (days, 0 = forever)" hint="After this, run logs and undo copies are removed. Undo is no longer possible for older runs." error={saveError?.field === "retentionDays" ? saveError.text : undefined}>
+            {#snippet children({ id, describedby, invalid })}
+              <span class="narrow"><Input {id} aria-describedby={describedby} {invalid} inputmode="numeric" bind:value={form!.retentionDays} /></span>
+            {/snippet}
+          </Field>
+
+          {#if saveError && saveError.field === null}<p class="error" role="alert">{saveError.text}</p>{/if}
+          <Cluster gap={3}>
+            <Button variant="primary" disabled={busy || !dirty} onclick={() => void save()}>Save changes</Button>
+            {#if notice && !dirty}<span class="muted" aria-live="polite">{notice}</span>{/if}
+          </Cluster>
+        </Stack>
+      </section>
+    {/if}
+
+    <section aria-labelledby="use">
+      <h2 id="use">Usage this month</h2>
+      {#if usage}
+        <p>{usage.tokens.toLocaleString("en")} tokens{usage.cap ? ` of ${usage.cap.toLocaleString("en")} (${pct}%)` : " (no cap set)"}</p>
+        {#if usage.cap}
+          <div class="bar" role="img" aria-label={`${pct}% of the monthly cap`}><span class="fill" style:width={`${pct}%`}></span></div>
+          <p class="muted">The cap is a warning only. It never stops an agent.</p>
+        {/if}
       {/if}
-    {/if}
-  </section>
-  <section aria-labelledby="access">
-    <h2 id="access">Access</h2>
-    {#if session?.required}
-      <p>Signed in. <button type="button" class="ghost" onclick={() => void signOut()}>Sign out</button></p>
-    {:else if session}
-      <p class="muted">Local access: no token is set, so there is no login.</p>
-    {/if}
-  </section>
-</main>
+    </section>
+
+    <section aria-labelledby="access">
+      <h2 id="access">Access</h2>
+      {#if session?.required}
+        <Cluster gap={3}><span>Signed in.</span><Button onclick={() => void signOut()}>Sign out</Button></Cluster>
+      {:else if session}
+        <p class="muted">Local access: no token is set, so there is no login.</p>
+      {/if}
+    </section>
+  </div>
+</Page>
 
 <style>
-  .page {
-    padding: var(--space-6);
-    max-width: 760px;
-    margin-inline: auto;
-  }
-  h1 {
-    font-family: var(--font-serif);
-    font-size: var(--text-h2);
-    font-weight: 600;
-    margin-bottom: var(--space-4);
-  }
-  .look {
+  .sections {
     display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-4);
-    margin-top: var(--space-3);
+    flex-direction: column;
+    gap: var(--s-10);
+    margin-top: var(--s-6);
   }
 
-  .look-field {
-    display: grid;
-    gap: var(--space-1);
-    font-size: var(--text-label);
-    color: var(--ink-muted);
+  .sections :global(section) {
+    scroll-margin-top: var(--s-16);
   }
 
-  .look-field select {
-    min-width: 200px;
-    padding: var(--space-2) var(--space-3);
-    border: 1px solid var(--hairline);
-    border-radius: var(--radius);
-    background: var(--surface);
-    font: inherit;
-    font-size: var(--text-ui);
-    color: var(--ink);
+  /* Every section, including the ones other components draw: the same heading and rhythm. */
+  .sections :global(section h2) {
+    margin: 0 0 var(--s-1);
+    font: var(--weight-strong) var(--type-heading-size) / var(--type-heading-lh) var(--font-ui);
   }
 
-  h2 {
-    font-size: var(--text-ui);
-    font-weight: 600;
-    margin: 0 0 var(--space-2);
+  .sections :global(section > p) {
+    margin-bottom: var(--s-3);
   }
-  /* Every section, including the ones other components draw: a rule above, room around, the same heading. */
-  .page :global(section) {
-    margin-top: var(--space-6);
-    padding-top: var(--space-6);
-    border-top: 1px solid var(--hairline);
-  }
-  .page :global(section h2) {
-    font-size: var(--text-ui);
-    font-weight: 600;
-    margin: 0 0 var(--space-2);
-  }
+
   .jump {
     position: sticky;
     top: 0;
     z-index: 2;
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-2);
-    padding: var(--space-2) 0;
-    background: var(--bg);
+    margin: 0 calc(var(--s-2) * -1);
+    padding: var(--s-2);
+    background: var(--paper);
   }
-  .jump a {
-    padding: var(--space-1) var(--space-3);
-    border: 1px solid var(--hairline);
-    border-radius: var(--radius);
-    color: var(--ink-muted);
-    font-size: var(--text-label);
-    text-decoration: none;
+
+  p {
+    margin: 0;
   }
-  .jump a:hover {
-    color: var(--ink);
-    background: var(--surface-hover);
-  }
+
   .muted,
   .why {
-    color: var(--ink-muted);
+    color: var(--text-2);
+    font: var(--weight-regular) var(--type-ui-size) / var(--type-ui-lh) var(--font-ui);
   }
+
   .why {
-    display: block;
-    font-size: var(--text-label);
-    margin: var(--space-1) 0 0 var(--space-6);
+    margin: 0 0 0 calc(36px + var(--s-3));
+    font-size: var(--type-meta-size);
+    line-height: var(--type-meta-lh);
+    color: var(--text-3);
   }
+
   .error {
-    color: var(--err-ink);
-    font-size: var(--text-label);
+    color: var(--danger);
+    font: var(--weight-regular) var(--type-ui-size) / var(--type-ui-lh) var(--font-ui);
   }
-  .switches {
-    list-style: none;
-    padding: 0;
-    margin: var(--space-4) 0;
-    display: grid;
-    gap: var(--space-3);
-  }
-  .switch {
+
+  .look {
     display: flex;
-    gap: var(--space-2);
-    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--s-4);
   }
-  .field {
-    display: grid;
-    gap: var(--space-1);
-    margin: var(--space-4) 0;
-    font-size: var(--text-label);
+
+  .look :global(select) {
+    min-width: 14rem;
   }
-  .field > span:first-child {
-    color: var(--ink-muted);
-  }
-  input[type="text"] {
-    padding: var(--space-2) var(--space-3);
-    border: 1px solid var(--hairline);
-    border-radius: var(--radius);
-    background: var(--surface);
-    font-size: var(--text-ui);
-  }
+
   .narrow {
-    max-width: 180px;
+    display: inline-block;
+    width: 8rem;
   }
-  .mono {
-    font-family: var(--font-mono);
-    font-size: var(--text-label);
-  }
-  .actions {
-    display: flex;
-    gap: var(--space-3);
-    align-items: center;
-  }
-  .primary,
-  .ghost {
-    padding: var(--space-2) var(--space-4);
-    border: 1px solid var(--ink);
-    border-radius: var(--radius);
-    font-size: var(--text-label);
-  }
-  .primary {
-    background: var(--ink);
-    color: var(--bg);
-  }
-  .ghost {
-    border-color: var(--hairline);
-    background: var(--surface);
-    margin-left: var(--space-3);
-  }
-  button:disabled {
-    opacity: 0.5;
-    cursor: default;
-  }
+
   .bar {
-    height: 2px;
+    height: 4px;
     max-width: 320px;
-    background: var(--hairline);
-    margin: var(--space-2) 0;
+    margin: var(--s-2) 0;
+    border-radius: var(--r-pill);
+    background: var(--fill-selected);
   }
+
   .fill {
     display: block;
     height: 100%;
-    background: var(--ink-muted);
+    border-radius: var(--r-pill);
+    background: var(--text-2);
   }
 </style>

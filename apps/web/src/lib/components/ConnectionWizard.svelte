@@ -2,6 +2,7 @@
   import { untrack } from "svelte";
   import { ApiError, createConnection, probeConnection, updateConnection, type Connection, type ProbeResult } from "$lib/api";
   import { PRESETS, missingForTest, presetById, suggestName, type ProviderPreset } from "$lib/providers";
+  import { Button, Cluster, Field, Input, Row, Select, Stack } from "$lib/ui";
 
   let {
     existing = [],
@@ -77,168 +78,104 @@
 
 <div class="wizard">
   {#if preset === null}
-    <h3>Which service?</h3>
-    <ul class="cards">
-      {#each PRESETS as p (p.id)}
-        <li>
-          <button type="button" class="card" onclick={() => choose(p)}>
-            <strong>{p.label}</strong>
-            <span>{p.blurb}</span>
-          </button>
-        </li>
-      {/each}
-    </ul>
-    <p><button type="button" class="ghost" onclick={onCancel}>Cancel</button></p>
+    <Stack gap={3}>
+      <h3>Which service?</h3>
+      <div class="presets">
+        {#each PRESETS as p (p.id)}
+          <Row title={p.label} snippet={p.blurb} onclick={() => choose(p)} />
+        {/each}
+      </div>
+      <div><Button variant="ghost" onclick={onCancel}>Cancel</Button></div>
+    </Stack>
   {:else}
-    <h3>{editing ? `Change ${editing.name}` : preset.label}</h3>
-    <div class="form">
-      <label><span>Name</span><input type="text" bind:value={name} maxlength="40" /></label>
-      <label><span>Address</span><input type="text" bind:value={baseUrl} class="mono" placeholder="https://…" autocomplete="off" spellcheck="false" /></label>
-      {#if preset.id !== "ollama" && preset.id !== "lmstudio"}
-        <label>
-          <span>API key {#if editing?.hasKey}<em>(saved; leave empty to keep it)</em>{/if}</span>
-          <input type="password" bind:value={apiKey} class="mono" autocomplete="off" spellcheck="false" placeholder={editing?.hasKey ? "••••••••" : "paste your key"} />
-          {#if preset.keyHint}<span class="hint">{preset.keyHint} It is stored encrypted on this computer and never shown again.</span>{/if}
-        </label>
-      {/if}
-      <div class="row">
-        <button type="button" class="primary" disabled={testing || problem !== null} onclick={() => void test()}>{testing ? "Testing…" : "Test and list models"}</button>
-        {#if problem}<span class="hint">{problem}</span>{/if}
+    <Stack gap={4}>
+      <h3>{editing ? `Change ${editing.name}` : preset.label}</h3>
+      <div class="form">
+        <Stack gap={4}>
+          <Field label="Name">
+            {#snippet children({ id })}<Input {id} bind:value={name} maxlength={40} />{/snippet}
+          </Field>
+          <Field label="Address">
+            {#snippet children({ id })}<Input {id} bind:value={baseUrl} placeholder="https://…" autocomplete="off" spellcheck={false} />{/snippet}
+          </Field>
+          {#if preset.id !== "ollama" && preset.id !== "lmstudio"}
+            <Field label={editing?.hasKey ? "API key (saved; leave empty to keep it)" : "API key"} hint={preset.keyHint ? `${preset.keyHint} It is stored encrypted on this computer and never shown again.` : undefined}>
+              {#snippet children({ id, describedby })}
+                <Input {id} aria-describedby={describedby} type="password" bind:value={apiKey} autocomplete="off" spellcheck={false} placeholder={editing?.hasKey ? "••••••••" : "paste your key"} />
+              {/snippet}
+            </Field>
+          {/if}
+          <Cluster gap={3}>
+            <Button disabled={testing || problem !== null} onclick={() => void test()}>{testing ? "Testing…" : "Test and list models"}</Button>
+            {#if problem}<span class="hint">{problem}</span>{/if}
+          </Cluster>
+          {#if probe}
+            {#if probe.ok}
+              <p class="ok" role="status">Connected. {probe.models.length} {probe.models.length === 1 ? "model" : "models"} found.</p>
+            {:else}
+              <p class="bad" role="alert">{probe.error}</p>
+            {/if}
+          {/if}
+          <Field label="Default model">
+            {#snippet children({ id })}
+              {#if probe?.ok && probe.models.length > 0}
+                <Select {id} bind:value={model}>
+                  {#each probe.models as m (m)}<option value={m}>{m}</option>{/each}
+                  {#if model !== "" && !probe.models.includes(model)}<option value={model}>{model}</option>{/if}
+                </Select>
+              {:else}
+                <Input {id} bind:value={model} placeholder="for example gpt-4o-mini, or test the connection to pick one" spellcheck={false} />
+              {/if}
+            {/snippet}
+          </Field>
+          {#if error}<p class="bad" role="alert">{error}</p>{/if}
+          <Cluster gap={2}>
+            <Button variant="primary" disabled={saving || name.trim() === "" || baseUrl.trim() === ""} onclick={() => void save()}>{saving ? "Saving…" : editing ? "Save changes" : "Save connection"}</Button>
+            {#if !editing}<Button variant="ghost" onclick={() => (preset = null)}>Back</Button>{/if}
+            <Button variant="ghost" onclick={onCancel}>Cancel</Button>
+          </Cluster>
+        </Stack>
       </div>
-      {#if probe}
-        {#if probe.ok}
-          <p class="ok" role="status">Connected. {probe.models.length} {probe.models.length === 1 ? "model" : "models"} found.</p>
-        {:else}
-          <p class="bad" role="alert">{probe.error}</p>
-        {/if}
-      {/if}
-      <label>
-        <span>Default model</span>
-        {#if probe?.ok && probe.models.length > 0}
-          <select bind:value={model}>
-            {#each probe.models as m (m)}<option value={m}>{m}</option>{/each}
-            {#if model !== "" && !probe.models.includes(model)}<option value={model}>{model}</option>{/if}
-          </select>
-        {:else}
-          <input type="text" bind:value={model} class="mono" placeholder="for example gpt-4o-mini, or test the connection to pick one" spellcheck="false" />
-        {/if}
-      </label>
-      {#if error}<p class="bad" role="alert">{error}</p>{/if}
-      <div class="row">
-        <button type="button" class="primary" disabled={saving || name.trim() === "" || baseUrl.trim() === ""} onclick={() => void save()}>{saving ? "Saving…" : editing ? "Save changes" : "Save connection"}</button>
-        {#if !editing}<button type="button" class="ghost" onclick={() => (preset = null)}>Back</button>{/if}
-        <button type="button" class="ghost" onclick={onCancel}>Cancel</button>
-      </div>
-    </div>
+    </Stack>
   {/if}
 </div>
 
 <style>
   .wizard {
-    display: grid;
-    gap: var(--space-4);
-    padding: var(--space-4);
-    border: 1px solid var(--hairline);
-    border-radius: var(--radius-lg);
-    background: var(--surface);
+    padding: var(--s-4);
+    border-radius: var(--r-surface);
+    background: var(--fill-hover);
   }
+
   h3 {
-    font-size: var(--text-ui);
-    font-weight: 600;
+    margin: 0;
+    font: var(--weight-strong) var(--type-body-size) / var(--type-body-lh) var(--font-ui);
   }
-  .cards {
-    list-style: none;
-    padding: 0;
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
-    gap: var(--space-3);
+
+  .presets {
+    margin: 0 calc(var(--s-3) * -1);
   }
-  .card {
-    width: 100%;
-    height: 100%;
-    display: grid;
-    gap: var(--space-1);
-    text-align: left;
-    padding: var(--space-3);
-    border: 1px solid var(--hairline);
-    border-radius: var(--radius);
-    background: transparent;
-    color: var(--ink);
-    font: inherit;
-    cursor: pointer;
-  }
-  .card:hover {
-    background: var(--surface-hover);
-  }
-  .card span {
-    color: var(--ink-muted);
-    font-size: var(--text-label);
-  }
+
   .form {
-    display: grid;
-    gap: var(--space-3);
     max-width: 34rem;
   }
-  label {
-    display: grid;
-    gap: var(--space-1);
-  }
-  label > span:first-child {
-    font-size: var(--text-label);
-    color: var(--ink-muted);
-  }
-  em {
-    font-style: normal;
-  }
-  input,
-  select {
-    padding: var(--space-2) var(--space-3);
-    border: 1px solid var(--hairline);
-    border-radius: var(--radius);
-    background: var(--bg);
-    color: var(--ink);
-    font: inherit;
-  }
-  .mono {
-    font-family: var(--font-mono);
-    font-size: var(--text-label);
-  }
+
   .hint {
-    color: var(--ink-muted);
-    font-size: var(--text-label);
+    color: var(--text-2);
+    font: var(--weight-regular) var(--type-ui-size) / var(--type-ui-lh) var(--font-ui);
   }
-  .row {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-2);
-    align-items: center;
-  }
-  button.primary,
-  button.ghost {
-    padding: var(--space-2) var(--space-4);
-    border: 1px solid var(--hairline);
-    border-radius: var(--radius);
-    font: inherit;
-    font-size: var(--text-ui);
-    cursor: pointer;
-  }
-  button.primary {
-    background: var(--ink);
-    border-color: var(--ink);
-    color: var(--bg);
-  }
-  button.ghost {
-    background: transparent;
-    color: var(--ink);
-  }
-  button:disabled {
-    opacity: 0.5;
-    cursor: default;
-  }
-  .ok {
-    color: var(--ok);
-  }
+
+  .ok,
   .bad {
-    color: var(--err-ink);
+    margin: 0;
+    font: var(--weight-regular) var(--type-ui-size) / var(--type-ui-lh) var(--font-ui);
+  }
+
+  .ok {
+    color: var(--good);
+  }
+
+  .bad {
+    color: var(--danger);
   }
 </style>
