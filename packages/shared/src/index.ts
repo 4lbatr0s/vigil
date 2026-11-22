@@ -303,3 +303,15 @@ export function lintCard(card: Pick<Card, "kind" | "front" | "back">): CardHint[
   if (!card.front.trim().endsWith("?")) hints.push({ code: "not-a-question", message: "Phrase the front as a question." });
   return hints;
 }
+
+/** The note without its card lines: they are question and answer pairs, and a tutor that sees the answers gives them away. */
+export function withoutCards(body: string): string {
+  const card = new Set(extractCards(body).map((c) => c.line));
+  return body
+    .split("\n")
+    .filter((_, i) => !card.has(i + 1))
+    .join("\n")
+    .replace(/^##\s+Cards\s*$\n?/m, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
