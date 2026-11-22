@@ -5,11 +5,11 @@
    * A text field. Quiet at rest (a soft fill), a clear ring on focus. Use inside `Field`, or give
    * it an `aria-label` when it has no visible label (a search box).
    */
-  type Props = Omit<HTMLInputAttributes, "value"> & { value?: string; invalid?: boolean };
-  let { value = $bindable(""), invalid = false, ...rest }: Props = $props();
+  type Props = Omit<HTMLInputAttributes, "value"> & { value?: string; invalid?: boolean; /** The element, for focusing it. */ el?: HTMLInputElement };
+  let { value = $bindable(""), invalid = false, el = $bindable(), ...rest }: Props = $props();
 </script>
 
-<input class="input" class:invalid bind:value aria-invalid={invalid || undefined} {...rest} />
+<input class="input" class:invalid bind:this={el} bind:value aria-invalid={invalid || undefined} {...rest} />
 
 <style>
   .input {

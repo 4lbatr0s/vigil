@@ -1,4 +1,6 @@
 <script lang="ts">
+  import Ellipsis from "@lucide/svelte/icons/ellipsis";
+  import { Button, Cluster, Dialog, EmptyState, IconButton, Input, Menu, Page, Row, Stack } from "$lib/ui";
   import { onMount } from "svelte";
   import { goto } from "$app/navigation";
   import { ApiError, createCanvas, deleteCanvas, getCanvas, listCanvases, saveCanvas, type CanvasSummary } from "$lib/api";
@@ -10,6 +12,7 @@
   let error = $state("");
   let busy = $state(false);
   let confirmDelete = $state<string | null>(null);
+  let deleteOpen = $state(false);
 
   async function load(): Promise<void> {
     try {
@@ -77,136 +80,97 @@
 
 <svelte:head><title>Canvas · Vigil</title></svelte:head>
 
-<main class="page">
-  <h1>Canvas</h1>
-  <p class="muted">A free board for your notes: place note cards and your own text anywhere, group them, and draw arrows between them. Boards are saved in your vault as <code>.canvas</code> files, the same open format Obsidian uses.</p>
+<Page title="Canvas">
+  <Stack gap={6}>
+    <p class="muted">A free board for your notes: place note cards and your own text anywhere, group them, and draw arrows between them. Boards are saved in your vault as <code>.canvas</code> files, the open format Obsidian uses.</p>
+    <form onsubmit={create}>
+      <Input bind:value={title} placeholder="Name a new board, for example Exam plan" aria-label="Name of the new canvas" maxlength={100} />
+      <Button variant="primary" type="submit" disabled={busy || title.trim() === ""}>New canvas</Button>
+    </form>
+    <Cluster gap={2}>
+      <span class="muted">Or start from</span>
+      <Button variant="ghost" size="sm" disabled={busy} onclick={() => void startFrom("path")}>A learning path</Button>
+      <Button variant="ghost" size="sm" disabled={busy} onclick={() => void startFrom("mindmap")}>A mind map</Button>
+    </Cluster>
+    {#if error}<p class="error" role="alert">{error}</p>{/if}
+    {#if canvases === null}
+      <p class="muted">Loading…</p>
+    {:else if canvases.length === 0}
+      <EmptyState title="No boards yet. Name one above to start." />
+    {:else}
+      <div class="list" role="list">
+        {#each canvases as c (c.id)}
+          <div class="item" role="listitem">
+            <Row title={c.id} meta={relativeTime(c.updatedAt)} snippet={`${c.nodes} ${c.nodes === 1 ? "card" : "cards"}`} href={`/canvas/${encodeURIComponent(c.id)}`} />
+            <span class="more">
+              <Menu
+                label={`More actions for ${c.id}`}
+                items={[
+                  { label: "Duplicate", onselect: () => void duplicate(c.id) },
+                  { kind: "separator" },
+                  { label: "Delete", danger: true, onselect: () => ((confirmDelete = c.id), (deleteOpen = true)) },
+                ]}
+              >
+                {#snippet trigger({ props })}
+                  <IconButton size="sm" label={`More actions for ${c.id}`} {...props}><Ellipsis size={14} strokeWidth={1.5} /></IconButton>
+                {/snippet}
+              </Menu>
+            </span>
+          </div>
+        {/each}
+      </div>
+    {/if}
+  </Stack>
+</Page>
 
-  <form onsubmit={create}>
-    <input type="text" bind:value={title} placeholder="Name a new board, for example Exam plan" aria-label="Name of the new canvas" maxlength="100" />
-    <button type="submit" class="primary" disabled={busy || title.trim() === ""}>New canvas</button>
-  </form>
-  <p class="starters">
-    <span class="muted">Or start from</span>
-    <button type="button" class="ghost" disabled={busy} onclick={() => void startFrom("path")}>A learning path</button>
-    <button type="button" class="ghost" disabled={busy} onclick={() => void startFrom("mindmap")}>A mind map</button>
-  </p>
-  {#if error}<p class="error" role="alert">{error}</p>{/if}
-
-  {#if canvases === null}
-    <p class="muted">Loading…</p>
-  {:else if canvases.length === 0}
-    <p class="muted">No boards yet. Name one above to start.</p>
-  {:else}
-    <ul class="list">
-      {#each canvases as c (c.id)}
-        <li>
-          <a class="open" href={`/canvas/${encodeURIComponent(c.id)}`}>
-            <strong>{c.id}</strong>
-            <span class="muted">{c.nodes} {c.nodes === 1 ? "card" : "cards"} · {relativeTime(c.updatedAt)}</span>
-          </a>
-          {#if confirmDelete === c.id}
-            <span class="muted">Delete this board? Your notes stay.</span>
-            <button type="button" class="ghost danger" onclick={() => void remove(c.id)}>Delete</button>
-            <button type="button" class="ghost" onclick={() => (confirmDelete = null)}>Keep</button>
-          {:else}
-            <button type="button" class="ghost" onclick={() => void duplicate(c.id)}>Duplicate</button>
-            <button type="button" class="ghost" onclick={() => (confirmDelete = c.id)}>Delete</button>
-          {/if}
-        </li>
-      {/each}
-    </ul>
-  {/if}
-</main>
+<Dialog bind:open={deleteOpen} title="Delete this board?" description="Your notes stay; only the board is removed.">
+  {#snippet actions()}
+    <Button variant="ghost" onclick={() => (deleteOpen = false)}>Keep it</Button>
+    <Button variant="danger" onclick={() => { const id = confirmDelete; deleteOpen = false; if (id) void remove(id); }}>Delete board</Button>
+  {/snippet}
+</Dialog>
 
 <style>
-  .page {
-    padding: var(--space-6);
-    max-width: 720px;
-    margin-inline: auto;
-    display: grid;
-    gap: var(--space-4);
+  p {
+    margin: 0;
   }
-  h1 {
-    font-family: var(--font-serif);
-    font-size: var(--text-h2);
-  }
+
   .muted {
-    color: var(--ink-muted);
-    font-size: var(--text-label);
+    color: var(--text-2);
+    font: var(--weight-regular) var(--type-ui-size) / var(--type-ui-lh) var(--font-ui);
   }
+
+  .error {
+    color: var(--danger);
+    font: var(--weight-regular) var(--type-ui-size) / var(--type-ui-lh) var(--font-ui);
+  }
+
   code {
-    font-family: var(--font-mono);
+    font: var(--weight-regular) var(--type-ui-size) / var(--type-ui-lh) var(--font-code);
   }
+
   form {
     display: flex;
-    gap: var(--space-2);
+    gap: var(--s-2);
   }
-  input {
-    flex: 1;
-    padding: var(--space-2) var(--space-3);
-    border: 1px solid var(--hairline);
-    border-radius: var(--radius);
-    background: var(--surface);
-    color: var(--ink);
-    font: inherit;
-  }
+
   .list {
-    list-style: none;
-    padding: 0;
-    display: grid;
-    gap: var(--space-2);
+    margin: 0 calc(var(--s-3) * -1);
   }
-  li {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-3);
-    align-items: center;
-    padding: var(--space-3);
-    border: 1px solid var(--hairline);
-    border-radius: var(--radius);
+
+  .item {
+    position: relative;
   }
-  .open {
-    flex: 1;
-    display: grid;
-    gap: var(--space-1);
-    color: var(--ink);
-    text-decoration: none;
+
+  .more {
+    position: absolute;
+    right: var(--s-2);
+    bottom: var(--s-2);
+    display: none;
   }
-  button.primary,
-  button.ghost {
-    padding: var(--space-2) var(--space-4);
-    border: 1px solid var(--hairline);
-    border-radius: var(--radius);
-    font: inherit;
-    font-size: var(--text-ui);
-    cursor: pointer;
-  }
-  button.primary {
-    background: var(--ink);
-    border-color: var(--ink);
-    color: var(--bg);
-  }
-  button.ghost {
-    padding: var(--space-1) var(--space-3);
-    background: transparent;
-    color: var(--ink);
-    font-size: var(--text-label);
-  }
-  button.danger {
-    color: var(--err-ink);
-    border-color: var(--err);
-  }
-  button:disabled {
-    opacity: 0.5;
-  }
-  .error {
-    color: var(--err-ink);
-  }
-  .starters {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-2);
-    align-items: center;
-    margin: var(--space-3) 0;
+
+  .item:hover .more,
+  .item:focus-within .more {
+    display: inline-flex;
   }
 </style>

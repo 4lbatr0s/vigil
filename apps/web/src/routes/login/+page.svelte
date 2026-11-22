@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { Button, Field, Input } from "$lib/ui";
   import { onMount } from "svelte";
   import { goto } from "$app/navigation";
   import { page } from "$app/state";
@@ -8,7 +9,7 @@
   let token = $state("");
   let error = $state("");
   let busy = $state(false);
-  let input = $state<HTMLInputElement | null>(null);
+  let input = $state<HTMLInputElement | undefined>();
 
   const next = $derived(safeNext(page.url.searchParams.get("next")));
 
@@ -43,65 +44,36 @@
 
 <main class="login">
   <h1>Vigil</h1>
-  <p class="muted">Enter your access token.</p>
   <form onsubmit={submit}>
-    <label>
-      <span class="label">Access token</span>
-      <input bind:this={input} bind:value={token} type="password" autocomplete="current-password" aria-describedby="login-error" />
-    </label>
-    {#if error}<p id="login-error" class="error" role="alert">{error}</p>{/if}
-    <button type="submit" class="primary" disabled={busy || token === ""}>Sign in</button>
+    <Field label="Access token" error={error || undefined}>
+      {#snippet children({ id, describedby, invalid })}
+        <Input {id} bind:el={input} bind:value={token} type="password" autocomplete="current-password" aria-describedby={describedby} {invalid} />
+      {/snippet}
+    </Field>
+    <div><Button variant="primary" type="submit" disabled={busy || token === ""}>Sign in</Button></div>
   </form>
 </main>
 
 <style>
   .login {
+    display: flex;
+    flex-direction: column;
+    gap: var(--s-6);
     max-width: 360px;
     margin: 20vh auto 0;
-    padding: 0 var(--space-4);
-    display: grid;
-    gap: var(--space-3);
+    padding: 0 var(--s-4);
+    color: var(--text);
   }
+
   h1 {
-    font-family: var(--font-serif);
-    font-size: var(--text-h2);
-    font-weight: 600;
+    margin: 0;
+    font: var(--weight-strong) var(--type-title-size) / var(--type-title-lh) var(--font-ui);
+    letter-spacing: var(--type-title-tracking);
   }
-  .muted {
-    color: var(--ink-muted);
-  }
+
   form {
-    display: grid;
-    gap: var(--space-3);
-  }
-  .label {
-    display: block;
-    color: var(--ink-muted);
-    font-size: var(--text-label);
-    margin-bottom: var(--space-1);
-  }
-  input {
-    width: 100%;
-    padding: var(--space-2) var(--space-3);
-    border: 1px solid var(--hairline);
-    border-radius: var(--radius);
-    background: var(--surface);
-    font-size: var(--text-ui);
-  }
-  .error {
-    color: var(--err-ink);
-    font-size: var(--text-label);
-  }
-  .primary {
-    justify-self: start;
-    padding: var(--space-2) var(--space-4);
-    border: 1px solid var(--ink);
-    border-radius: var(--radius);
-    background: var(--ink);
-    color: var(--bg);
-    font-size: var(--text-label);
-  }
-  .primary:disabled {
-    opacity: 0.5;
+    display: flex;
+    flex-direction: column;
+    gap: var(--s-4);
   }
 </style>

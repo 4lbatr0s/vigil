@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { Page, Row, Stack } from "$lib/ui";
   type Tool = { href: string; title: string; text: string };
   type Group = { title: string; tools: Tool[] };
 
@@ -31,70 +32,28 @@
 
 <svelte:head><title>Tools · Vigil</title></svelte:head>
 
-<main class="page">
-  <h1>Tools</h1>
-  <p class="muted">Helpers that work with your notes. Each one tells you what it will read before it runs.</p>
-  {#each groups as g (g.title)}
-    <section aria-labelledby={`g-${g.title}`}>
-      <h2 id={`g-${g.title}`}>{g.title}</h2>
-      <ul>
-        {#each g.tools as t (t.href)}
-          <li>
-            <a href={t.href}>
-              <strong>{t.title}</strong>
-              <span>{t.text}</span>
-            </a>
-          </li>
-        {/each}
-      </ul>
-    </section>
-  {/each}
-</main>
+<Page title="Tools">
+  <Stack gap={8}>
+    {#each groups as g (g.title)}
+      <section aria-labelledby={`g-${g.title}`}>
+        <h2 id={`g-${g.title}`}>{g.title}</h2>
+        <div class="list">
+          {#each g.tools as t (t.href)}
+            <Row title={t.title} snippet={t.text} href={t.href} wrap />
+          {/each}
+        </div>
+      </section>
+    {/each}
+  </Stack>
+</Page>
 
 <style>
-  .page {
-    padding: var(--space-6);
-    max-width: 820px;
-    margin-inline: auto;
-    display: grid;
-    gap: var(--space-4);
-  }
-  h1 {
-    font-family: var(--font-serif);
-    font-size: var(--text-h2);
-  }
   h2 {
-    font-size: var(--text-ui);
-    font-weight: 600;
-    color: var(--ink-muted);
-    margin-bottom: var(--space-2);
+    margin: 0 0 var(--s-2);
+    font: var(--weight-strong) var(--type-heading-size) / var(--type-heading-lh) var(--font-ui);
   }
-  .muted {
-    color: var(--ink-muted);
-    font-size: var(--text-label);
-  }
-  ul {
-    list-style: none;
-    padding: 0;
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
-    gap: var(--space-3);
-  }
-  li a {
-    display: grid;
-    gap: var(--space-1);
-    height: 100%;
-    padding: var(--space-3);
-    border: 1px solid var(--hairline);
-    border-radius: var(--radius);
-    color: var(--ink);
-    text-decoration: none;
-  }
-  li a:hover {
-    background: var(--surface-hover);
-  }
-  li span {
-    color: var(--ink-muted);
-    font-size: var(--text-label);
+
+  .list {
+    margin: 0 calc(var(--s-3) * -1);
   }
 </style>

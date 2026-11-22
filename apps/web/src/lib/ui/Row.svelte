@@ -12,12 +12,14 @@
     meta?: string;
     snippet?: string;
     selected?: boolean;
+    /** Let the snippet wrap onto a second line instead of cutting it off. */
+    wrap?: boolean;
     href?: string;
     onclick?: (e: MouseEvent) => void;
     lead?: Snippet;
     trail?: Snippet;
   };
-  let { title, meta, snippet, selected = false, href, onclick, lead, trail, ...rest }: Props = $props();
+  let { title, meta, snippet, selected = false, wrap = false, href, onclick, lead, trail, ...rest }: Props = $props();
 </script>
 
 {#snippet content()}
@@ -27,7 +29,7 @@
       <span class="title">{title}</span>
       {#if meta}<span class="meta">{meta}</span>{/if}
     </span>
-    {#if snippet}<span class="snippet">{snippet}</span>{/if}
+    {#if snippet}<span class="snippet" class:wrap>{snippet}</span>{/if}
   </span>
   {#if trail}<span class="trail">{@render trail()}</span>{/if}
 {/snippet}
@@ -102,6 +104,10 @@
     font: var(--weight-regular) var(--type-meta-size) / var(--type-meta-lh) var(--font-ui);
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  .snippet.wrap {
+    white-space: normal;
   }
 
   .trail {

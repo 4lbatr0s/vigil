@@ -31,8 +31,9 @@
     max-width: 1200px;
   }
 
+  /* Reading pages share the default column so every title lines up from page to page. */
   .prose {
-    max-width: var(--measure);
+    max-width: var(--page-max);
   }
 
   header {
