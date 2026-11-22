@@ -18,7 +18,7 @@
       {/snippet}
     </Tooltip.Trigger>
     <Tooltip.Portal>
-      <Tooltip.Content {side} sideOffset={6} class="tip">
+      <Tooltip.Content {side} sideOffset={6} class="ui-tip">
         {label}{#if shortcut}<kbd>{shortcut}</kbd>{/if}
       </Tooltip.Content>
     </Tooltip.Portal>
@@ -30,7 +30,7 @@
     display: inline-flex;
   }
 
-  :global(.tip) {
+  :global(.ui-tip) {
     z-index: 60;
     display: inline-flex;
     align-items: center;
@@ -42,7 +42,7 @@
     font: var(--weight-medium) var(--type-meta-size) / var(--type-meta-lh) var(--font-ui);
   }
 
-  :global(.tip kbd) {
+  :global(.ui-tip kbd) {
     font: inherit;
     opacity: 0.7;
   }

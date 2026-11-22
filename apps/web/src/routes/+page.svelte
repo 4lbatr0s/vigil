@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount, tick, untrack } from "svelte";
+  import { onMount, untrack } from "svelte";
   import { goto, replaceState } from "$app/navigation";
   import { page } from "$app/state";
   import { slugify, type Note, type NoteSummary } from "@vigil/shared";
@@ -22,7 +22,8 @@
   import AskAgent from "$lib/components/AskAgent.svelte";
   import CardMaker from "$lib/components/CardMaker.svelte";
   import StudyWith from "$lib/components/StudyWith.svelte";
-  import Illustration from "$lib/components/Illustration.svelte";
+  import Ellipsis from "@lucide/svelte/icons/ellipsis";
+  import { Button, EmptyState, IconButton, Menu } from "$lib/ui";
   import NoteActivity from "$lib/components/NoteActivity.svelte";
   import ChangeReview from "$lib/components/ChangeReview.svelte";
   import ProvenanceBar from "$lib/components/ProvenanceBar.svelte";
@@ -44,6 +45,9 @@
   let runs = $state<Run[]>([]);
   let pending = $state<ApprovalItem[]>([]);
   let cardStats = $state<StudyStats | null>(null);
+  let createOpen = $state(false);
+  let renameOpen = $state(false);
+  let deleteOpen = $state(false);
   let askOpen = $state(false);
   let cardsOpen = $state(false);
   let studyOpen = $state(false);
@@ -188,7 +192,7 @@
   });
   $effect(() => {
     if (page.url.searchParams.get("new") === "1" && !loading) {
-      void tick().then(() => document.getElementById("new-note-title")?.focus());
+      createOpen = true;
     }
   });
 
@@ -363,45 +367,51 @@
     <button type="button" class="scrim" aria-label="Close the notes list" onclick={() => (listOpen = false)}></button>
   {/if}
   <div class="listpane" class:open={listOpen}>
-    <NoteList {notes} {pins} {selectedId} {flicker} onselect={(id) => void select(id)} oncreated={onCreated} ontogglepin={(id, on) => void togglePin(id, on)} />
+    <NoteList {notes} {pins} {selectedId} {flicker} bind:createOpen onselect={(id) => void select(id)} oncreated={onCreated} ontogglepin={(id, on) => void togglePin(id, on)} />
   </div>
 
   <main class="main">
     {#if loadError}
-      <p class="empty">{loadError}</p>
+      <p class="notice">{loadError}</p>
     {:else if loading}
-      <p class="empty">Loading…</p>
+      <p class="notice">Loading…</p>
     {:else if !draft}
-      <div class="empty-state">
-        <button type="button" class="act list-toggle" onclick={() => (listOpen = true)}><PanelLeft size={16} strokeWidth={1.5} /> Notes</button>
+      <div class="blank">
+        <span class="list-toggle"><Button variant="ghost" onclick={() => (listOpen = true)}>{#snippet icon()}<PanelLeft size={16} strokeWidth={1.5} />{/snippet}Notes</Button></span>
         {#if notes.length === 0}
-          <Illustration kind="page" />
-          <h2>A blank page, ready when you are.</h2>
-          <p>Write your first note, or let an agent start one for you.</p>
-          <div class="cta">
-            <button type="button" class="act primary" onclick={() => document.getElementById("new-note-title")?.focus()}>Create a note</button>
-            <a class="act" href="/agents">Add an agent</a>
-          </div>
-          <p class="muted-line"><button type="button" class="link" onclick={() => void createWelcome()}>Or start with a sample note</button> that shows what Vigil can do.</p>
+          <EmptyState title="No notes yet. Write one, or start from a sample.">
+            {#snippet action()}
+              <span class="cta">
+                <Button variant="primary" onclick={() => (createOpen = true)}>New note</Button>
+                <Button onclick={() => void createWelcome()}>Add a sample note</Button>
+              </span>
+            {/snippet}
+          </EmptyState>
         {:else}
-          <Illustration kind="page" size={72} />
-          <h2>Pick a note to keep going.</h2>
-          <p>Choose one from the list, or press ⌘K to find it.</p>
+          <EmptyState title="Pick a note from the list, or press ⌘K to find one." />
         {/if}
       </div>
     {:else}
       <header class="head">
-        <button type="button" class="act list-toggle" aria-label="Show the notes list" onclick={() => (listOpen = true)}><PanelLeft size={16} strokeWidth={1.5} /> Notes</button>
+        <span class="list-toggle"><Button variant="ghost" aria-label="Show the notes list" onclick={() => (listOpen = true)}>{#snippet icon()}<PanelLeft size={16} strokeWidth={1.5} />{/snippet}Notes</Button></span>
         <span class="grow"></span>
-        <div class="actions">
-          <button type="button" class="act" onclick={() => (studyOpen = true)}>Study</button>
-          <button type="button" class="act" onclick={() => (cardsOpen = true)}>Make cards</button>
-          <button type="button" class="act" onclick={() => void openAsCanvas()} title="Put this note on a new canvas board">Canvas</button>
-          <button type="button" class="act" onclick={() => void openAsMap()} title="Turn this note's headings into a map you can rearrange">Map</button>
-          <a class="act" href={`/recall?note=${encodeURIComponent(selectedId ?? "")}`} title="Write what you remember, then see what you missed">Recall</a>
-          <RenameNote noteId={selectedId ?? ""} title={draft.title} onrenamed={onRenamed} />
-          <DeleteNote noteId={selectedId ?? ""} title={draft.title} ondeleted={onDeleted} />
-        </div>
+        <Button onclick={() => (studyOpen = true)}>Study</Button>
+        <Menu
+          label="More actions for this note"
+          items={[
+            { label: "Make cards", onselect: () => (cardsOpen = true) },
+            { label: "Recall check", onselect: () => void goto(`/recall?note=${encodeURIComponent(selectedId ?? "")}`) },
+            { label: "Put on a canvas", onselect: () => void openAsCanvas() },
+            { label: "Turn headings into a map", onselect: () => void openAsMap() },
+            { kind: "separator" },
+            { label: "Rename", onselect: () => (renameOpen = true) },
+            { label: "Delete", danger: true, onselect: () => (deleteOpen = true) },
+          ]}
+        >
+          {#snippet trigger({ props })}
+            <IconButton label="More actions for this note" {...props}><Ellipsis size={16} strokeWidth={1.5} /></IconButton>
+          {/snippet}
+        </Menu>
       </header>
 
       <ProvenanceBar agentName={current?.author === "agent" ? current.agentName : undefined} writtenAt={current?.updatedAt} run={writerRun} pending={pendingHere} onundone={() => void onUndone()} onreview={() => (review = writerRun && selectedId ? { runId: writerRun.id, noteId: selectedId, agent: current?.agentName ?? "The agent" } : null)} />
@@ -412,8 +422,8 @@
       {#if pendingCreate}
         <div class="prompt" role="alertdialog" aria-label="Create note">
           <span>No note called “{pendingCreate}” yet. Create it?</span>
-          <button type="button" class="act primary" onclick={() => void createPending()}>Create</button>
-          <button type="button" class="act" onclick={() => (pendingCreate = null)}>Cancel</button>
+          <Button variant="primary" size="sm" onclick={() => void createPending()}>Create note</Button>
+          <Button variant="ghost" size="sm" onclick={() => (pendingCreate = null)}>Cancel</Button>
         </div>
       {/if}
 
@@ -452,9 +462,8 @@
       <RelatedNotes noteId={selectedId ?? ""} signature={notes.map((n) => n.updatedAt).join("|")} />
 
       <footer class="status">
-        <span class="path">{selectedId}.md{#if cardStats && cardStats.total > 0}
-            · <a class="cards-link" href={`/study?note=${encodeURIComponent(selectedId ?? "")}`}>{cardStats.total} {cardStats.total === 1 ? "card" : "cards"}{cardStats.due + cardStats.new > 0 ? `, ${cardStats.due + cardStats.new} to study` : ""}</a>{/if}</span>
-        <span class="state">{words} {words === 1 ? "word" : "words"}{status ? ` · ${status}` : ""}</span>
+        <span class="path">{words} {words === 1 ? "word" : "words"}{#if cardStats && cardStats.total > 0}{" · "}<a class="cards-link" href={`/study?note=${encodeURIComponent(selectedId ?? "")}`}>{cardStats.total} {cardStats.total === 1 ? "card" : "cards"}{cardStats.due + cardStats.new > 0 ? `, ${cardStats.due + cardStats.new} to study` : ""}</a>{/if}</span>
+        <span class="state">{status}</span>
       </footer>
     {/if}
   </main>
@@ -464,6 +473,8 @@
   <StudyWith bind:open={studyOpen} noteId={selectedId} title={draft.title} />
   <CardMaker bind:open={cardsOpen} noteId={selectedId} onsaved={() => void onCardsSaved()} />
   <AskAgent bind:open={askOpen} noteId={selectedId} title={draft.title} selection={askSelection} />
+  <RenameNote noteId={selectedId} title={draft.title} bind:open={renameOpen} onrenamed={onRenamed} />
+  <DeleteNote noteId={selectedId} title={draft.title} bind:open={deleteOpen} ondeleted={onDeleted} />
 {/if}
 
 <style>
@@ -477,123 +488,12 @@
   .listpane {
     min-width: 0;
     min-height: 0;
+    background: var(--paper);
   }
 
   .scrim,
-  .act.list-toggle {
+  .list-toggle {
     display: none;
-  }
-
-  .empty-state {
-    align-self: center;
-    justify-self: center;
-    display: grid;
-    gap: var(--space-3);
-    max-width: 36ch;
-    padding: var(--space-6);
-    text-align: center;
-    color: var(--ink-muted);
-  }
-
-  .empty-state h2 {
-    font-family: var(--font-serif);
-    font-size: var(--text-h3);
-    font-weight: 600;
-    color: var(--ink);
-  }
-
-  .muted-line {
-    font-size: var(--text-label);
-  }
-
-  .link {
-    color: var(--ink);
-    text-decoration: underline;
-    text-underline-offset: 2px;
-  }
-
-  .cta {
-    display: flex;
-    justify-content: center;
-    gap: var(--space-2);
-  }
-
-  .act {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--space-2);
-    color: var(--ink);
-    text-decoration: none;
-  }
-
-  /* Below 1024px the list is a slide-over; the Notes button opens it (ux-spec section 1). */
-  @media (max-width: 1023px) {
-    .app {
-      grid-template-columns: 1fr;
-    }
-    .listpane {
-      position: absolute;
-      inset: 0 auto 0 0;
-      z-index: 10;
-      width: min(var(--sidebar-width), 88vw);
-      transform: translateX(-100%);
-      visibility: hidden;
-      transition: transform 140ms ease-out, visibility 0s linear 140ms;
-      box-shadow: var(--shadow-pop);
-    }
-    .listpane.open {
-      transform: none;
-      visibility: visible;
-      transition: transform 140ms ease-out;
-    }
-    .scrim {
-      display: block;
-      position: absolute;
-      inset: 0;
-      z-index: 9;
-      background: color-mix(in srgb, var(--bg) 60%, transparent);
-    }
-    .act.list-toggle {
-      display: inline-flex;
-    }
-    .head {
-      flex-wrap: wrap;
-      justify-content: flex-start;
-    }
-    .actions {
-      margin-left: auto;
-    }
-    .pane {
-      padding: var(--space-4);
-    }
-  }
-
-  @media (max-width: 639px) {
-    .listpane {
-      width: 100%;
-    }
-    .head {
-      padding: var(--space-3) var(--space-4);
-    }
-    /* The buttons join the Notes button in one wrapping row instead of making a second block. */
-    .head.head {
-      gap: var(--space-2);
-      justify-content: flex-start;
-    }
-    .actions.actions {
-      display: contents;
-    }
-    .status.status {
-      padding: var(--space-2) var(--space-4);
-      padding-bottom: calc(var(--space-2) + env(safe-area-inset-bottom));
-    }
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .listpane,
-    .listpane.open {
-      transition: none;
-    }
   }
 
   .main {
@@ -602,47 +502,65 @@
     min-width: 0;
     height: 100%;
     min-height: 0;
-    background: var(--bg);
+    background: var(--paper);
   }
 
-  .actions {
-    position: relative;
-    display: flex;
-    gap: var(--space-2);
+  .blank {
+    align-self: center;
+    padding: var(--s-6);
+    max-width: 36ch;
+    margin: auto;
+  }
+
+  .cta {
+    display: inline-flex;
+    gap: var(--s-2);
+  }
+
+  .notice {
+    margin: auto;
+    color: var(--text-2);
+    font: var(--weight-regular) var(--type-ui-size) / var(--type-ui-lh) var(--font-ui);
   }
 
   .head {
-    position: relative;
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: var(--space-4);
-    padding: var(--space-2) var(--space-6);
-    border-bottom: 1px solid var(--hairline);
-  }
-
-  .title {
-    display: block;
-    width: calc(100% + 2 * var(--space-2));
-    min-width: 0;
-    padding: var(--space-1) var(--space-2);
-    margin: var(--space-4) calc(-1 * var(--space-2)) var(--space-2);
-    border: 1px solid transparent;
-    border-radius: var(--radius);
-    background: none;
-    font-family: var(--font-serif);
-    font-size: var(--text-h1);
-    font-weight: 600;
-    line-height: 1.2;
-    color: var(--ink);
-  }
-
-  .title::placeholder {
-    color: var(--ink-muted);
+    gap: var(--s-2);
+    padding: var(--s-2) var(--s-6);
   }
 
   .grow {
     flex: 1;
+  }
+
+  /* The title is the page heading: large, no box, editable in place. */
+  .title {
+    display: block;
+    width: calc(100% + 2 * var(--s-2));
+    min-width: 0;
+    padding: var(--s-1) var(--s-2);
+    margin: var(--s-6) calc(-1 * var(--s-2)) var(--s-3);
+    border: 0;
+    border-radius: var(--r-control);
+    background: none;
+    font: var(--weight-strong) var(--type-title-size) / var(--type-title-lh) var(--font-ui);
+    letter-spacing: var(--type-title-tracking);
+    color: var(--text);
+  }
+
+  .title::placeholder {
+    color: var(--text-3);
+  }
+
+  .title:hover {
+    background: var(--fill-hover);
+  }
+
+  .title:focus-visible {
+    outline: none;
+    background: var(--fill-hover);
+    box-shadow: 0 0 0 3px var(--select-wash);
   }
 
   .doc {
@@ -651,19 +569,10 @@
     margin: 0 auto;
   }
 
-  .title:hover {
-    background: var(--surface-hover);
-  }
-
-  .title:focus {
-    background: var(--surface);
-    border-color: var(--hairline);
-  }
-
   .title-hint {
-    margin: 0 0 var(--space-2);
-    font-size: var(--text-label);
-    color: var(--ink-muted);
+    margin: 0 0 var(--s-2);
+    color: var(--text-3);
+    font: var(--weight-regular) var(--type-meta-size) / var(--type-meta-lh) var(--font-ui);
   }
 
   .panes {
@@ -676,36 +585,24 @@
   .prompt {
     display: flex;
     align-items: center;
-    gap: var(--space-3);
-    padding: var(--space-2) var(--space-6);
-    border-bottom: 1px solid var(--hairline);
-    background: var(--surface);
-    font-size: var(--text-label);
-  }
-
-  .act {
-    padding: var(--space-1) var(--space-3);
-    border: 1px solid var(--hairline);
-    border-radius: var(--radius);
-    font-size: var(--text-label);
-  }
-
-  .act.primary {
-    background: var(--ink);
-    color: var(--bg);
-    border-color: var(--ink);
+    gap: var(--s-3);
+    margin: 0 var(--s-6);
+    padding: var(--s-2) var(--s-3);
+    border-radius: var(--r-control);
+    background: var(--fill-hover);
+    font: var(--weight-regular) var(--type-ui-size) / var(--type-ui-lh) var(--font-ui);
   }
 
   .pane {
     min-width: 0;
     overflow: auto;
-    padding: var(--space-6);
+    padding: var(--s-6);
   }
 
   /* Room on the left for the block handle that appears beside the line you point at. */
   @media (min-width: 1024px) {
     .editor-pane {
-      padding-left: calc(var(--space-12) + var(--space-8));
+      padding-left: calc(var(--s-12) + var(--s-8));
     }
   }
 
@@ -713,23 +610,61 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: var(--space-2) var(--space-6);
-    border-top: 1px solid var(--hairline);
-    font-family: var(--font-mono);
-    font-size: var(--text-label);
-    color: var(--ink-muted);
+    padding: var(--s-2) var(--s-6);
+    color: var(--text-3);
+    font: var(--weight-regular) var(--type-meta-size) / var(--type-meta-lh) var(--font-ui);
   }
 
   .cards-link {
-    color: var(--ink);
+    color: var(--text-2);
     text-underline-offset: 2px;
   }
 
-  .empty {
-    grid-row: 1 / -1;
-    align-self: center;
-    justify-self: center;
-    color: var(--ink-muted);
-    font-size: var(--text-ui);
+  /* Below 1024px the list is a slide-over; the Notes button opens it. */
+  @media (max-width: 1023px) {
+    .app {
+      grid-template-columns: 1fr;
+    }
+    .listpane {
+      position: absolute;
+      inset: 0 auto 0 0;
+      z-index: 10;
+      width: min(var(--sidebar-width), 88vw);
+      transform: translateX(-100%);
+      visibility: hidden;
+      transition: transform var(--dur-base) var(--ease-out), visibility 0s linear var(--dur-base);
+      box-shadow: var(--elev-overlay);
+    }
+    .listpane.open {
+      transform: none;
+      visibility: visible;
+      transition: transform var(--dur-base) var(--ease-out);
+    }
+    .scrim {
+      display: block;
+      position: absolute;
+      inset: 0;
+      z-index: 9;
+      background: var(--scrim);
+    }
+    .list-toggle {
+      display: inline-flex;
+    }
+    .pane {
+      padding: var(--s-4);
+    }
+  }
+
+  @media (max-width: 639px) {
+    .listpane {
+      width: 100%;
+    }
+    .head {
+      padding: var(--s-2) var(--s-4);
+    }
+    .status {
+      padding: var(--s-2) var(--s-4);
+      padding-bottom: calc(var(--s-2) + env(safe-area-inset-bottom));
+    }
   }
 </style>

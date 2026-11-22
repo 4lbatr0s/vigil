@@ -11,25 +11,25 @@
 </script>
 
 <Tabs.Root bind:value>
-  <Tabs.List class="tabs">
+  <Tabs.List class="ui-tabs">
     {#each tabs as tab (tab.value)}
-      <Tabs.Trigger value={tab.value} class="tab">{tab.label}</Tabs.Trigger>
+      <Tabs.Trigger value={tab.value} class="ui-tab">{tab.label}</Tabs.Trigger>
     {/each}
   </Tabs.List>
   {#each tabs as tab (tab.value)}
-    <Tabs.Content value={tab.value} class="tab-panel">{@render panel(tab.value)}</Tabs.Content>
+    <Tabs.Content value={tab.value} class="ui-tab-panel">{@render panel(tab.value)}</Tabs.Content>
   {/each}
 </Tabs.Root>
 
 <style>
-  :global(.tabs) {
+  :global(.ui-tabs) {
     display: flex;
     gap: var(--s-1);
     padding-bottom: var(--s-2);
     box-shadow: 0 1px 0 var(--line-soft);
   }
 
-  :global(.tab) {
+  :global(.ui-tab) {
     height: var(--control-h);
     padding: 0 var(--s-3);
     border-radius: var(--r-control);
@@ -38,17 +38,17 @@
     transition: background-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
   }
 
-  :global(.tab:hover) {
+  :global(.ui-tab:hover) {
     background: var(--fill-hover);
     color: var(--text);
   }
 
-  :global(.tab[data-state="active"]) {
+  :global(.ui-tab[data-state="active"]) {
     background: var(--fill-selected);
     color: var(--text);
   }
 
-  :global(.tab-panel) {
+  :global(.ui-tab-panel) {
     padding-top: var(--s-4);
   }
 </style>

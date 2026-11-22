@@ -29,9 +29,10 @@
   --selection: color-mix(in srgb, var(--canvas-5) 32%, transparent);
 
   /* Type */
-  --font-serif: "Newsreader Variable", Georgia, serif;
-  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
-  --font-chrome: "Schibsted Grotesk Variable", system-ui, sans-serif;
+  /* The legacy names now point at the v3 families (ADR-0029): one system sans, a system mono. */
+  --font-serif: var(--font-prose);
+  --font-mono: var(--font-code);
+  --font-chrome: var(--font-ui);
 
   /* Scale */
   --text-label: 13px;

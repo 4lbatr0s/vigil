@@ -7,8 +7,8 @@
 </script>
 
 <label class="switch">
-  <Switch.Root bind:checked class="track" onCheckedChange={onchange}>
-    <Switch.Thumb class="thumb" />
+  <Switch.Root bind:checked class="ui-track" onCheckedChange={onchange}>
+    <Switch.Thumb class="ui-thumb" />
   </Switch.Root>
   <span>{label}</span>
 </label>
@@ -21,7 +21,7 @@
     font: var(--weight-regular) var(--type-ui-size) / var(--type-ui-lh) var(--font-ui);
   }
 
-  :global(.track) {
+  :global(.ui-track) {
     display: inline-flex;
     flex: none;
     align-items: center;
@@ -33,11 +33,11 @@
     transition: background-color var(--dur-base) var(--ease-out);
   }
 
-  :global(.track[data-state="checked"]) {
+  :global(.ui-track[data-state="checked"]) {
     background: var(--text);
   }
 
-  :global(.thumb) {
+  :global(.ui-thumb) {
     width: 16px;
     height: 16px;
     border-radius: var(--r-pill);
@@ -46,7 +46,7 @@
     transition: transform var(--dur-base) var(--ease-out);
   }
 
-  :global(.thumb[data-state="checked"]) {
+  :global(.ui-thumb[data-state="checked"]) {
     transform: translateX(16px);
   }
 </style>

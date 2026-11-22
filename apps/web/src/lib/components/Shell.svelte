@@ -17,6 +17,7 @@
   import CommandPalette from "$lib/components/CommandPalette.svelte";
   import ShortcutsHelp from "$lib/components/ShortcutsHelp.svelte";
   import Keyboard from "@lucide/svelte/icons/keyboard";
+  import { Badge, IconButton, Kbd } from "$lib/ui";
   import Banner from "$lib/components/Banner.svelte";
   import { onMount } from "svelte";
   import { startLive } from "$lib/live";
@@ -28,6 +29,8 @@
   let helpOpen = $state(false);
   /** Narrow screens: the navigation is a drawer. */
   let navOpen = $state(false);
+  /** Where a "no model connected" or usage notice belongs: the places that need a model, not every page. */
+  const showBanner = $derived(["/agents", "/chat", "/settings", "/approvals"].some((p) => page.url.pathname.startsWith(p)));
   const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
 
   // Any navigation closes the drawer.
@@ -94,45 +97,36 @@
     <span class="mark" aria-hidden="true">Vigil</span>
     {#each items as item, i (item.href)}
       {@const Icon = item.icon}
-      {#if i === 0 || items[i - 1]?.group !== item.group}
-        <span class="group" aria-hidden="true">{item.group}</span>
+      {#if i > 0 && items[i - 1]?.group !== item.group}
+        <span class="sep" aria-hidden="true"></span>
       {/if}
-      <a
-        class="rail-link"
-        class:active={item.match(page.url.pathname)}
-        href={item.href}
-        aria-label={item.label}
-        aria-current={item.match(page.url.pathname) ? "page" : undefined}
-        title={item.label}
-      >
-        <Icon size={20} strokeWidth={1.5} />
+      <a class="rail-link" class:active={item.match(page.url.pathname)} href={item.href} aria-label={item.label} aria-current={item.match(page.url.pathname) ? "page" : undefined}>
+        <Icon size={18} strokeWidth={1.5} />
         <span class="text">{item.label}</span>
         {#if item.href === "/approvals" && $pendingCount > 0}
-          <span class="badge" aria-label={`${$pendingCount} waiting`}>{$pendingCount}</span>
+          <span class="count" role="img" aria-label={`${$pendingCount} waiting`}><Badge tone="agent">{$pendingCount}</Badge></span>
         {:else if item.href === "/study" && $studyDue > 0}
-          <span class="badge" aria-label={`${$studyDue} to study`}>{$studyDue > 99 ? "99+" : $studyDue}</span>
+          <span class="count" role="img" aria-label={`${$studyDue} to study`}><Badge>{$studyDue > 99 ? "99+" : $studyDue}</Badge></span>
         {:else if item.href === "/today" && $unseenCount > 0}
-          <span class="badge" aria-label={`${$unseenCount} new`}>{$unseenCount > 99 ? "99+" : $unseenCount}</span>
+          <span class="count" role="img" aria-label={`${$unseenCount} new`}><Badge>{$unseenCount > 99 ? "99+" : $unseenCount}</Badge></span>
         {/if}
       </a>
     {/each}
   </nav>
   <div class="column">
     <header class="strip">
-      <button type="button" class="menu" aria-label="Open menu" aria-expanded={navOpen} onclick={() => (navOpen = !navOpen)}>
-        <Menu size={20} strokeWidth={1.5} />
-      </button>
+      <span class="nav-toggle">
+        <IconButton label="Open menu" aria-expanded={navOpen} onclick={() => (navOpen = !navOpen)}><Menu size={18} strokeWidth={1.5} /></IconButton>
+      </span>
       <span class="brand">Vigil</span>
       <button type="button" class="search" onclick={() => (paletteOpen = true)} aria-label="Search notes and run commands">
         <Search size={16} strokeWidth={1.5} />
         <span class="placeholder">Search or run a command</span>
-        <kbd>{isMac ? "⌘" : "Ctrl "}K</kbd>
+        <span class="keys"><Kbd keys={isMac ? "⌘K" : "Ctrl K"} /></span>
       </button>
-      <button type="button" class="help" aria-label="Keyboard shortcuts" title="Keyboard shortcuts (?)" onclick={() => (helpOpen = true)}>
-        <Keyboard size={18} strokeWidth={1.5} />
-      </button>
+      <IconButton label="Keyboard shortcuts" shortcut="?" onclick={() => (helpOpen = true)}><Keyboard size={18} strokeWidth={1.5} /></IconButton>
     </header>
-    <Banner />
+    {#if showBanner}<Banner />{/if}
     <div class="content">
       {@render children()}
     </div>
@@ -145,24 +139,25 @@
     grid-template-columns: var(--rail-width) 1fr;
     height: 100vh;
     height: 100dvh;
+    background: var(--paper);
+    color: var(--text);
+    font-family: var(--font-ui);
   }
 
   .rail {
     display: flex;
     flex-direction: column;
     align-items: stretch;
-    gap: var(--space-1);
-    padding: var(--space-3) var(--space-2);
-    border-right: 1px solid var(--hairline);
-    background: var(--surface);
+    gap: var(--s-1);
+    padding: var(--s-3) var(--s-2);
+    background: var(--paper-sunk);
   }
 
   .mark {
     display: none;
-    padding: var(--space-2) var(--space-3) var(--space-4);
-    font-family: var(--font-serif);
-    font-size: var(--text-h3);
-    font-weight: 600;
+    padding: var(--s-2) var(--s-3) var(--s-4);
+    font: var(--weight-strong) var(--type-heading-size) / var(--type-heading-lh) var(--font-ui);
+    letter-spacing: var(--type-title-tracking);
   }
 
   .rail-link {
@@ -170,56 +165,40 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: var(--space-3);
-    height: 40px;
-    padding: 0 var(--space-2);
-    border-radius: var(--radius);
-    color: var(--ink-muted);
+    gap: var(--s-3);
+    height: var(--control-h);
+    padding: 0 var(--s-2);
+    border-radius: var(--r-control);
+    color: var(--text-2);
+    font: var(--weight-medium) var(--type-ui-size) / 1 var(--font-ui);
     text-decoration: none;
-    transition: color 100ms ease-out, background 100ms ease-out;
+    transition: background-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
   }
 
-  .group {
-    display: block;
-    height: 1px;
-    margin: var(--space-2) var(--space-2);
-    background: var(--hairline);
-    font-size: 0;
+  .rail-link:hover {
+    background: var(--fill-hover);
+    color: var(--text);
   }
-  .mark + .group {
-    display: none;
+
+  .rail-link.active {
+    background: var(--fill-selected);
+    color: var(--text);
+  }
+
+  /* Groups are a gap, not a label: nine links need no headings. */
+  .sep {
+    height: var(--s-3);
   }
 
   .text {
     display: none;
-    font-size: var(--text-ui);
   }
 
-  .badge {
+  .count {
     position: absolute;
-    top: 2px;
-    right: 2px;
-    display: grid;
-    place-items: center;
-    min-width: 16px;
-    height: 16px;
-    padding: 0 4px;
-    border-radius: 8px;
-    background: var(--ink);
-    color: var(--bg);
-    font-family: var(--font-mono);
-    font-size: 11px;
-    line-height: 1;
-  }
-
-  .rail-link:hover {
-    color: var(--ink);
-    background: var(--surface-hover);
-  }
-
-  .rail-link.active {
-    color: var(--ink);
-    background: var(--hairline);
+    top: 0;
+    right: 0;
+    display: inline-flex;
   }
 
   .column {
@@ -233,64 +212,38 @@
   .strip {
     display: flex;
     align-items: center;
-    gap: var(--space-3);
-    padding: var(--space-2) var(--space-6);
-    border-bottom: 1px solid var(--hairline);
-    font-size: var(--text-label);
-    color: var(--ink-muted);
+    gap: var(--s-3);
+    padding: var(--s-2) var(--s-6);
   }
 
   .brand {
     display: none;
-    font-family: var(--font-serif);
-    font-size: var(--text-h3);
-    font-weight: 600;
-    color: var(--ink);
+    font: var(--weight-strong) var(--type-heading-size) / var(--type-heading-lh) var(--font-ui);
   }
 
-  .menu {
+  .nav-toggle {
     display: none;
-    width: 36px;
-    height: 36px;
-    place-items: center;
-    border-radius: var(--radius);
-    color: var(--ink);
   }
 
   .search {
     display: flex;
     align-items: center;
-    gap: var(--space-2);
-    width: min(420px, 100%);
+    gap: var(--s-2);
+    width: min(360px, 100%);
     min-width: 0;
-    height: 34px;
+    height: var(--control-h);
     margin-left: auto;
-    padding: 0 var(--space-3);
-    border: 1px solid var(--hairline);
-    border-radius: var(--radius);
-    background: var(--surface);
-    color: var(--ink-muted);
-    font-size: var(--text-ui);
+    padding: 0 var(--s-3);
+    border-radius: var(--r-control);
+    background: var(--fill-hover);
+    color: var(--text-3);
+    font: var(--weight-regular) var(--type-ui-size) / var(--type-ui-lh) var(--font-ui);
     text-align: left;
+    transition: background-color var(--dur-fast) var(--ease-out);
   }
 
   .search:hover {
-    background: var(--surface-hover);
-    color: var(--ink);
-  }
-
-  .help {
-    display: grid;
-    place-items: center;
-    width: 34px;
-    height: 34px;
-    border-radius: var(--radius);
-    color: var(--ink-muted);
-  }
-
-  .help:hover {
-    background: var(--surface-hover);
-    color: var(--ink);
+    background: var(--fill-selected);
   }
 
   .placeholder {
@@ -299,12 +252,6 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-  }
-
-  kbd {
-    font-family: var(--font-mono);
-    font-size: var(--text-label);
-    color: var(--ink-muted);
   }
 
   .content {
@@ -330,26 +277,14 @@
     }
     .rail-link {
       justify-content: flex-start;
-      padding: 0 var(--space-3);
+      padding: 0 var(--s-3);
     }
     .text {
       display: inline;
     }
-    .mark + .group {
-      display: block;
-    }
-    .group {
-      height: auto;
-      margin: var(--space-3) var(--space-3) var(--space-1);
-      background: none;
-      font-size: 11px;
-      letter-spacing: 0.06em;
-      text-transform: uppercase;
-      color: var(--ink-muted);
-    }
-    .badge {
+    .count {
       top: 50%;
-      right: var(--space-3);
+      right: var(--s-2);
       transform: translateY(-50%);
     }
   }
@@ -364,41 +299,30 @@
       inset: 0 auto 0 0;
       z-index: 30;
       width: 260px;
+      background: var(--paper-float);
       transform: translateX(-100%);
       visibility: hidden;
-      transition: transform 140ms ease-out, visibility 0s linear 140ms;
-      box-shadow: var(--shadow-pop);
+      transition: transform var(--dur-base) var(--ease-out), visibility 0s linear var(--dur-base);
+      box-shadow: var(--elev-overlay);
     }
     .rail.open {
       transform: none;
       visibility: visible;
-      transition: transform 140ms ease-out;
+      transition: transform var(--dur-base) var(--ease-out);
     }
     .mark {
       display: block;
     }
     .rail-link {
       justify-content: flex-start;
-      padding: 0 var(--space-3);
+      padding: 0 var(--s-3);
     }
     .text {
       display: inline;
     }
-    .mark + .group {
-      display: block;
-    }
-    .group {
-      height: auto;
-      margin: var(--space-3) var(--space-3) var(--space-1);
-      background: none;
-      font-size: 11px;
-      letter-spacing: 0.06em;
-      text-transform: uppercase;
-      color: var(--ink-muted);
-    }
-    .badge {
+    .count {
       top: 50%;
-      right: var(--space-3);
+      right: var(--s-2);
       transform: translateY(-50%);
     }
     .scrim {
@@ -406,30 +330,23 @@
       position: fixed;
       inset: 0;
       z-index: 20;
-      background: color-mix(in srgb, var(--bg) 70%, transparent);
+      background: var(--scrim);
     }
-    .menu {
-      display: grid;
+    .nav-toggle {
+      display: inline-flex;
     }
     .brand {
       display: block;
     }
     .strip {
-      padding: var(--space-2) var(--space-4);
+      padding: var(--s-2) var(--s-4);
     }
     .search {
       width: auto;
       flex: 1;
     }
-    kbd {
+    .keys {
       display: none;
-    }
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .rail,
-    .rail.open {
-      transition: none;
     }
   }
 </style>

@@ -11,16 +11,26 @@
     variant?: "primary" | "quiet" | "ghost" | "danger";
     size?: "md" | "sm";
     icon?: Snippet;
+    /** A toggle that is on (a selected filter): shown as a soft fill. */
+    pressed?: boolean;
+    /** Renders a link that looks like the button. */
+    href?: string;
     children: Snippet;
   };
 
-  let { variant = "quiet", size = "md", icon, children, type = "button", ...rest }: Props = $props();
+  let { variant = "quiet", size = "md", icon, pressed, href, children, type = "button", ...rest }: Props = $props();
 </script>
 
-<button {type} class="btn {variant} {size}" {...rest}>
+{#snippet inner()}
   {#if icon}<span class="lead" aria-hidden="true">{@render icon()}</span>{/if}
   {@render children()}
-</button>
+{/snippet}
+
+{#if href}
+  <a {href} class="btn {variant} {size}">{@render inner()}</a>
+{:else}
+  <button {type} class="btn {variant} {size}" aria-pressed={pressed} {...rest}>{@render inner()}</button>
+{/if}
 
 <style>
   .btn {
@@ -85,6 +95,14 @@
   }
   .danger:hover {
     background: var(--danger-fill);
+  }
+
+  a.btn {
+    text-decoration: none;
+  }
+
+  .btn[aria-pressed="true"] {
+    background: var(--fill-selected);
   }
 
   .btn:disabled {

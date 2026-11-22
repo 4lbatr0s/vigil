@@ -24,12 +24,12 @@
     {/snippet}
   </DropdownMenu.Trigger>
   <DropdownMenu.Portal>
-    <DropdownMenu.Content class="menu" {align} sideOffset={6}>
+    <DropdownMenu.Content class="ui-menu" {align} sideOffset={6}>
       {#each items as item, i (i)}
         {#if item.kind === "separator"}
-          <DropdownMenu.Separator class="menu-sep" />
+          <DropdownMenu.Separator class="ui-menu-sep" />
         {:else}
-          <DropdownMenu.Item class="menu-item {item.danger ? 'danger' : ''}" disabled={item.disabled} onSelect={item.onselect}>
+          <DropdownMenu.Item class="ui-menu-item {item.danger ? 'danger' : ''}" disabled={item.disabled} onSelect={item.onselect}>
             <span>{item.label}</span>
             {#if item.shortcut}<kbd>{item.shortcut}</kbd>{/if}
           </DropdownMenu.Item>
@@ -40,7 +40,7 @@
 </DropdownMenu.Root>
 
 <style>
-  :global(.menu) {
+  :global(.ui-menu) {
     z-index: 50;
     min-width: 200px;
     padding: var(--s-1);
@@ -49,7 +49,7 @@
     box-shadow: var(--elev-float);
   }
 
-  :global(.menu-item) {
+  :global(.ui-menu-item) {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -63,25 +63,25 @@
     outline: none;
   }
 
-  :global(.menu-item[data-highlighted]) {
+  :global(.ui-menu-item[data-highlighted]) {
     background: var(--fill-selected);
   }
 
-  :global(.menu-item.danger) {
+  :global(.ui-menu-item.danger) {
     color: var(--danger);
   }
 
-  :global(.menu-item[data-disabled]) {
+  :global(.ui-menu-item[data-disabled]) {
     opacity: 0.45;
   }
 
-  :global(.menu-item kbd) {
+  :global(.ui-menu-item kbd) {
     color: var(--text-3);
     font: inherit;
     font-size: var(--type-meta-size);
   }
 
-  :global(.menu-sep) {
+  :global(.ui-menu-sep) {
     height: 1px;
     margin: var(--s-1) calc(var(--s-1) * -1);
     background: var(--line-soft);

@@ -11,7 +11,15 @@ import { fileURLToPath } from "node:url";
  */
 const src = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 
-const MIGRATED: string[] = ["routes/design/+page.svelte"];
+const MIGRATED: string[] = [
+  "routes/design/+page.svelte",
+  "routes/+page.svelte",
+  "lib/components/Shell.svelte",
+  "lib/components/Banner.svelte",
+  "lib/components/NoteList.svelte",
+  "lib/components/RenameNote.svelte",
+  "lib/components/DeleteNote.svelte",
+];
 
 function walk(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {
@@ -31,7 +39,7 @@ const RULES: Rule[] = [
   { name: "raw colour: use a token from tokens.css", test: /#[0-9a-fA-F]{3,8}\b|\b(?:rgba?|hsla?|oklch|oklab|lch)\(/ },
   { name: "raw border-radius: use --r-control, --r-surface, --r-float or --r-pill", test: /border-radius:\s*[0-9.]+(?:px|rem|em|%)/ },
   { name: "raw font-size or font shorthand: use a --type-* role", test: /font-size:\s*[0-9.]+(?:px|rem|em)\b/ },
-  { name: "raw duration: use --dur-fast, --dur-base or --dur-slow", test: /\b[0-9.]+m?s\b(?=\s*(?:;|,|ease|linear|cubic))/ },
+  { name: "raw duration: use --dur-fast, --dur-base or --dur-slow", test: /\b(?!0s\b)[0-9.]+m?s\b(?=\s*(?:;|,|ease|linear|cubic))/ },
   { name: "uppercase text: write sentence case", test: /text-transform:\s*uppercase/ },
   { name: "gradient or glow: not part of the system", test: /(?:linear|radial|conic)-gradient\(|filter:\s*drop-shadow|backdrop-filter/ },
   { name: "left or right accent stripe: not part of the system", test: /border-(?:left|right):\s*[2-9]px/ },
