@@ -10,6 +10,8 @@
   import { refreshOnLive } from "$lib/live";
   import { describeTrigger, describeTriggerSentence, statusDot } from "$lib/schedule";
   import StatusDot from "$lib/components/StatusDot.svelte";
+  import Ellipsis from "@lucide/svelte/icons/ellipsis";
+  import { Badge, Button, Checkbox, Cluster, Dialog, Field, IconButton, Input, Menu, Page, Row, Select, Stack, Switch, Textarea } from "$lib/ui";
 
   const name = $derived(page.params.name ?? "");
 
@@ -90,18 +92,11 @@
   });
 
   /** Turning approvals off for an agent that reads notes and fetches the web asks first (ux-spec section 5). */
-  function onStrictChange(event: Event): void {
-    if (!form || !agent) return;
-    const box = event.currentTarget as HTMLInputElement;
-    if (box.checked) {
-      form.strict = true;
-      return;
-    }
+  function onStrictChange(on: boolean): void {
+    if (!form || !agent || on) return;
     if (agent.tools.includes("read_notes") && agent.tools.includes("web_fetch")) {
-      box.checked = true; // stays on until the owner confirms
+      form.strict = true; // stays on until the owner confirms
       confirmOff = true;
-    } else {
-      form.strict = false;
     }
   }
 
@@ -213,271 +208,393 @@
 
 <svelte:head><title>{name} · Vigil</title></svelte:head>
 
-<main class="page">
-  <p class="crumb"><a href="/agents">Agents</a></p>
-
+<Page>
   {#if loadError}
     <p class="error" role="alert">{loadError}</p>
   {:else if !agent || !form}
     <p class="muted">Loading…</p>
   {:else}
-    <header class="head">
-      <h1>{agent.name}</h1>
-      <StatusDot state={statusDot(agent, runs[0])} />
-    </header>
-    {#if agent.description}<p class="muted">{agent.description}</p>{/if}
+    <Stack gap={8}>
+      <header class="head">
+        <Button variant="ghost" size="sm" href="/agents">Agents</Button>
+        <div class="titlebar">
+          <h1>{agent.name}</h1>
+          <StatusDot state={statusDot(agent, runs[0])} />
+          <span class="grow"></span>
+          <Button disabled={running} onclick={() => void runNow()}>{running ? "Running…" : "Run now"}</Button>
+          <Button onclick={() => void startChatWith()}>Chat</Button>
+          <Menu
+            label="More actions for this agent"
+            items={[
+              { label: "Duplicate", onselect: () => void duplicate() },
+              { label: skillCopied ? "Copied as SKILL.md" : "Copy as SKILL.md", onselect: () => void copySkill() },
+            ]}
+          >
+            {#snippet trigger({ props })}
+              <IconButton label="More actions for this agent" {...props}><Ellipsis size={16} strokeWidth={1.5} /></IconButton>
+            {/snippet}
+          </Menu>
+        </div>
+        {#if agent.description}<p class="muted">{agent.description}</p>{/if}
+        {#if runError}<p class="error" role="alert">{runError}</p>{/if}
+      </header>
 
-    {#if !agent.enabled}
-      <section class="turn-on" aria-labelledby="turn-on-title">
-        <h2 id="turn-on-title">This agent is off. It will not run on its own until you turn it on.</h2>
-        <p>{describeTriggerSentence(agent.trigger)}</p>
-        <ul class="grants">
-          {#each grants as g (g.tool)}
-            <li>
-              <label>
-                <input type="checkbox" checked={!g.blocked} disabled />
+      {#if !agent.enabled}
+        <section class="notice" aria-labelledby="turn-on-title">
+          <h2 id="turn-on-title">This agent is off.</h2>
+          <p class="muted">It will not run on its own until you turn it on. {describeTriggerSentence(agent.trigger)}</p>
+          <ul class="grants">
+            {#each grants as g (g.tool)}
+              <li>
                 <span>{g.text}</span>
-              </label>
-              {#if g.blocked}<span class="blocked">Turned off in <a href="/settings">Settings</a></span>{/if}
-            </li>
-          {/each}
-          <li>Needs your approval before writing: <strong>{form.strict ? "on" : "off"}</strong>.</li>
-        </ul>
-        <div class="actions">
-          <button type="button" class="primary" disabled={busy} onclick={() => void turnOn()}>Turn on</button>
-          <button type="button" class="ghost" disabled={running} onclick={() => void runNow()}>Run once now</button>
-        </div>
-      </section>
-    {/if}
-
-    <section class="facts" aria-label="Schedule">
-      <dl>
-        <dt>Trigger</dt>
-        <dd class="mono">{describeTrigger(agent.trigger)}</dd>
-        <dt>Next run</dt>
-        <dd class="mono">{schedule?.nextRunAt ? formatStamp(schedule.nextRunAt) : agent.enabled ? "none" : "off"}</dd>
-        {#if agent.trigger.kind === "heartbeat"}
-          <dt>Heartbeat</dt>
-          <dd class="mono">{agent.enabled ? describeCheck(schedule?.lastCheckedAt ?? null, schedule?.lastSkipReason ?? null) : "off"}</dd>
-        {/if}
-        <dt>Last started</dt>
-        <dd class="mono">{formatStamp(schedule?.lastStartedAt)}</dd>
-        {#if schedule?.lastSkipReason && agent.trigger.kind !== "heartbeat"}
-          <dt>Last skipped</dt>
-          <dd class="mono">{schedule.lastSkipReason}</dd>
-        {/if}
-        <dt>Tools</dt>
-        <dd class="chips">
-          {#each agent.tools as t (t)}<span class="chip">{t}</span>{:else}<span class="muted">none</span>{/each}
-        </dd>
-      </dl>
-    </section>
-
-    <section class="tests" aria-label="Saved test tasks">
-      <h2 class="reach-title">Test tasks</h2>
-      <p class="hint">Keep a few sample tasks and run them again after you change the instructions, to see what changed.</p>
-      <ul>
-        {#each agent.testTasks ?? [] as t, i (i)}
-          <li>
-            <span class="test-text">{t}</span>
-            <button type="button" class="ghost" onclick={() => void runTest(t)}>Run</button>
-            <button type="button" class="ghost" aria-label="Remove this test task" onclick={() => void saveTests((agent?.testTasks ?? []).filter((_, j) => j !== i))}>Remove</button>
-          </li>
-        {/each}
-      </ul>
-      {#if (agent.testTasks ?? []).length < 5}
-        <form class="test-add" onsubmit={(e) => { e.preventDefault(); if (newTest.trim() !== "") void saveTests([...(agent?.testTasks ?? []), newTest.trim()]); }}>
-          <input type="text" bind:value={newTest} placeholder="A sample task, for example: Summarise yesterday's notes" aria-label="New test task" maxlength="2000" />
-          <button type="submit" class="ghost" disabled={newTest.trim() === ""}>Save</button>
-        </form>
-      {/if}
-    </section>
-
-    {#if reach}
-      <section class="reach" aria-label="What this agent can reach">
-        <h2 class="reach-title">What it can reach</h2>
-        <ul>
-          {#each reach.lines as l (l.label)}
-            <li class:on={l.on}><span class="reach-label">{l.label}</span><span class="reach-text">{l.text}</span></li>
-          {/each}
-        </ul>
-        {#if reach.all}<p class="reach-note">All three together are the risky mix: keep approvals on, and list only sites you trust.</p>{/if}
-      </section>
-    {/if}
-
-    {#if risky}
-      <p class="warn" role="note">
-        This agent can read your notes and fetch web pages without asking you first. A web page could try to make it send your notes out. Turn on approvals, or limit the allowed sites.
-      </p>
-    {/if}
-
-    <section class="edit" aria-label="Edit">
-      <div class="toggles">
-        <label><input type="checkbox" bind:checked={form.enabled} /> Enabled</label>
-        <label><input type="checkbox" checked={form.strict} onchange={onStrictChange} /> Ask me before this agent writes</label>
-      </div>
-      <p class="hint">Writes wait in <a href="/approvals">Approvals</a> until you accept them.</p>
-      {#if confirmOff}
-        <div class="confirm" role="alertdialog" aria-labelledby="off-title">
-          <h3 id="off-title">Turn off approvals for an agent that reads the web?</h3>
-          <p>A web page could trick this agent into writing something or sending your note text to a host you allowed. With approvals on, you check every write first.</p>
-          <div class="actions">
-            <button type="button" class="primary" onclick={() => (confirmOff = false)}>Keep approvals on</button>
-            <button type="button" class="danger" onclick={() => { form && (form.strict = false); confirmOff = false; }}>Turn off</button>
-          </div>
-        </div>
+                {#if g.blocked}<span class="muted"> Turned off in <a href="/settings">Settings</a>.</span>{/if}
+              </li>
+            {/each}
+            <li>Needs your approval before writing: <strong>{form.strict ? "on" : "off"}</strong>.</li>
+          </ul>
+          <Cluster gap={2}>
+            <Button variant="primary" disabled={busy} onclick={() => void turnOn()}>Turn on</Button>
+            <Button variant="ghost" disabled={running} onclick={() => void runNow()}>Run once now</Button>
+          </Cluster>
+        </section>
       {/if}
 
-      {#if form.tools.includes("web_fetch")}
-        <div class="field hosts">
-          <span id="hosts-label">Allowed sites (web access)</span>
-          <ul class="chips" aria-labelledby="hosts-label">
-            {#each form.allowedHosts as host (host)}
-              <li class="chip">{host} <button type="button" class="x" aria-label={`Remove ${host}`} onclick={() => removeHost(host)}>×</button></li>
+      <section aria-label="Schedule">
+        <dl class="facts">
+          <dt>Trigger</dt>
+          <dd>{describeTrigger(agent.trigger)}</dd>
+          <dt>Next run</dt>
+          <dd>{schedule?.nextRunAt ? formatStamp(schedule.nextRunAt) : agent.enabled ? "none" : "off"}</dd>
+          {#if agent.trigger.kind === "heartbeat"}
+            <dt>Heartbeat</dt>
+            <dd>{agent.enabled ? describeCheck(schedule?.lastCheckedAt ?? null, schedule?.lastSkipReason ?? null) : "off"}</dd>
+          {/if}
+          <dt>Last started</dt>
+          <dd>{formatStamp(schedule?.lastStartedAt)}</dd>
+          {#if schedule?.lastSkipReason && agent.trigger.kind !== "heartbeat"}
+            <dt>Last skipped</dt>
+            <dd>{schedule.lastSkipReason}</dd>
+          {/if}
+          <dt>Tools</dt>
+          <dd>
+            <Cluster gap={1}>{#each agent.tools as t (t)}<Badge>{t}</Badge>{:else}<span class="muted">none</span>{/each}</Cluster>
+          </dd>
+        </dl>
+      </section>
+
+      {#if reach}
+        <section aria-label="What this agent can reach">
+          <h2>What it can reach</h2>
+          <ul class="reach">
+            {#each reach.lines as l (l.label)}
+              <li><Badge tone={l.on ? "agent" : "neutral"}>{l.label}</Badge><span class="muted">{l.text}</span></li>
             {/each}
           </ul>
-          <form class="host-add" onsubmit={onAddHost}>
-            <input type="text" class="mono" bind:value={hostInput} placeholder="example.com" aria-label="Add an allowed site" aria-describedby="host-err" autocomplete="off" spellcheck="false" />
-            <button type="submit" class="ghost">Add</button>
+          {#if reach.all}<p class="muted">All three together are the risky mix: keep approvals on, and list only sites you trust.</p>{/if}
+        </section>
+      {/if}
+
+      {#if risky}
+        <p class="warn" role="note">
+          This agent can read your notes and fetch web pages without asking you first. A web page could try to make it send your notes out. Turn on approvals, or limit the allowed sites.
+        </p>
+      {/if}
+
+      <section aria-label="Settings">
+        <h2>Settings</h2>
+        <Stack gap={6}>
+          <Stack gap={3}>
+            <Switch label="Enabled" bind:checked={form.enabled} />
+            <Switch label="Ask me before this agent writes" bind:checked={form.strict} onchange={onStrictChange} />
+            <p class="muted">Writes wait in <a href="/approvals">Approvals</a> until you accept them.</p>
+          </Stack>
+
+          <Stack gap={2}>
+            <h3>When it runs</h3>
+            <Cluster gap={2}>
+              <span class="w-select">
+                <Select bind:value={form.trigger.kind} aria-label="When it runs">
+                  <option value="manual">Only when I start it</option>
+                  <option value="daily">Every day</option>
+                  <option value="weekly">Every week</option>
+                  <option value="changes">When my notes change</option>
+                  {#if form.trigger.kind === "custom"}<option value="custom">Custom schedule</option>{/if}
+                </Select>
+              </span>
+              {#if form.trigger.kind === "weekly"}
+                <span class="w-select">
+                  <Select value={String(form.trigger.day)} onchange={(e) => form && form.trigger.kind === "weekly" && (form.trigger.day = Number(e.currentTarget.value))} aria-label="Day of the week">
+                    {#each DAY_NAMES as d, i (d)}<option value={String(i)}>{d}</option>{/each}
+                  </Select>
+                </span>
+              {/if}
+              {#if form.trigger.kind === "daily" || form.trigger.kind === "weekly"}
+                <span class="w-time"><Input type="time" bind:value={form.trigger.time} aria-label="Time of day" /></span>
+              {/if}
+              {#if form.trigger.kind === "changes"}
+                <span class="muted">checking every</span>
+                <span class="w-narrow"><Input inputmode="numeric" bind:value={form.trigger.minutes} aria-label="Minutes between checks" /></span>
+                <span class="muted">minutes</span>
+              {/if}
+              {#if form.trigger.kind === "custom"}
+                <span class="w-select"><Input bind:value={form.trigger.expression} aria-label="Schedule expression" /></span>
+              {/if}
+            </Cluster>
+            {#if problem}<p class="error" role="alert">{problem}</p>{/if}
+          </Stack>
+
+          <Stack gap={3}>
+            <h3>What it may do</h3>
+            {#each TOOLS as t (t)}
+              <Checkbox label={TOOL_LABELS[t].label} detail={TOOL_LABELS[t].detail} checked={form.tools.includes(t)} onchange={(on) => toggleTool(t, on)} />
+            {/each}
+          </Stack>
+
+          {#if form.tools.includes("web_fetch")}
+            <Stack gap={2}>
+              <h3>Allowed sites</h3>
+              {#if form.allowedHosts.length > 0}
+                <ul class="hosts">
+                  {#each form.allowedHosts as host (host)}
+                    <li><code>{host}</code><Button variant="ghost" size="sm" aria-label={`Remove ${host}`} onclick={() => removeHost(host)}>Remove</Button></li>
+                  {/each}
+                </ul>
+              {/if}
+              <form class="inline" onsubmit={onAddHost}>
+                <Input bind:value={hostInput} placeholder="example.com" aria-label="Add an allowed site" aria-describedby="host-err" autocomplete="off" spellcheck={false} />
+                <Button type="submit">Add site</Button>
+              </form>
+              {#if hostError}<p id="host-err" class="error" role="alert">{hostError}</p>{/if}
+              {#if noHostsWarning(agent, form.allowedHosts)}<p class="warn" role="status">{noHostsWarning(agent, form.allowedHosts)}</p>{/if}
+              <p class="muted">Exact host names only: no subdomains, no wildcards, no local or private addresses. Every address it fetches is written in its run log.</p>
+            </Stack>
+          {/if}
+
+          <Field label="Description">
+            {#snippet children({ id })}<Input {id} bind:value={form.description} maxlength={280} />{/snippet}
+          </Field>
+
+          <details class="advanced" open={missingConnection !== null}>
+            <summary>Model, budget and instructions</summary>
+            <Stack gap={4}>
+              <Field label="Token budget per run">
+                {#snippet children({ id })}<span class="w-narrow"><Input {id} inputmode="numeric" bind:value={form.tokenBudget} /></span>{/snippet}
+              </Field>
+              {#if missingConnection}
+                <p class="warn" role="alert">This agent uses the connection "{missingConnection}", which no longer exists, so its runs will fail. Pick another connection below.</p>
+              {/if}
+              {#if connections.length > 0}
+                <Field label="Model connection">
+                  {#snippet children({ id })}
+                    <Select {id} bind:value={form.connection} onchange={() => void loadModels()}>
+                      <option value="">Default connection</option>
+                      {#each connections as c (c.id)}<option value={c.id}>{c.name}</option>{/each}
+                      {#if missingConnection}<option value={missingConnection}>{missingConnection} (removed)</option>{/if}
+                    </Select>
+                  {/snippet}
+                </Field>
+              {/if}
+              <Field label="Model" hint="Empty uses the connection's default.">
+                {#snippet children({ id })}
+                  {#if models.length > 0}
+                    <Select {id} bind:value={form.model}>
+                      <option value="">Connection default</option>
+                      {#each models as m (m)}<option value={m}>{m}</option>{/each}
+                      {#if form.model !== "" && !models.includes(form.model)}<option value={form.model}>{form.model}</option>{/if}
+                    </Select>
+                  {:else}
+                    <Input {id} bind:value={form.model} />
+                  {/if}
+                {/snippet}
+              </Field>
+              <Field label="When started without instructions">
+                {#snippet children({ id })}<Input {id} bind:value={form.defaultTask} />{/snippet}
+              </Field>
+              <Field label="System prompt">
+                {#snippet children({ id })}<Textarea {id} rows={10} bind:value={form.systemPrompt} />{/snippet}
+              </Field>
+            </Stack>
+          </details>
+
+          {#if saveError}<p class="error" role="alert">{saveError}</p>{/if}
+          <Cluster gap={2}>
+            <Button variant={agent.enabled ? "primary" : "quiet"} disabled={busy || !dirty || problem !== null} onclick={() => void save()}>Save changes</Button>
+            {#if notice && !dirty}<span class="muted" aria-live="polite">{notice}</span>{/if}
+          </Cluster>
+        </Stack>
+      </section>
+
+      <section aria-label="Saved test tasks">
+        <h2>Test tasks</h2>
+        <p class="muted">Keep a few sample tasks and run them again after you change the instructions.</p>
+        <ul class="tests">
+          {#each agent.testTasks ?? [] as t, i (i)}
+            <li>
+              <span class="test-text">{t}</span>
+              <Button variant="ghost" size="sm" onclick={() => void runTest(t)}>Run</Button>
+              <Button variant="ghost" size="sm" aria-label="Remove this test task" onclick={() => void saveTests((agent?.testTasks ?? []).filter((_, j) => j !== i))}>Remove</Button>
+            </li>
+          {/each}
+        </ul>
+        {#if (agent.testTasks ?? []).length < 5}
+          <form class="inline" onsubmit={(e) => { e.preventDefault(); if (newTest.trim() !== "") void saveTests([...(agent?.testTasks ?? []), newTest.trim()]); }}>
+            <Input bind:value={newTest} placeholder="A sample task, for example: Summarise yesterday's notes" aria-label="New test task" maxlength={2000} />
+            <Button type="submit" disabled={newTest.trim() === ""}>Save task</Button>
           </form>
-          {#if hostError}<span id="host-err" class="error" role="alert">{hostError}</span>{/if}
-          {#if noHostsWarning(agent, form.allowedHosts)}<span class="warn-line" role="status">{noHostsWarning(agent, form.allowedHosts)}</span>{/if}
-          <span class="hint">Only exact host names work (no subdomains, no wildcards), and never local or private addresses. Every address the agent fetches is written in its run log.</span>
-        </div>
-      {/if}
-      <fieldset class="field">
-        <legend>When it runs</legend>
-        <div class="when">
-          <select bind:value={form.trigger.kind} aria-label="When it runs">
-            <option value="manual">Only when I start it</option>
-            <option value="daily">Every day</option>
-            <option value="weekly">Every week</option>
-            <option value="changes">When my notes change</option>
-            {#if form.trigger.kind === "custom"}<option value="custom">Custom schedule</option>{/if}
-          </select>
-          {#if form.trigger.kind === "weekly"}
-            <select bind:value={form.trigger.day} aria-label="Day of the week">
-              {#each DAY_NAMES as d, i (d)}<option value={i}>{d}</option>{/each}
-            </select>
-          {/if}
-          {#if form.trigger.kind === "daily" || form.trigger.kind === "weekly"}
-            <input type="time" bind:value={form.trigger.time} aria-label="Time of day" />
-          {/if}
-          {#if form.trigger.kind === "changes"}
-            <span class="hint">checking every</span>
-            <input type="text" inputmode="numeric" class="narrow mono" bind:value={form.trigger.minutes} aria-label="Minutes between checks" />
-            <span class="hint">minutes</span>
-          {/if}
-          {#if form.trigger.kind === "custom"}
-            <input type="text" class="mono" bind:value={form.trigger.expression} aria-label="Schedule expression" />
-          {/if}
-        </div>
-        {#if problem}<span class="error" role="alert">{problem}</span>{/if}
-      </fieldset>
-      <fieldset class="field">
-        <legend>What it may do</legend>
-        {#each TOOLS as t (t)}
-          <label class="tool">
-            <input type="checkbox" checked={form.tools.includes(t)} onchange={(e) => toggleTool(t, e.currentTarget.checked)} />
-            <span><strong>{TOOL_LABELS[t].label}</strong> <span class="hint">{TOOL_LABELS[t].detail}</span></span>
-          </label>
-        {/each}
-      </fieldset>
-      <label class="field">
-        <span>Description</span>
-        <input type="text" bind:value={form.description} maxlength="280" />
-      </label>
-      <details class="advanced" open={missingConnection !== null}>
-        <summary>Advanced: model, budget and instructions</summary>
-      <label class="field">
-        <span>Token budget per run</span>
-        <input type="text" inputmode="numeric" bind:value={form.tokenBudget} class="narrow mono" />
-      </label>
-      {#if missingConnection}
-        <p class="warn" role="alert">This agent uses the connection "{missingConnection}", which no longer exists, so its runs will fail. Pick another connection below.</p>
-      {/if}
-      {#if connections.length > 0}
-        <label class="field">
-          <span>Model connection</span>
-          <select bind:value={form.connection} onchange={() => void loadModels()}>
-            <option value="">Default connection</option>
-            {#each connections as c (c.id)}<option value={c.id}>{c.name}</option>{/each}
-            {#if missingConnection}<option value={missingConnection}>{missingConnection} (removed)</option>{/if}
-          </select>
-        </label>
-      {/if}
-      <label class="field">
-        <span>Model (empty uses the connection's default)</span>
-        {#if models.length > 0}
-          <select bind:value={form.model}>
-            <option value="">Connection default</option>
-            {#each models as m (m)}<option value={m}>{m}</option>{/each}
-            {#if form.model !== "" && !models.includes(form.model)}<option value={form.model}>{form.model}</option>{/if}
-          </select>
-        {:else}
-          <input type="text" bind:value={form.model} class="mono" />
         {/if}
-      </label>
+      </section>
 
-      <label class="field">
-        <span>What it does when started without instructions</span>
-        <input type="text" bind:value={form.defaultTask} />
-      </label>
-      <label class="field">
-        <span>System prompt</span>
-        <textarea rows="10" bind:value={form.systemPrompt}></textarea>
-      </label>
-      </details>
-
-      {#if saveError}<p class="error" role="alert">{saveError}</p>{/if}
-      <div class="actions">
-        <button type="button" class="primary" disabled={busy || !dirty || problem !== null} onclick={() => void save()}>Save</button>
-        <button type="button" class="ghost" disabled={running} onclick={() => void runNow()}>{running ? "Running…" : "Run now"}</button>
-        <button type="button" class="ghost" onclick={() => void startChatWith()}>Chat</button>
-        <button type="button" class="ghost" onclick={() => void duplicate()}>Duplicate</button>
-        <button type="button" class="ghost" onclick={() => void copySkill()} title="Copy this agent as a SKILL.md file, the open format other AI tools read">{skillCopied ? "Copied" : "Copy as SKILL.md"}</button>
-        {#if notice && !dirty}<span class="muted" aria-live="polite">{notice}</span>{/if}
-      </div>
-      {#if runError}<p class="error" role="alert">{runError}</p>{/if}
-    </section>
-
-    <section aria-labelledby="runs-title">
-      <h2 id="runs-title" class="section">Recent runs</h2>
-      <ul class="ledger">
-        {#each runs as run (run.id)}
-          <li>
-            <a class="row" href={`/runs/${run.id}`}>
-              <StatusDot state={statusDot({ enabled: true }, run)} label={run.status} />
-              <span class="mono">{formatStamp(run.startedAt)}</span>
-              <span class="mono">{run.status}</span>
-              <span class="mono">{run.trigger}</span>
-              <span class="mono">{run.tokensUsed} / {run.tokenBudget}</span>
-            </a>
-          </li>
+      <section aria-labelledby="runs-title">
+        <h2 id="runs-title">Recent runs</h2>
+        {#if runs.length === 0}
+          <p class="muted">No runs yet.</p>
         {:else}
-          <li class="muted none">No runs yet.</li>
-        {/each}
-      </ul>
-    </section>
+          <div class="list">
+            {#each runs as run (run.id)}
+              <Row title={`${run.status} · ${run.trigger}`} meta={formatStamp(run.startedAt)} snippet={`${run.tokensUsed} of ${run.tokenBudget} tokens`} href={`/runs/${run.id}`}>
+                {#snippet lead()}<StatusDot state={statusDot({ enabled: true }, run)} label={run.status} />{/snippet}
+              </Row>
+            {/each}
+          </div>
+        {/if}
+      </section>
+    </Stack>
   {/if}
-</main>
+</Page>
+
+<Dialog bind:open={confirmOff} title="Turn off approvals?" description="This agent reads notes and the web. A web page could trick it into writing something or sending your note text to a site you allowed. With approvals on, you check every write first.">
+  {#snippet actions()}
+    <Button variant="primary" onclick={() => (confirmOff = false)}>Keep approvals on</Button>
+    <Button variant="danger" onclick={() => { if (form) form.strict = false; confirmOff = false; }}>Turn off</Button>
+  {/snippet}
+</Dialog>
 
 <style>
-  .tests {
-    margin: var(--space-4) 0;
+  h1 {
+    margin: 0;
+    font: var(--weight-strong) var(--type-title-size) / var(--type-title-lh) var(--font-ui);
+    letter-spacing: var(--type-title-tracking);
   }
-  .tests ul {
-    list-style: none;
-    margin: 0 0 var(--space-2);
-    padding: 0;
+
+  h2 {
+    margin: 0 0 var(--s-2);
+    font: var(--weight-strong) var(--type-heading-size) / var(--type-heading-lh) var(--font-ui);
+  }
+
+  h3 {
+    margin: 0;
+    font: var(--weight-medium) var(--type-ui-size) / var(--type-ui-lh) var(--font-ui);
+  }
+
+  p {
+    margin: 0;
+  }
+
+  .head {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--s-2);
+  }
+
+  .titlebar {
+    display: flex;
+    align-items: center;
+    gap: var(--s-2);
+    width: 100%;
+  }
+
+  .grow {
+    flex: 1;
+  }
+
+  .muted {
+    color: var(--text-2);
+    font: var(--weight-regular) var(--type-ui-size) / var(--type-ui-lh) var(--font-ui);
+  }
+
+  .error {
+    color: var(--danger);
+    font: var(--weight-regular) var(--type-ui-size) / var(--type-ui-lh) var(--font-ui);
+  }
+
+  .warn {
+    padding: var(--s-3) var(--s-4);
+    border-radius: var(--r-surface);
+    background: var(--danger-fill);
+    font: var(--weight-regular) var(--type-ui-size) / var(--type-ui-lh) var(--font-ui);
+  }
+
+  .notice {
+    display: flex;
+    flex-direction: column;
+    gap: var(--s-3);
+    padding: var(--s-4) var(--s-5);
+    border-radius: var(--r-surface);
+    background: var(--fill-hover);
+  }
+
+  .notice h2 {
+    margin: 0;
+  }
+
+  .grants {
+    margin: 0;
+    padding-left: var(--s-5);
+    font: var(--weight-regular) var(--type-ui-size) / var(--type-ui-lh) var(--font-ui);
+  }
+
+  .facts {
     display: grid;
-    gap: var(--space-1);
+    grid-template-columns: 8rem 1fr;
+    gap: var(--s-2) var(--s-4);
+    margin: 0;
+    font: var(--weight-regular) var(--type-ui-size) / var(--type-ui-lh) var(--font-ui);
   }
+
+  .facts dt {
+    color: var(--text-2);
+  }
+
+  .facts dd {
+    margin: 0;
+  }
+
+  .reach {
+    list-style: none;
+    margin: 0 0 var(--s-2);
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--s-2);
+  }
+
+  .reach li {
+    display: flex;
+    align-items: baseline;
+    gap: var(--s-3);
+  }
+
+  .hosts,
+  .tests {
+    list-style: none;
+    margin: 0 0 var(--s-2);
+    padding: 0;
+  }
+
+  .hosts li,
   .tests li {
     display: flex;
     align-items: center;
-    gap: var(--space-2);
+    gap: var(--s-2);
+    padding: var(--s-1) 0;
   }
+
+  .hosts code {
+    flex: 1;
+    font: var(--weight-regular) var(--type-ui-size) / var(--type-ui-lh) var(--font-code);
+  }
+
   .test-text {
     flex: 1;
     min-width: 0;
@@ -485,312 +602,33 @@
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  .test-add {
+
+  .inline {
     display: flex;
-    gap: var(--space-2);
+    gap: var(--s-2);
   }
-  .test-add input {
-    flex: 1;
-    min-width: 0;
-    padding: var(--space-2) var(--space-3);
-    border: 1px solid var(--hairline);
-    border-radius: var(--radius);
-    background: var(--surface);
+
+  .w-select {
+    width: 14rem;
   }
-  .reach {
-    margin: var(--space-4) 0;
-    padding: var(--space-3) var(--space-4);
-    border: 1px solid var(--hairline);
-    border-radius: var(--radius);
-    background: var(--surface);
+
+  .w-time {
+    width: 8rem;
   }
-  .reach-title {
-    margin: 0 0 var(--space-2);
-    font-size: var(--text-label);
-    font-weight: 600;
-    color: var(--ink-muted);
+
+  .w-narrow {
+    display: inline-block;
+    width: 6rem;
   }
-  .reach ul {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-    display: grid;
-    gap: var(--space-1);
-  }
-  .reach li {
-    display: grid;
-    grid-template-columns: 11rem 1fr;
-    gap: var(--space-3);
-    color: var(--ink-muted);
-    font-size: var(--text-label);
-  }
-  .reach li.on {
-    color: var(--ink);
-  }
-  .reach-label {
-    font-weight: 600;
-  }
-  .reach-note {
-    margin: var(--space-2) 0 0;
-    font-size: var(--text-label);
-    color: var(--ink);
-  }
-  @media (max-width: 639px) {
-    .reach li {
-      grid-template-columns: 1fr;
-      gap: 0;
-    }
-  }
-  .page {
-    padding: var(--space-6);
-    max-width: 860px;
-    margin-inline: auto;
-  }
-  .when {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-2);
-    align-items: center;
-  }
-  fieldset.field {
-    border: 0;
-    padding: 0;
-    margin: 0;
-    display: grid;
-    gap: var(--space-2);
-  }
-  fieldset.field legend {
-    padding: 0;
-    margin-bottom: var(--space-1);
-    font-size: var(--text-label);
-    color: var(--ink-muted);
-  }
-  .tool {
-    display: flex;
-    gap: var(--space-2);
-    align-items: baseline;
-  }
-  .crumb {
-    font-size: var(--text-label);
-    margin-bottom: var(--space-3);
-  }
-  .crumb a {
-    color: var(--ink-muted);
-  }
-  .head {
-    display: flex;
-    align-items: center;
-    gap: var(--space-3);
-    margin-bottom: var(--space-2);
-  }
-  h1 {
-    font-family: var(--font-serif);
-    font-size: var(--text-h2);
-    font-weight: 600;
-  }
-  h2.section {
-    font-size: var(--text-ui);
-    font-weight: 600;
-    margin: var(--space-8) 0 var(--space-2);
-  }
-  .muted,
-  .hint {
-    color: var(--ink-muted);
-  }
-  .hint {
-    font-size: var(--text-label);
-    margin: var(--space-1) 0 var(--space-4);
-  }
-  .error {
-    color: var(--err-ink);
-    margin: var(--space-2) 0;
-  }
-  .warn {
-    border: 1px solid var(--amber);
-    border-radius: var(--radius);
-    padding: var(--space-3);
-    margin: var(--space-4) 0;
-    font-size: var(--text-label);
-  }
-  .turn-on {
-    border: 1px solid var(--ink-muted);
-    border-radius: var(--radius);
-    padding: var(--space-4);
-    margin: var(--space-4) 0;
-    display: grid;
-    gap: var(--space-3);
-  }
-  .turn-on h2 {
-    font-size: var(--text-ui);
-    font-weight: 600;
-  }
-  .grants {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-    display: grid;
-    gap: var(--space-2);
-    font-size: var(--text-label);
-  }
-  .blocked {
-    margin-left: var(--space-6);
-    color: var(--ink-muted);
-  }
-  .blocked a {
-    color: var(--ink);
-  }
-  .actions {
-    display: flex;
-    align-items: center;
-    gap: var(--space-3);
-    margin-top: var(--space-2);
-  }
-  button.primary,
-  button.ghost {
-    padding: var(--space-2) var(--space-4);
-    border: 1px solid var(--ink);
-    border-radius: var(--radius);
-    font-size: var(--text-label);
-  }
-  button.primary {
-    background: var(--ink);
-    color: var(--bg);
-  }
-  button.ghost {
-    border-color: var(--hairline);
-    background: var(--surface);
-  }
-  button:disabled {
-    opacity: 0.5;
-    cursor: default;
-  }
-  dl {
-    display: grid;
-    grid-template-columns: 120px 1fr;
-    gap: var(--space-2) var(--space-4);
-    margin: var(--space-4) 0;
-    font-size: var(--text-label);
-  }
-  dt {
-    color: var(--ink-muted);
-  }
-  dd {
-    margin: 0;
-  }
-  .mono {
-    font-family: var(--font-mono);
-    font-size: var(--text-label);
-  }
-  .chips {
-    display: flex;
-    gap: var(--space-2);
-    flex-wrap: wrap;
-  }
-  .chip {
-    font-family: var(--font-mono);
-    border: 1px solid var(--hairline);
-    border-radius: var(--radius);
-    padding: 0 var(--space-2);
-  }
-  .advanced > summary {
+
+  .advanced summary {
+    margin-bottom: var(--s-3);
+    color: var(--text-2);
     cursor: pointer;
-    padding: var(--space-2) 0;
-    font-size: var(--text-ui);
-    color: var(--ink-muted);
+    font: var(--weight-medium) var(--type-ui-size) / var(--type-ui-lh) var(--font-ui);
   }
-  .advanced[open] > summary {
-    margin-bottom: var(--space-3);
-  }
-  .toggles {
-    display: grid;
-    gap: var(--space-2);
-  }
-  .field {
-    display: grid;
-    gap: var(--space-1);
-    margin-bottom: var(--space-4);
-    font-size: var(--text-label);
-  }
-  .field span {
-    color: var(--ink-muted);
-  }
-  input[type="text"],
-  textarea {
-    width: 100%;
-    padding: var(--space-2) var(--space-3);
-    border: 1px solid var(--hairline);
-    border-radius: var(--radius);
-    background: var(--surface);
-    font: inherit;
-    font-size: var(--text-ui);
-  }
-  textarea {
-    font-family: var(--font-mono);
-    font-size: var(--text-label);
-    line-height: 1.5;
-    resize: vertical;
-  }
-  .narrow {
-    max-width: 160px;
-  }
-  .confirm {
-    border: 1px solid var(--err);
-    border-radius: var(--radius);
-    padding: var(--space-3);
-    margin: var(--space-3) 0;
-    display: grid;
-    gap: var(--space-2);
-    font-size: var(--text-label);
-  }
-  .confirm h3 {
-    font-size: var(--text-ui);
-    font-weight: 600;
-  }
-  button.danger {
-    padding: var(--space-2) var(--space-4);
-    border: 1px solid var(--err);
-    border-radius: var(--radius);
-    color: var(--err-ink);
-    font-size: var(--text-label);
-  }
-  .host-add {
-    display: flex;
-    gap: var(--space-2);
-  }
-  .host-add input {
-    max-width: 280px;
-  }
-  .x {
-    margin-left: var(--space-1);
-    color: var(--ink-muted);
-  }
-  .warn-line {
-    color: var(--ink);
-    border-left: 2px solid var(--amber);
-    padding-left: var(--space-2);
-  }
-  .ledger {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-    border-top: 1px solid var(--hairline);
-  }
-  .ledger > li {
-    border-bottom: 1px solid var(--hairline);
-  }
-  .row {
-    display: grid;
-    grid-template-columns: 12px 140px 140px 100px 1fr;
-    gap: var(--space-3);
-    align-items: center;
-    padding: var(--space-2);
-    color: var(--ink-muted);
-    text-decoration: none;
-  }
-  .row:hover {
-    background: var(--surface);
-  }
-  .none {
-    padding: var(--space-3) var(--space-2);
+
+  .list {
+    margin: 0 calc(var(--s-3) * -1);
   }
 </style>

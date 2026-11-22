@@ -1,7 +1,5 @@
 <script lang="ts">
-  import Illustration from "$lib/components/Illustration.svelte";
   import { groupTemplates, templateTags } from "$lib/template-groups";
-  import Lamp from "@lucide/svelte/icons/lamp";
   import { onMount } from "svelte";
   import { goto } from "$app/navigation";
   import type { Agent, AgentTemplate, Run } from "@vigil/shared";
@@ -11,6 +9,7 @@
   import { describeTrigger, lastRunByAgent, statusDot } from "$lib/schedule";
   import { bannerFor } from "$lib/settings-form";
   import StatusDot from "$lib/components/StatusDot.svelte";
+  import { Badge, Button, Cluster, Dialog, EmptyState, Field, Input, Page, Row, Stack, Textarea } from "$lib/ui";
 
   let agents = $state<Agent[]>([]);
   let runs = $state<Run[]>([]);
@@ -55,6 +54,7 @@
 
   const llmReady = $derived(llm !== null && bannerFor(llm, null) === null);
 
+  let skillOpen = $state(false);
   let skillText = $state("");
   let importing = $state(false);
   let importError = $state("");
@@ -85,291 +85,157 @@
 
 <svelte:head><title>Agents · Vigil</title></svelte:head>
 
-<main class="page">
-  <div class="titlebar">
-    <h1>Agents</h1>
-    <a class="primary-link" href="/agents/new">Create an agent</a>
-  </div>
+<Page title="Agents" width="wide">
+  {#snippet actions()}
+    <Button variant="primary" href="/agents/new">Create an agent</Button>
+  {/snippet}
 
-  {#if error}
-    <p class="error" role="alert">{error}</p>
-  {/if}
+  <Stack gap={8}>
+    {#if error}
+      <p class="error" role="alert">{error}</p>
+    {/if}
 
-  {#if !loaded}
-    <p class="muted">Loading…</p>
-  {:else if agents.length === 0}
-    <section class="empty">
-      <Illustration kind="lantern" />
-      <p class="empty-title">No agents yet</p>
-      <p class="muted">Describe what you want and a model drafts it, or start from a ready-made one below. Agents stay off until you turn them on.</p>
-      <p><a class="primary-link" href="/agents/new">Create an agent</a></p>
-    </section>
-  {:else}
-    <ul class="ledger" aria-label="Agents">
-      {#each agents as agent (agent.name)}
-        {@const lastRun = last.get(agent.name)}
-        <li>
-          <a class="row" href={`/agents/${agent.name}`}>
-            <StatusDot state={statusDot(agent, lastRun)} />
-            <span class="stamp">{formatStamp(lastRun?.startedAt)}</span>
-            <span class="name"><span class="glyph" class:lit={agent.enabled} aria-hidden="true"><Lamp size={16} strokeWidth={1.5} /></span>{agent.name}{#if !agent.enabled}<span class="off"> · off</span>{/if}</span>
-            <span class="mono">{describeTrigger(agent.trigger)}</span>
-            <span class="mono next">{agent.enabled && nextRuns[agent.name] ? `next ${formatStamp(nextRuns[agent.name])}` : ""}</span>
-          </a>
-        </li>
-      {/each}
-    </ul>
-  {/if}
+    {#if !loaded}
+      <p class="muted">Loading…</p>
+    {:else if agents.length === 0}
+      <EmptyState title="No agents yet. Create one, or add a ready-made agent below." />
+    {:else}
+      <div class="list" role="list" aria-label="Agents">
+        {#each agents as agent (agent.name)}
+          {@const lastRun = last.get(agent.name)}
+          <div role="listitem">
+            <Row
+              title={agent.enabled ? agent.name : `${agent.name} (off)`}
+              meta={lastRun ? formatStamp(lastRun.startedAt) : "never run"}
+              snippet={`${describeTrigger(agent.trigger)}${agent.enabled && nextRuns[agent.name] ? ` · next ${formatStamp(nextRuns[agent.name])}` : ""}`}
+              href={`/agents/${agent.name}`}
+            >
+              {#snippet lead()}<StatusDot state={statusDot(agent, lastRun)} />{/snippet}
+            </Row>
+          </div>
+        {/each}
+      </div>
+    {/if}
 
-  {#if loaded}
-    <details class="skill">
-      <summary>Import a skill (SKILL.md)</summary>
-      <p class="muted">Paste the text of a SKILL.md from another tool. Only its words come in: the agent has no tools, is switched off and asks before it writes. You choose what it may do on its page.</p>
-      <textarea bind:value={skillText} rows="6" placeholder="---&#10;name: my-skill&#10;description: What it is for&#10;---&#10;&#10;Instructions…" aria-label="SKILL.md text"></textarea>
-      <button type="button" class="add" disabled={importing || skillText.trim() === ""} onclick={() => void addSkill()}>{importing ? "Importing…" : "Import"}</button>
-      {#if importError}<p class="error" role="alert">{importError}</p>{/if}
-    </details>
+    {#if loaded}
+      <section aria-labelledby="gallery-title">
+        <Cluster align="between">
+          <h2 id="gallery-title">Ready-made agents</h2>
+          <Button variant="ghost" onclick={() => (skillOpen = true)}>Import a skill</Button>
+        </Cluster>
+        <div class="find"><Input type="search" bind:value={find} placeholder="Find one: recall, digest, writes notes" aria-label="Find a ready-made agent" /></div>
+        {#each shownGroups as g (g.id)}
+          <h3>{g.title}{#if g.blurb}<span class="blurb">{g.blurb}</span>{/if}</h3>
+          <ul class="templates">
+            {#each g.items as t (t.id)}
+              <li class="template">
+                <div class="template-text">
+                  <span class="name">{t.title}</span>
+                  <span class="summary">{t.summary}</span>
+                  <span class="tags">{#each templateTags(t) as tag (tag)}<Badge>{tag}</Badge>{/each}</span>
+                  {#if (t.needs.includes("llm") && !llmReady) || t.needs.includes("web")}
+                    <span class="summary">
+                      {#if t.needs.includes("llm") && !llmReady}<a href="/settings#models">Connect a model first</a>.{/if}
+                      {#if t.needs.includes("web")} You choose the allowed sites.{/if}
+                    </span>
+                  {/if}
+                </div>
+                <Button disabled={adding !== null} onclick={() => void add(t.id)}>{adding === t.id ? "Adding…" : "Add"}</Button>
+              </li>
+            {/each}
+          </ul>
+        {:else}
+          <p class="muted">Nothing matches "{find}".</p>
+        {/each}
+      </section>
+    {/if}
+  </Stack>
+</Page>
 
-    <section class="gallery" aria-labelledby="gallery-title">
-      <h2 id="gallery-title">Ready-made agents</h2>
-      <input type="search" class="find" bind:value={find} placeholder="Find one, for example recall, digest or writes notes" aria-label="Find a ready-made agent" />
-      {#each shownGroups as g (g.id)}
-        <h3 class="group">{g.title}{#if g.blurb}<span class="blurb"> · {g.blurb}</span>{/if}</h3>
-        <ul class="ledger">
-          {#each g.items as t (t.id)}
-            <li class="template">
-              <div class="template-text">
-                <span class="name">{t.title}</span>
-                <span class="summary">{t.summary}</span>
-                <span class="tags">{#each templateTags(t) as tag (tag)}<span class="tag">{tag}</span>{/each}</span>
-                <span class="needs">
-                  {#if t.needs.includes("llm") && !llmReady}<a href="/settings#models">Connect a model first</a>.{/if}
-                  {#if t.needs.includes("web")} Web: you choose the allowed sites.{/if}
-                </span>
-              </div>
-              <button type="button" class="add" disabled={adding !== null} onclick={() => void add(t.id)}>
-                {adding === t.id ? "Adding…" : "Add"}
-              </button>
-            </li>
-          {/each}
-        </ul>
-      {:else}
-        <p class="muted">Nothing matches "{find}".</p>
-      {/each}
-    </section>
-  {/if}
-</main>
+<Dialog bind:open={skillOpen} title="Import a skill" description="Paste a SKILL.md from another tool. Only its words come in: the agent has no tools, is switched off and asks before it writes.">
+  <Field label="SKILL.md text" error={importError || undefined}>
+    {#snippet children({ id, describedby, invalid })}
+      <Textarea {id} aria-describedby={describedby} {invalid} rows={8} bind:value={skillText} placeholder={"---\nname: my-skill\ndescription: What it is for\n---\n\nInstructions…"} />
+    {/snippet}
+  </Field>
+  {#snippet actions()}
+    <Button variant="ghost" onclick={() => (skillOpen = false)}>Cancel</Button>
+    <Button variant="primary" disabled={importing || skillText.trim() === ""} onclick={() => void addSkill()}>{importing ? "Importing…" : "Import skill"}</Button>
+  {/snippet}
+</Dialog>
 
 <style>
-  .find {
-    padding: var(--space-2) var(--space-3);
-    margin-bottom: var(--space-3);
-    border: 1px solid var(--hairline);
-    border-radius: var(--radius);
-    background: var(--surface);
-    color: var(--ink);
-    font: inherit;
-    width: 100%;
-    max-width: 24rem;
-  }
-  .skill {
-    margin: var(--space-6) 0 0;
-  }
-  .skill summary {
-    cursor: pointer;
-    color: var(--ink-muted);
-  }
-  .skill textarea {
-    display: block;
-    width: 100%;
-    margin: var(--space-2) 0;
-    padding: var(--space-3);
-    border: 1px solid var(--hairline);
-    border-radius: var(--radius);
-    background: var(--surface);
-    font-family: var(--font-mono);
-    font-size: var(--text-label);
-  }
-  .titlebar {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-3);
-    align-items: center;
-    justify-content: space-between;
-  }
-  .primary-link {
-    display: inline-block;
-    padding: var(--space-2) var(--space-4);
-    border: 1px solid var(--ink);
-    border-radius: var(--radius);
-    background: var(--ink);
-    color: var(--bg);
-    font-size: var(--text-ui);
-    text-decoration: none;
-  }
-  .page {
-    padding: var(--space-6);
-    max-width: 960px;
-    margin-inline: auto;
-  }
-  h1 {
-    font-family: var(--font-serif);
-    font-size: var(--text-h2);
-    font-weight: 600;
-    margin-bottom: var(--space-4);
-  }
   h2 {
-    font-family: var(--font-chrome);
-    font-size: var(--text-ui);
-    font-weight: 600;
-    margin: var(--space-8) 0 var(--space-2);
-  }
-  .muted {
-    color: var(--ink-muted);
-  }
-  .error {
-    color: var(--err-ink);
-    margin-bottom: var(--space-4);
-  }
-  .empty {
-    padding: var(--space-12) 0;
-    text-align: center;
-  }
-  .empty p:last-child {
-    margin-top: var(--space-4);
-  }
-  .empty-title {
-    font-family: var(--font-serif);
-    font-size: var(--text-h3);
-    margin-bottom: var(--space-2);
-  }
-  .tags {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-1);
-  }
-  .tag {
-    padding: 0 var(--space-2);
-    border: 1px solid var(--hairline);
-    border-radius: var(--radius);
-    font-size: var(--text-label);
-    color: var(--ink-muted);
-  }
-  .ledger {
-    list-style: none;
-    padding: 0;
     margin: 0;
-    border-top: 1px solid var(--hairline);
-  }
-  .ledger > li {
-    border-bottom: 1px solid var(--hairline);
-  }
-  .row {
-    display: grid;
-    grid-template-columns: 12px 120px 1fr 220px 160px;
-    align-items: baseline;
-    gap: var(--space-3);
-    padding: var(--space-3) var(--space-2);
-    color: inherit;
-    text-decoration: none;
-  }
-  .row:hover {
-    background: var(--surface);
-  }
-  .row :global(.dot) {
-    align-self: center;
-  }
-  .stamp,
-  .mono {
-    font-family: var(--font-mono);
-    font-size: var(--text-label);
-    color: var(--ink-muted);
-  }
-  .name {
-    font-family: var(--font-serif);
-    font-size: var(--text-prose);
-  }
-  .off {
-    font-family: var(--font-chrome);
-    font-size: var(--text-label);
-    color: var(--ink-muted);
-  }
-  .template {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: var(--space-4);
-    padding: var(--space-3) var(--space-2);
-  }
-  .template-text {
-    min-width: 0;
-    display: grid;
-    gap: var(--space-1);
-  }
-  .summary {
-    color: var(--ink-muted);
-    font-size: var(--text-label);
-  }
-  .needs {
-    font-size: var(--text-label);
-    color: var(--ink-muted);
-  }
-  .add {
-    padding: var(--space-1) var(--space-4);
-    border: 1px solid var(--hairline);
-    border-radius: var(--radius);
-    background: var(--surface);
-    font-size: var(--text-label);
-    flex: none;
-  }
-  .add:disabled {
-    opacity: 0.5;
-    cursor: default;
-  }
-  @media (max-width: 800px) {
-    .row {
-      grid-template-columns: 12px 1fr;
-    }
-    .stamp,
-    .row .mono {
-      grid-column: 2;
-    }
-  }
-  /* The lantern is lit (amber) while the agent is on: amber means agent life, so it stays only here. */
-  .glyph {
-    display: inline-block;
-    margin-right: var(--space-2);
-    vertical-align: -2px;
-    color: var(--ink-muted);
+    font: var(--weight-strong) var(--type-heading-size) / var(--type-heading-lh) var(--font-ui);
   }
 
-  .glyph.lit {
-    color: var(--amber-ink);
-  }
-  .group {
-    margin: var(--space-6) 0 var(--space-1);
-    font-family: var(--font-serif);
-    font-size: var(--text-h3);
-    font-weight: 600;
-  }
-
-  @media (max-width: 639px) {
-    .page {
-      padding: var(--space-4);
-    }
-    .blurb {
-      display: block;
-      margin-top: var(--space-1);
-    }
-    .template {
-      align-items: flex-start;
-    }
+  h3 {
+    margin: var(--s-6) 0 var(--s-1);
+    font: var(--weight-strong) var(--type-body-size) / var(--type-body-lh) var(--font-ui);
   }
 
   .blurb {
-    font-family: var(--font-chrome);
-    font-size: var(--text-label);
-    font-weight: 400;
-    color: var(--ink-muted);
+    margin-left: var(--s-2);
+    color: var(--text-2);
+    font-weight: var(--weight-regular);
+  }
+
+  .list {
+    margin: 0 calc(var(--s-3) * -1);
+  }
+
+  .find {
+    max-width: 24rem;
+    margin: var(--s-3) 0 var(--s-2);
+  }
+
+  .muted {
+    margin: 0;
+    color: var(--text-2);
+    font: var(--weight-regular) var(--type-ui-size) / var(--type-ui-lh) var(--font-ui);
+  }
+
+  .error {
+    margin: 0;
+    color: var(--danger);
+    font: var(--weight-regular) var(--type-ui-size) / var(--type-ui-lh) var(--font-ui);
+  }
+
+  .templates {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .template {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: var(--s-4);
+    padding: var(--s-3) 0;
+    box-shadow: 0 1px 0 var(--line-soft);
+  }
+
+  .template-text {
+    display: flex;
+    flex-direction: column;
+    gap: var(--s-1);
+    min-width: 0;
+  }
+
+  .name {
+    font: var(--weight-medium) var(--type-ui-size) / var(--type-ui-lh) var(--font-ui);
+  }
+
+  .summary {
+    color: var(--text-2);
+    font: var(--weight-regular) var(--type-ui-size) / var(--type-ui-lh) var(--font-ui);
+  }
+
+  .tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--s-1);
   }
 </style>

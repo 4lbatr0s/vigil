@@ -5,6 +5,7 @@
   import { ApiError, createFromTemplate, getRun, getRunResult, listAgents, listConnections, putAgent, runAgent, startAgentDesign, type Connection } from "$lib/api";
   import { addHost } from "$lib/agent-form";
   import { designToAgent, parseDesign, whenToTrigger, type Design, type When } from "$lib/agent-design";
+  import { Button, Checkbox, Cluster, Field, Input, Page, Select, Stack, Textarea } from "$lib/ui";
 
   type Step = "describe" | "drafting" | "review" | "error";
 
@@ -116,230 +117,180 @@
 
 <svelte:head><title>New agent · Vigil</title></svelte:head>
 
-<main class="page">
-  <p class="crumb"><a href="/agents">Agents</a> / New</p>
-  <h1>Create an agent</h1>
+<Page title="Create an agent" width="prose">
+  <Stack gap={6}>
+    <Button variant="ghost" size="sm" href="/agents">Agents</Button>
 
-  {#if !hasConnection}
-    <p class="warn" role="note">No model is connected yet, so the draft cannot be made. <a href="/settings#models">Connect one</a>, or write the agent yourself below.</p>
-  {/if}
+    {#if !hasConnection}
+      <p class="warn" role="note">No model is connected yet, so the draft cannot be made. <a href="/settings#models">Connect one</a>, or write the agent yourself.</p>
+    {/if}
 
-  {#if step === "describe" || step === "drafting"}
-    <form onsubmit={draft}>
-      <label class="field">
-        <span>What should it do?</span>
-        <textarea rows="4" bind:value={goal} maxlength="1500" placeholder="For example: Every Friday, read the notes I changed this week and write a short recap with what I finished and what is still open." disabled={step === "drafting"}></textarea>
-      </label>
+    {#if step === "describe" || step === "drafting"}
+      <form onsubmit={draft}>
+        <Stack gap={6}>
+          <Field label="What should it do?">
+            {#snippet children({ id })}
+              <Textarea {id} rows={4} bind:value={goal} maxlength={1500} placeholder="For example: Every Friday, read the notes I changed this week and write a short recap of what I finished and what is still open." disabled={step === "drafting"} />
+            {/snippet}
+          </Field>
 
-      <fieldset class="field">
-        <legend>When should it run?</legend>
-        <div class="row">
-          <select bind:value={when} aria-label="When it runs">
-            <option value="manual">Only when I start it</option>
-            <option value="daily">Every day</option>
-            <option value="weekly">Every week</option>
-            <option value="changes">When my notes change</option>
-          </select>
-          {#if when === "weekly"}
-            <select bind:value={day} aria-label="Day of the week">
-              {#each DAY_NAMES as d, i (d)}<option value={i}>{d}</option>{/each}
-            </select>
-          {/if}
-          {#if when === "daily" || when === "weekly"}<input type="time" bind:value={time} aria-label="Time of day" />{/if}
-          {#if when === "changes"}
-            <span class="hint">check every</span>
-            <input type="text" inputmode="numeric" class="narrow" bind:value={minutes} aria-label="Minutes between checks" />
-            <span class="hint">minutes</span>
-          {/if}
-        </div>
-      </fieldset>
+          <Stack gap={2}>
+            <h2>When should it run?</h2>
+            <Cluster gap={2}>
+              <span class="w-select">
+                <Select bind:value={when} aria-label="When it runs">
+                  <option value="manual">Only when I start it</option>
+                  <option value="daily">Every day</option>
+                  <option value="weekly">Every week</option>
+                  <option value="changes">When my notes change</option>
+                </Select>
+              </span>
+              {#if when === "weekly"}
+                <span class="w-select">
+                  <Select value={String(day)} onchange={(e) => (day = Number(e.currentTarget.value))} aria-label="Day of the week">
+                    {#each DAY_NAMES as d, i (d)}<option value={String(i)}>{d}</option>{/each}
+                  </Select>
+                </span>
+              {/if}
+              {#if when === "daily" || when === "weekly"}<span class="w-time"><Input type="time" bind:value={time} aria-label="Time of day" /></span>{/if}
+              {#if when === "changes"}
+                <span class="muted">check every</span>
+                <span class="w-narrow"><Input inputmode="numeric" bind:value={minutes} aria-label="Minutes between checks" /></span>
+                <span class="muted">minutes</span>
+              {/if}
+            </Cluster>
+          </Stack>
 
-      <fieldset class="field">
-        <legend>What may it touch?</legend>
-        <label class="tool"><input type="checkbox" bind:checked={canRead} /> <span><strong>Read my notes</strong> <span class="hint">list, search and read them</span></span></label>
-        <label class="tool"><input type="checkbox" bind:checked={canWrite} /> <span><strong>Write notes</strong> <span class="hint">you approve each write first, and can undo it</span></span></label>
-        <label class="tool"><input type="checkbox" bind:checked={canWeb} /> <span><strong>Fetch web pages</strong> <span class="hint">only from sites you list</span></span></label>
-        {#if canWeb}
-          <div class="sites">
-            <ul class="chips">
-              {#each hosts as h (h)}<li class="chip">{h} <button type="button" class="x" aria-label={`Remove ${h}`} onclick={() => (hosts = hosts.filter((x) => x !== h))}>×</button></li>{/each}
-            </ul>
-            <div class="row">
-              <input type="text" bind:value={hostInput} placeholder="example.com" aria-label="Add an allowed site" autocomplete="off" spellcheck="false" onkeydown={(e) => { if (e.key === "Enter") addSite(e); }} />
-              <button type="button" class="ghost" onclick={addSite}>Add</button>
-            </div>
-            {#if hostError}<span class="error" role="alert">{hostError}</span>{/if}
-          </div>
-        {/if}
-      </fieldset>
+          <Stack gap={3}>
+            <h2>What may it touch?</h2>
+            <Checkbox label="Read my notes" detail="List, search and read them." bind:checked={canRead} />
+            <Checkbox label="Write notes" detail="You approve each write first, and can undo it." bind:checked={canWrite} />
+            <Checkbox label="Fetch web pages" detail="Only from sites you list." bind:checked={canWeb} />
+            {#if canWeb}
+              <Stack gap={2}>
+                {#if hosts.length > 0}
+                  <ul class="hosts">
+                    {#each hosts as h (h)}<li><code>{h}</code><Button variant="ghost" size="sm" aria-label={`Remove ${h}`} onclick={() => (hosts = hosts.filter((x) => x !== h))}>Remove</Button></li>{/each}
+                  </ul>
+                {/if}
+                <div class="inline">
+                  <Input bind:value={hostInput} placeholder="example.com" aria-label="Add an allowed site" autocomplete="off" spellcheck={false} onkeydown={(e) => { if (e.key === "Enter") addSite(e); }} />
+                  <Button onclick={addSite}>Add site</Button>
+                </div>
+                {#if hostError}<p class="error" role="alert">{hostError}</p>{/if}
+              </Stack>
+            {/if}
+          </Stack>
 
-      <div class="row">
-        <button type="submit" class="primary" disabled={busy || step === "drafting" || goal.trim().length < 10 || !hasConnection}>{step === "drafting" ? "Drafting…" : "Draft it for me"}</button>
-        <button type="button" class="ghost" onclick={writeMyself}>I will write it myself</button>
-      </div>
-      {#if step === "drafting"}<p class="muted" aria-live="polite">The model is drafting the instructions. A model on your own computer can take a minute or two. Nothing is saved yet.</p>{/if}
-    </form>
-  {:else if step === "review"}
-    <p class="muted">Check the draft and change anything. The agent is created switched off; you turn it on from its page.</p>
-    <div class="form">
-      <label class="field"><span>Name</span><input type="text" bind:value={design.name} maxlength="40" class="mono" placeholder="friday-recap" /></label>
-      <label class="field"><span>Description</span><input type="text" bind:value={design.description} maxlength="280" /></label>
-      <label class="field"><span>Instructions</span><textarea rows="12" bind:value={design.systemPrompt}></textarea></label>
-      <label class="field"><span>What it does when started without instructions</span><input type="text" bind:value={design.defaultTask} /></label>
-      <ul class="summary">
-        <li>Runs: <strong>{when === "manual" ? "only when you start it" : when === "daily" ? `every day at ${time}` : when === "weekly" ? `every ${DAY_NAMES[day]} at ${time}` : `when your notes change (every ${minutes} min)`}</strong></li>
-        <li>May: <strong>{tools.length === 0 ? "nothing but think" : tools.map((t) => (t === "read_notes" ? "read notes" : t === "write_notes" ? "write notes (with your approval)" : "fetch web pages")).join(", ")}</strong></li>
-      </ul>
-      {#if message}<p class="error" role="alert">{message}</p>{/if}
-      <div class="row">
-        <button type="button" class="primary" disabled={busy || design.systemPrompt.trim().length < 20} onclick={() => void create()}>Create agent</button>
-        <button type="button" class="ghost" disabled={busy || design.systemPrompt.trim().length < 20 || !hasConnection} onclick={() => void create(true)} title="Creates it switched off and runs it once so you can see what it does">Create and try it once</button>
-        <button type="button" class="ghost" onclick={() => (step = "describe")}>Back</button>
-      </div>
-    </div>
-  {:else}
-    <p class="error" role="alert">{message}</p>
-    <div class="row">
-      <button type="button" class="primary" onclick={() => (step = "describe")}>Try again</button>
-      <button type="button" class="ghost" onclick={writeMyself}>I will write it myself</button>
-    </div>
-  {/if}
-</main>
+          <Cluster gap={2}>
+            <Button variant="primary" type="submit" disabled={busy || step === "drafting" || goal.trim().length < 10 || !hasConnection}>{step === "drafting" ? "Drafting…" : "Draft it for me"}</Button>
+            <Button variant="ghost" onclick={writeMyself}>I will write it myself</Button>
+          </Cluster>
+          {#if step === "drafting"}<p class="muted" aria-live="polite">The model is drafting the instructions. A model on your own computer can take a minute or two. Nothing is saved yet.</p>{/if}
+        </Stack>
+      </form>
+    {:else if step === "review"}
+      <p class="muted">Check the draft and change anything. The agent is created switched off; you turn it on from its page.</p>
+      <Stack gap={4}>
+        <Field label="Name">
+          {#snippet children({ id })}<Input {id} bind:value={design.name} maxlength={40} placeholder="friday-recap" />{/snippet}
+        </Field>
+        <Field label="Description">
+          {#snippet children({ id })}<Input {id} bind:value={design.description} maxlength={280} />{/snippet}
+        </Field>
+        <Field label="Instructions">
+          {#snippet children({ id })}<Textarea {id} rows={12} bind:value={design.systemPrompt} />{/snippet}
+        </Field>
+        <Field label="When started without instructions">
+          {#snippet children({ id })}<Input {id} bind:value={design.defaultTask} />{/snippet}
+        </Field>
+        <ul class="summary">
+          <li>Runs: <strong>{when === "manual" ? "only when you start it" : when === "daily" ? `every day at ${time}` : when === "weekly" ? `every ${DAY_NAMES[day]} at ${time}` : `when your notes change (every ${minutes} min)`}</strong></li>
+          <li>May: <strong>{tools.length === 0 ? "nothing but think" : tools.map((t) => (t === "read_notes" ? "read notes" : t === "write_notes" ? "write notes (with your approval)" : "fetch web pages")).join(", ")}</strong></li>
+        </ul>
+        {#if message}<p class="error" role="alert">{message}</p>{/if}
+        <Cluster gap={2}>
+          <Button variant="primary" disabled={busy || design.systemPrompt.trim().length < 20} onclick={() => void create()}>Create agent</Button>
+          <Button disabled={busy || design.systemPrompt.trim().length < 20 || !hasConnection} onclick={() => void create(true)}>Create and try it once</Button>
+          <Button variant="ghost" onclick={() => (step = "describe")}>Back</Button>
+        </Cluster>
+      </Stack>
+    {:else}
+      <p class="error" role="alert">{message}</p>
+      <Cluster gap={2}>
+        <Button variant="primary" onclick={() => (step = "describe")}>Try again</Button>
+        <Button variant="ghost" onclick={writeMyself}>I will write it myself</Button>
+      </Cluster>
+    {/if}
+  </Stack>
+</Page>
 
 <style>
-  .page {
-    padding: var(--space-6);
-    max-width: 720px;
-    margin-inline: auto;
-    display: grid;
-    gap: var(--space-4);
+  h2 {
+    margin: 0;
+    font: var(--weight-medium) var(--type-ui-size) / var(--type-ui-lh) var(--font-ui);
   }
-  .crumb {
-    font-size: var(--text-label);
-  }
-  .crumb a {
-    color: var(--ink-muted);
-  }
-  h1 {
-    font-family: var(--font-serif);
-    font-size: var(--text-h2);
-  }
-  form,
-  .form {
-    display: grid;
-    gap: var(--space-4);
-  }
-  .field,
-  fieldset.field {
-    display: grid;
-    gap: var(--space-2);
-    border: 0;
-    padding: 0;
+
+  p {
     margin: 0;
   }
-  .field > span,
-  legend {
-    padding: 0;
-    font-size: var(--text-label);
-    color: var(--ink-muted);
-  }
-  textarea,
-  input[type="text"],
-  input[type="time"],
-  select {
-    padding: var(--space-2) var(--space-3);
-    border: 1px solid var(--hairline);
-    border-radius: var(--radius);
-    background: var(--surface);
-    color: var(--ink);
-    font: inherit;
-  }
-  textarea {
-    resize: vertical;
-  }
-  .mono {
-    font-family: var(--font-mono);
-    font-size: var(--text-label);
-  }
-  .narrow {
-    width: 5rem;
-  }
-  .row {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-2);
-    align-items: center;
-  }
-  .tool {
-    display: flex;
-    gap: var(--space-2);
-    align-items: baseline;
-  }
-  .hint,
+
   .muted {
-    color: var(--ink-muted);
-    font-size: var(--text-label);
+    color: var(--text-2);
+    font: var(--weight-regular) var(--type-ui-size) / var(--type-ui-lh) var(--font-ui);
   }
-  .sites {
-    display: grid;
-    gap: var(--space-2);
-    padding-left: var(--space-6);
-  }
-  .chips {
-    list-style: none;
-    padding: 0;
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-2);
-  }
-  .chip {
-    padding: 0 var(--space-2);
-    border: 1px solid var(--hairline);
-    border-radius: var(--radius);
-    font-size: var(--text-label);
-  }
-  .x {
-    border: 0;
-    background: none;
-    color: var(--ink-muted);
-    cursor: pointer;
-  }
-  .summary {
-    list-style: none;
-    padding: 0;
-    display: grid;
-    gap: var(--space-1);
-    font-size: var(--text-label);
-  }
-  button.primary,
-  button.ghost {
-    padding: var(--space-2) var(--space-4);
-    border: 1px solid var(--hairline);
-    border-radius: var(--radius);
-    font: inherit;
-    font-size: var(--text-ui);
-    cursor: pointer;
-  }
-  button.primary {
-    background: var(--ink);
-    border-color: var(--ink);
-    color: var(--bg);
-  }
-  button.ghost {
-    background: transparent;
-    color: var(--ink);
-  }
-  button:disabled {
-    opacity: 0.5;
-    cursor: default;
-  }
-  .warn {
-    padding: var(--space-3);
-    border: 1px solid var(--hairline);
-    border-radius: var(--radius);
-    font-size: var(--text-label);
-  }
+
   .error {
-    color: var(--err-ink);
+    color: var(--danger);
+    font: var(--weight-regular) var(--type-ui-size) / var(--type-ui-lh) var(--font-ui);
+  }
+
+  .warn {
+    padding: var(--s-3) var(--s-4);
+    border-radius: var(--r-surface);
+    background: var(--danger-fill);
+    font: var(--weight-regular) var(--type-ui-size) / var(--type-ui-lh) var(--font-ui);
+  }
+
+  .hosts {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .hosts li {
+    display: flex;
+    align-items: center;
+    gap: var(--s-2);
+    padding: var(--s-1) 0;
+  }
+
+  .hosts code {
+    flex: 1;
+    font: var(--weight-regular) var(--type-ui-size) / var(--type-ui-lh) var(--font-code);
+  }
+
+  .inline {
+    display: flex;
+    gap: var(--s-2);
+  }
+
+  .summary {
+    margin: 0;
+    padding-left: var(--s-5);
+    font: var(--weight-regular) var(--type-ui-size) / var(--type-ui-lh) var(--font-ui);
+  }
+
+  .w-select {
+    width: 14rem;
+  }
+
+  .w-time {
+    width: 8rem;
+  }
+
+  .w-narrow {
+    display: inline-block;
+    width: 6rem;
   }
 </style>
