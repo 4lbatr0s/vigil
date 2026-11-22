@@ -47,40 +47,48 @@
 
 <style>
   .backlinks {
-    padding: var(--space-2) var(--space-6);
-    border-top: 1px solid var(--hairline);
-    font-size: var(--text-label);
+    padding: var(--s-1) var(--s-6);
+    color: var(--text-2);
+    font: var(--weight-regular) var(--type-meta-size) / var(--type-meta-lh) var(--font-ui);
   }
   summary {
     cursor: pointer;
-    color: var(--ink-muted);
+    color: var(--text-3);
+  }
+  summary:hover {
+    color: var(--text-2);
   }
   .count {
-    font-family: var(--font-mono);
+    margin-left: var(--s-1);
+    color: var(--text-3);
   }
   ul {
     list-style: none;
-    margin: var(--space-2) 0 0;
+    margin: var(--s-2) 0 0;
     padding: 0;
     display: grid;
-    gap: var(--space-2);
+    gap: var(--s-2);
     max-height: 30vh;
     overflow-y: auto;
   }
   a {
-    font-family: var(--font-serif);
-    font-size: var(--text-ui);
+    color: var(--text);
+    font: var(--weight-medium) var(--type-ui-size) / var(--type-ui-lh) var(--font-ui);
+    text-underline-offset: 2px;
   }
   .snippet {
     display: block;
-    color: var(--ink-muted);
-    font-family: var(--font-mono);
+    color: var(--text-3);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
   .muted {
-    color: var(--ink-muted);
-    margin: var(--space-2) 0 0;
+    margin: var(--s-2) 0 0;
+  }
+  @media (max-width: 639px) {
+    .backlinks {
+      padding-inline: var(--s-4);
+    }
   }
 </style>

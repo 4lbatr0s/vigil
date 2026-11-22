@@ -2,6 +2,7 @@
   import { untrack } from "svelte";
   import type { Component } from "svelte";
   import BlockEditor from "$lib/components/BlockEditor.svelte";
+  import { Button } from "$lib/ui";
 
   let {
     value = "",
@@ -80,7 +81,7 @@
 {#if mode === "raw"}
   <div class="modes">
     {#if why}<span class="why">{why}</span>{/if}
-    <button type="button" onclick={() => switchTo("blocks")} title="Edit with blocks">Blocks</button>
+    <Button variant="ghost" size="sm" onclick={() => switchTo("blocks")}>Use blocks</Button>
   </div>
 {/if}
 {#if mode === "blocks"}
@@ -98,24 +99,11 @@
     display: flex;
     justify-content: flex-end;
     align-items: center;
-    gap: var(--space-3);
-    min-height: 28px;
-    font-family: var(--font-chrome);
-    font-size: var(--text-label);
-    color: var(--ink-muted);
+    gap: var(--s-3);
+    min-height: var(--control-h-sm);
   }
-  .modes button {
-    border: 1px solid transparent;
-    border-radius: var(--radius);
-    background: transparent;
-    color: var(--ink-muted);
-    font: inherit;
-    padding: 2px var(--space-2);
-    cursor: pointer;
-  }
-  .modes button:hover,
-  .modes button:focus-visible {
-    background: var(--surface-hover);
-    color: var(--ink);
+  .why {
+    color: var(--text-3);
+    font: var(--weight-regular) var(--type-meta-size) / var(--type-meta-lh) var(--font-ui);
   }
 </style>

@@ -19,6 +19,11 @@ const MIGRATED: string[] = [
   "lib/components/NoteList.svelte",
   "lib/components/RenameNote.svelte",
   "lib/components/DeleteNote.svelte",
+  "lib/components/NoteEditor.svelte",
+  "lib/components/Backlinks.svelte",
+  "lib/components/RelatedNotes.svelte",
+  "lib/components/NoteActivity.svelte",
+  "lib/components/ProvenanceBar.svelte",
 ];
 
 function walk(dir: string): string[] {
