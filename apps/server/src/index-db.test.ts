@@ -18,7 +18,7 @@ import { createNote, getNote as getVaultNote } from "./vault";
 
 import type { Note } from "@vigil/shared";
 import Database from "better-sqlite3";
-import { extractLinks } from "./index-db";
+import { extractLinks, mentionsOf, outgoingLinks } from "./index-db";
 
 function note(partial: Pick<Note, "id" | "title" | "body" | "updatedAt"> & Partial<Note>): Note {
   return { tags: [], author: "human", ...partial };
@@ -157,5 +157,35 @@ describe("index details", () => {
     expect(await rebuildAll()).toBe(1);
     const fetched = getNote("digest");
     expect(fetched).toMatchObject({ id: "digest", author: "agent", agentName: "digest" });
+  });
+});
+
+describe("outgoing links and unlinked mentions", () => {
+  const n = (id: string, title: string, body: string): Note => ({ id, title, body, tags: [], author: "human", updatedAt: "2026-11-15T10:00:00.000Z" });
+
+  it("lists where a note links, marking links to notes that do not exist", () => {
+    reindexNote(n("a", "A", "see [[b]] and [[nowhere]]"));
+    reindexNote(n("b", "Beta note", ""));
+    expect(outgoingLinks("a")).toEqual([
+      { id: "b", title: "Beta note", ghost: false },
+      { id: "nowhere", title: "nowhere", ghost: true },
+    ]);
+    expect(outgoingLinks("b")).toEqual([]);
+  });
+
+  it("finds notes that mention a title in their text without linking to it", () => {
+    reindexNote(n("target", "Enthalpy", ""));
+    reindexNote(n("mentions", "Lecture", "First line.\nToday we met enthalpy for the first time."));
+    reindexNote(n("linked", "Linked", "Already [[target]] here, enthalpy again."));
+    reindexNote(n("unrelated", "Other", "Nothing relevant."));
+    const found = mentionsOf("target", "Enthalpy");
+    expect(found.map((m) => m.id)).toEqual(["mentions"]);
+    expect(found[0]?.snippet).toBe("Today we met enthalpy for the first time.");
+  });
+
+  it("ignores very short titles, which would match everything", () => {
+    reindexNote(n("it", "It", ""));
+    reindexNote(n("other", "Other", "it is what it is"));
+    expect(mentionsOf("it", "It")).toEqual([]);
   });
 });

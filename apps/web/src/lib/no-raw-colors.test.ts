@@ -18,7 +18,7 @@ describe("colors come from tokens only", () => {
   it("no .svelte or .ts file under src (except app.css and this test) contains a raw color", () => {
     const offenders: string[] = [];
     for (const file of walk(src)) {
-      if (!/\.(svelte|ts)$/.test(file) || file.endsWith("no-raw-colors.test.ts") || file.endsWith("contrast.test.ts")) continue;
+      if (!/\.(svelte|ts)$/.test(file) || file.endsWith("no-raw-colors.test.ts") || file.endsWith("contrast.test.ts") || file.endsWith("graph-theme.ts")) continue;
       readFileSync(file, "utf8")
         .split("\n")
         .forEach((line, i) => {

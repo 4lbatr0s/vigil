@@ -128,6 +128,43 @@ export function backlinks(id: string): Backlink[] {
   return rows.map((r) => ({ id: r.id, title: r.title, snippet: snippetFor(r.body ?? "", id) }));
 }
 
+export type OutgoingLink = { id: string; title: string; ghost: boolean };
+
+/** Where a note links to, in order of first appearance. A link to a note that does not exist is a ghost, titled by its id. */
+export function outgoingLinks(id: string): OutgoingLink[] {
+  const { db } = open();
+  const rows = db
+    .prepare("SELECT l.dst AS id, n.title AS title FROM links l LEFT JOIN notes n ON n.id = l.dst WHERE l.src = ? GROUP BY l.dst ORDER BY MIN(l.rowid)")
+    .all(id) as { id: string; title: string | null }[];
+  return rows.map((r) => ({ id: r.id, title: r.title ?? r.id, ghost: r.title === null }));
+}
+
+export type Mention = { id: string; title: string; snippet: string };
+
+/** A title shorter than this would match half the vault ("it", "a"), so it is never searched for. */
+const MIN_MENTION_TITLE = 3;
+const MENTION_LIMIT = 20;
+
+/** Notes whose text contains `title` but that do not link to the note `id` (and are not that note). Newest first. */
+export function mentionsOf(id: string, title: string): Mention[] {
+  const needle = title.trim().toLowerCase();
+  if (needle.length < MIN_MENTION_TITLE) return [];
+  const { db } = open();
+  const like = `%${needle.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+  const rows = db
+    .prepare(
+      `SELECT n.id AS id, n.title AS title, b.body AS body FROM notes n JOIN notes_body b ON b.id = n.id
+       WHERE n.id != ? AND lower(b.body) LIKE ? ESCAPE '\\'
+         AND n.id NOT IN (SELECT src FROM links WHERE dst = ?)
+       ORDER BY n.updated_at DESC LIMIT ?`,
+    )
+    .all(id, like, id, MENTION_LIMIT) as { id: string; title: string; body: string }[];
+  return rows.map((r) => {
+    const line = r.body.split("\n").find((l) => l.toLowerCase().includes(needle))?.trim() ?? "";
+    return { id: r.id, title: r.title, snippet: line.length > SNIPPET_MAX ? `${line.slice(0, SNIPPET_MAX - 1)}…` : line };
+  });
+}
+
 export function reindexNote(note: Note): void {
   const { db, fts } = open();
   const existed = db.prepare("SELECT 1 AS x FROM notes WHERE id = ?").get(note.id) !== undefined;

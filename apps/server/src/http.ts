@@ -17,6 +17,8 @@ import {
   listNotes as indexListNotes,
   listNoteSummaries,
   backlinks as indexBacklinks,
+  mentionsOf,
+  outgoingLinks,
   reindexNote,
   removeNote,
   searchNotes,
@@ -117,6 +119,16 @@ const routes: { method: string; pattern: RegExp; keys: string[]; handler: Handle
     keys: ["id"],
     handler: (_req, res, params) => {
       send(res, 200, { data: indexBacklinks(validateId(params["id"] ?? "")) });
+    },
+  },
+  {
+    method: "GET",
+    pattern: /^\/api\/notes\/([^/]+)\/links$/,
+    keys: ["id"],
+    handler: (_req, res, params) => {
+      const id = validateId(params["id"] ?? "");
+      const here = indexGetNote(id);
+      send(res, 200, { data: { outgoing: outgoingLinks(id), backlinks: indexBacklinks(id), mentions: here ? mentionsOf(id, here.title) : [] } });
     },
   },
   {
@@ -870,8 +882,12 @@ const routes: { method: string; pattern: RegExp; keys: string[]; handler: Handle
     method: "GET",
     pattern: /^\/api\/graph$/,
     keys: [],
-    handler: (_req, res) => {
-      send(res, 200, { data: buildGraphData() });
+    handler: (req, res) => {
+      // ?focus=<note id>&hops=1..3 asks for the local graph around one note.
+      const query = new URL(req.url ?? "/", "http://localhost").searchParams;
+      const focus = query.get("focus");
+      const hops = Number(query.get("hops") ?? 1);
+      send(res, 200, { data: focus === null ? buildGraphData() : buildGraphData(new Date(), undefined, { focus: validateId(focus), hops: Number.isFinite(hops) ? hops : 1 }) });
     },
   },
   {

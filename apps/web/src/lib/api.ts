@@ -210,7 +210,22 @@ export const logout = () => request<{ ok: boolean }>("/api/logout", json("POST")
 
 // ---- Graph ----
 
-export const getGraph = () => request<import("./graph-model").GraphApi>("/api/graph");
+/** The whole vault, or with `focus` the local graph around one note (`hops` 1 to 3 links away). */
+export const getGraph = (opts: { focus?: string; hops?: number } = {}) => {
+  const q = new URLSearchParams();
+  if (opts.focus) q.set("focus", opts.focus);
+  if (opts.hops) q.set("hops", String(opts.hops));
+  const qs = q.toString();
+  return request<import("./graph-model").GraphApi>(`/api/graph${qs ? `?${qs}` : ""}`);
+};
+
+export type NoteLinks = {
+  outgoing: { id: string; title: string; ghost: boolean }[];
+  backlinks: Backlink[];
+  /** Notes that mention this note's title without linking to it. */
+  mentions: Backlink[];
+};
+export const getNoteLinks = (id: string) => request<NoteLinks>(`/api/notes/${seg(id)}/links`);
 
 // ---- Chat ----
 

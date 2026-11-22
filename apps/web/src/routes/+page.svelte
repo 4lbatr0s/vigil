@@ -23,6 +23,7 @@
   import CardMaker from "$lib/components/CardMaker.svelte";
   import StudyWith from "$lib/components/StudyWith.svelte";
   import Ellipsis from "@lucide/svelte/icons/ellipsis";
+  import Network from "@lucide/svelte/icons/network";
   import { Button, EmptyState, IconButton, Menu } from "$lib/ui";
   import NoteActivity from "$lib/components/NoteActivity.svelte";
   import ChangeReview from "$lib/components/ChangeReview.svelte";
@@ -45,6 +46,22 @@
   let runs = $state<Run[]>([]);
   let pending = $state<ApprovalItem[]>([]);
   let cardStats = $state<StudyStats | null>(null);
+  /** The Connections panel beside the note (remembered per browser). */
+  let connectionsOpen = $state((() => {
+    try {
+      return localStorage.getItem("vigil.connections") === "1";
+    } catch {
+      return false;
+    }
+  })());
+  function toggleConnections(): void {
+    connectionsOpen = !connectionsOpen;
+    try {
+      localStorage.setItem("vigil.connections", connectionsOpen ? "1" : "0");
+    } catch {
+      // A blocked store only means the choice is not remembered.
+    }
+  }
   let createOpen = $state(false);
   let renameOpen = $state(false);
   let deleteOpen = $state(false);
@@ -362,7 +379,7 @@
 
 <svelte:window onkeydown={onKeydown} />
 
-<div class="app">
+<div class="app" class:with-panel={connectionsOpen && draft !== null}>
   {#if listOpen}
     <button type="button" class="scrim" aria-label="Close the notes list" onclick={() => (listOpen = false)}></button>
   {/if}
@@ -395,6 +412,7 @@
       <header class="head">
         <span class="list-toggle"><Button variant="ghost" aria-label="Show the notes list" onclick={() => (listOpen = true)}>{#snippet icon()}<PanelLeft size={16} strokeWidth={1.5} />{/snippet}Notes</Button></span>
         <span class="grow"></span>
+        <IconButton label="Connections" pressed={connectionsOpen} onclick={toggleConnections}><Network size={16} strokeWidth={1.5} /></IconButton>
         <Button onclick={() => (studyOpen = true)}>Study</Button>
         <Menu
           label="More actions for this note"
@@ -467,6 +485,15 @@
       </footer>
     {/if}
   </main>
+
+  {#if connectionsOpen && draft && selectedId}
+    <div class="panelpane">
+      <!-- The graph libraries are heavy: load them only when the panel is opened. -->
+      {#await import("$lib/components/ConnectionsPanel.svelte") then { default: ConnectionsPanel }}
+        <ConnectionsPanel noteId={selectedId} signature={notes.map((n) => n.updatedAt).join("|")} onclose={toggleConnections} />
+      {/await}
+    </div>
+  {/if}
 </div>
 
 {#if draft && selectedId}
@@ -489,6 +516,36 @@
     min-width: 0;
     min-height: 0;
     background: var(--paper);
+  }
+
+  .app.with-panel {
+    grid-template-columns: var(--sidebar-width) 1fr 340px;
+  }
+
+  .panelpane {
+    min-width: 0;
+    min-height: 0;
+    height: 100%;
+  }
+
+  /* Narrower than a wide screen the panel floats over the note instead of squeezing it. */
+  @media (max-width: 1279px) {
+    .app.with-panel {
+      grid-template-columns: var(--sidebar-width) 1fr;
+    }
+    .panelpane {
+      position: absolute;
+      inset: 0 0 0 auto;
+      z-index: 8;
+      width: min(360px, 100%);
+      box-shadow: var(--elev-float);
+    }
+  }
+
+  @media (max-width: 1023px) {
+    .app.with-panel {
+      grid-template-columns: 1fr;
+    }
   }
 
   .scrim,
