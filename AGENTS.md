@@ -52,7 +52,7 @@ A self-hosted, single-user notes app where AI agents keep vigil: they read notes
 - **State migrations are append-only** (`apps/server/src/state-db.ts`). The index is disposable: bump `SCHEMA_VERSION` instead of writing a migration.
 - **Persist the "I did it" marker before the side effect** for scheduled work (at most once), and never put a side effect before an `interrupt()`.
 - **No `any`, no `@ts-ignore`, no silent `catch`, no weakened or deleted tests, no `skip`/`only`.**
-- **UI:** colors and spacing only from tokens in `apps/web/src/app.css`; Lucide icons, no emoji; keyboard reachable; visible focus; contrast >= 4.5:1; `prefers-reduced-motion` honored. Amber is reserved for agent life.
+- **UI:** read `docs/design/ui-rules.md` and `PRODUCT.md` first and use the `vigil-ui-build` skill. Compose from `apps/web/src/lib/ui/` (never write a button, field, row, card, dialog or empty state in a route); colors, spacing, radius, shadow and motion only from `apps/web/src/lib/styles/tokens.css` (legacy tokens in `app.css` stay until a screen is migrated); Lucide icons, no emoji; keyboard reachable; visible focus; contrast >= 4.5:1; `prefers-reduced-motion` honored. Amber is reserved for agent life. Run `vigil-ui-review` before calling UI work done.
 - **Pin exact dependency versions** for the LangChain family, `cron-parser`, `sigma`, `graphology` and adapters. Check the installed version's typings or docs before coding against it; do not trust memory of an API.
 - **Contradicting an ADR needs a new or amended ADR first.**
 

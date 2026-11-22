@@ -1,0 +1,140 @@
+/* Vigil design tokens, v3 "Quiet paper" (ADR-0029).
+   The only place raw color, size, radius, shadow and duration values may be written.
+   Every value is a role: components use the role name, never the number.
+   Light and dark are one declaration each through light-dark(); there is no duplicated block. */
+
+:root {
+  color-scheme: light dark;
+
+  /* Ground and surfaces. Depth comes from small steps in lightness, not from borders. */
+  --paper: light-dark(oklch(98.6% 0.004 85), oklch(18.5% 0.006 70));
+  --paper-sunk: light-dark(oklch(96.4% 0.005 85), oklch(15.5% 0.006 70));
+  --paper-float: light-dark(oklch(100% 0 0), oklch(23% 0.007 70));
+
+  /* Ink, in three steps. Hierarchy is made with these, not with containers. */
+  --text: light-dark(oklch(24% 0.01 70), oklch(94% 0.006 80));
+  --text-2: light-dark(oklch(46% 0.01 70), oklch(74% 0.008 75));
+  --text-3: light-dark(oklch(58% 0.008 70), oklch(62% 0.008 75));
+
+  /* Fills for state: hover, selected, pressed. Mixes of the ink, so they work on any surface. */
+  --fill-hover: color-mix(in oklch, var(--text) 5%, transparent);
+  --fill-selected: color-mix(in oklch, var(--text) 9%, transparent);
+  --fill-pressed: color-mix(in oklch, var(--text) 13%, transparent);
+
+  /* Lines. Two strengths; most surfaces need neither. */
+  --line-soft: color-mix(in oklch, var(--text) 8%, transparent);
+  --line: color-mix(in oklch, var(--text) 16%, transparent);
+
+  /* Meaning. Agent amber is reserved for agent activity, never decoration. */
+  --agent: light-dark(oklch(52% 0.12 70), oklch(78% 0.14 78));
+  --agent-fill: color-mix(in oklch, var(--agent) 14%, transparent);
+  --good: light-dark(oklch(48% 0.11 150), oklch(74% 0.13 150));
+  --danger: light-dark(oklch(50% 0.17 27), oklch(72% 0.14 25));
+  --danger-fill: color-mix(in oklch, var(--danger) 12%, transparent);
+
+  /* Primary action: the ink itself. */
+  --on-ink: light-dark(oklch(98.6% 0.004 85), oklch(18.5% 0.006 70));
+  --focus: light-dark(oklch(55% 0.16 255), oklch(75% 0.12 255));
+  --select-wash: color-mix(in oklch, var(--focus) 28%, transparent);
+
+  /* Type. One system sans for the learner's words and the interface (ADR-0029, decision 4, chosen 2026-11-22). */
+  --font-prose: system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-ui: system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-code: ui-monospace, "SF Mono", Menlo, monospace;
+
+  /* Type roles: size / line-height / weight / tracking. Each role is a size plus the three below it. */
+  --type-meta-size: 12px;
+  --type-meta-lh: 16px;
+  --type-ui-size: 14px;
+  --type-ui-lh: 20px;
+  --type-body-size: 16px;
+  --type-body-lh: 26px;
+  --type-heading-size: 20px;
+  --type-heading-lh: 28px;
+  --type-title-size: 32px;
+  --type-title-lh: 38px;
+  --type-title-tracking: -0.02em;
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-strong: 600;
+
+  /* Space on a 4px grid. */
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-5: 20px;
+  --s-6: 24px;
+  --s-8: 32px;
+  --s-10: 40px;
+  --s-12: 48px;
+  --s-16: 64px;
+
+  /* Control sizes follow density. */
+  --control-h: 32px;
+  --control-h-sm: 28px;
+  --row-h: 40px;
+
+  /* Shape. */
+  --r-control: 6px;
+  --r-surface: 10px;
+  --r-float: 14px;
+  --r-pill: 999px;
+
+  /* Elevation: flat by default. Floating layers (menus, popovers) and overlays (dialogs) only. */
+  --elev-float: 0 4px 16px oklch(20% 0.02 70 / 0.1), 0 0 0 1px var(--line-soft);
+  --elev-overlay: 0 16px 48px oklch(20% 0.02 70 / 0.22), 0 0 0 1px var(--line-soft);
+  --shadow-thumb: 0 1px 2px oklch(20% 0.02 70 / 0.3);
+  --scrim: oklch(15% 0.01 70 / 0.4);
+
+  /* Motion. */
+  --dur-fast: 90ms;
+  --dur-base: 150ms;
+  --dur-slow: 240ms;
+  --ease-out: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --ease-in-out: cubic-bezier(0.6, 0, 0.2, 1);
+
+  /* Layout. */
+  --measure: 68ch;
+  --page-gutter: var(--s-6);
+  --page-max: 880px;
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+}
+
+/* Compact density: agent tables, settings, long lists. */
+[data-density="compact"] {
+  --control-h: 28px;
+  --control-h-sm: 24px;
+  --row-h: 32px;
+}
+
+@media (pointer: coarse) {
+  :root {
+    --control-h: 40px;
+    --control-h-sm: 36px;
+    --row-h: 48px;
+  }
+}
+
+@media (max-width: 480px) {
+  :root {
+    --type-title-size: 26px;
+    --type-title-lh: 32px;
+    --page-gutter: var(--s-4);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-fast: 0ms;
+    --dur-base: 0ms;
+    --dur-slow: 0ms;
+  }
+}
