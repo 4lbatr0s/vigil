@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
-  import type { HTMLButtonAttributes } from "svelte/elements";
+  import type { HTMLAnchorAttributes, HTMLButtonAttributes } from "svelte/elements";
 
   /**
    * The one button. `primary` is the single main action on a screen (ink fill);
@@ -15,6 +15,8 @@
     pressed?: boolean;
     /** Renders a link that looks like the button. */
     href?: string;
+    /** With `href`: save the file instead of opening it. */
+    download?: boolean | string;
     children: Snippet;
   };
 
@@ -27,7 +29,7 @@
 {/snippet}
 
 {#if href}
-  <a {href} class="btn {variant} {size}">{@render inner()}</a>
+  <a {href} class="btn {variant} {size}" {...(rest as unknown as HTMLAnchorAttributes)}>{@render inner()}</a>
 {:else}
   <button {type} class="btn {variant} {size}" aria-pressed={pressed} {...rest}>{@render inner()}</button>
 {/if}

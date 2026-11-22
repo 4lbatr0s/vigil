@@ -1,12 +1,13 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
+  import type { HTMLAnchorAttributes } from "svelte/elements";
 
   /**
    * The one list row: notes, agents, approvals, settings entries. Selected is a soft fill, never
    * an outline. Two lines at most: `title` and `meta`, plus an optional `snippet`.
    * Pass `href` to make it a link, `onclick` to make it a button.
    */
-  type Props = {
+  type Props = Omit<HTMLAnchorAttributes, "title" | "onclick" | "children"> & {
     title: string;
     meta?: string;
     snippet?: string;
@@ -16,7 +17,7 @@
     lead?: Snippet;
     trail?: Snippet;
   };
-  let { title, meta, snippet, selected = false, href, onclick, lead, trail }: Props = $props();
+  let { title, meta, snippet, selected = false, href, onclick, lead, trail, ...rest }: Props = $props();
 </script>
 
 {#snippet content()}
@@ -32,7 +33,7 @@
 {/snippet}
 
 {#if href}
-  <a class="row" class:selected {href} aria-current={selected ? "page" : undefined}>{@render content()}</a>
+  <a class="row" class:selected {href} aria-current={selected ? "page" : undefined} {...rest}>{@render content()}</a>
 {:else}
   <button type="button" class="row" class:selected aria-pressed={selected} {onclick}>{@render content()}</button>
 {/if}
