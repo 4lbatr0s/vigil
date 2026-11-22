@@ -23,6 +23,6 @@ Vigil's UI is built from one component library and one token file. Your job is t
 
 ## When you finish
 
-- Add the migrated files to `MIGRATED` in `apps/web/src/lib/ui-lint.test.ts`.
+- `apps/web/src/lib/ui-lint.test.ts` checks every `.svelte` file; never add a file to its `LEGACY` list.
 - Run `vigil-ui-review`.
 - Do not leave the old CSS for that screen behind: delete what the new components replaced.

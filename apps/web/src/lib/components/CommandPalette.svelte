@@ -1,8 +1,8 @@
 <script lang="ts">
-  import { tick } from "svelte";
-  import { goto } from "$app/navigation";
+    import { goto } from "$app/navigation";
   import { listAgents, runAgent, searchNotes } from "$lib/api";
   import { buildCommands, type Command } from "$lib/commands";
+  import { Dialog } from "$lib/ui";
 
   let { open = $bindable(false) }: { open: boolean } = $props();
 
@@ -11,21 +11,17 @@
   let noteHits = $state<{ id: string; title: string }[]>([]);
   let active = $state(0);
   let message = $state("");
-  let input = $state<HTMLInputElement | null>(null);
-  let returnTo: HTMLElement | null = null;
-  let timer: ReturnType<typeof setTimeout> | undefined;
+    let timer: ReturnType<typeof setTimeout> | undefined;
 
   const commands = $derived(buildCommands({ query, noteHits, agents }));
 
   $effect(() => {
     if (!open) return;
-    returnTo = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     query = "";
     noteHits = [];
     active = 0;
     message = "";
     void listAgents().then((list) => (agents = list.map((a) => a.name))).catch(() => (agents = []));
-    void tick().then(() => input?.focus());
   });
 
   // Note search is debounced so typing does not hit the server on every key.
@@ -51,7 +47,6 @@
 
   function close(): void {
     open = false;
-    returnTo?.focus();
   }
 
   async function activate(command: Command | undefined): Promise<void> {
@@ -72,10 +67,7 @@
   }
 
   function onKeydown(event: KeyboardEvent): void {
-    if (event.key === "Escape") {
-      event.preventDefault();
-      close();
-    } else if (event.key === "ArrowDown") {
+    if (event.key === "ArrowDown") {
       event.preventDefault();
       active = commands.length === 0 ? 0 : (active + 1) % commands.length;
     } else if (event.key === "ArrowUp") {
@@ -84,115 +76,105 @@
     } else if (event.key === "Enter") {
       event.preventDefault();
       void activate(commands[active]);
-    } else if (event.key === "Tab") {
-      // Focus trap: the input is the only tab stop in the dialog.
-      event.preventDefault();
     }
   }
 </script>
 
-{#if open}
-  <div class="backdrop" role="presentation" onmousedown={close}>
-    <div class="dialog" role="dialog" aria-modal="true" aria-label="Command palette" tabindex="-1" onmousedown={(e) => e.stopPropagation()} onkeydown={onKeydown}>
-      <input
-        bind:this={input}
-        bind:value={query}
-        class="query"
-        type="text"
-        role="combobox"
-        aria-expanded="true"
-        aria-controls="palette-list"
-        aria-activedescendant={commands[active] ? `opt-${active}` : undefined}
-        aria-label="Search notes, agents and commands"
-        placeholder="Search notes, agents, commands"
-        autocomplete="off"
-        spellcheck="false"
-      />
-      <ul id="palette-list" class="list" role="listbox" aria-label="Results">
-        {#each commands as c, i (c.id)}
-          <li
-            id={`opt-${i}`}
-            class="opt"
-            class:active={i === active}
-            role="option"
-            aria-selected={i === active}
-            onmousemove={() => (active = i)}
-            onclick={() => void activate(c)}
-            onkeydown={() => {}}
-          >
-            <span class="group">{c.group}</span>
-            <span class="label">{c.label}</span>
-            {#if c.hint}<span class="hint">{c.hint}</span>{/if}
-          </li>
-        {:else}
-          <li class="none" role="presentation">Nothing found</li>
-        {/each}
-      </ul>
-      {#if message}<p class="error" role="alert">{message}</p>{/if}
-    </div>
+<Dialog bind:open title="Command palette" hideTitle placement="top">
+  <div class="palette" role="presentation" onkeydown={onKeydown}>
+    <input
+      bind:value={query}
+      class="query"
+      type="text"
+      role="combobox"
+      aria-expanded="true"
+      aria-controls="palette-list"
+      aria-activedescendant={commands[active] ? `opt-${active}` : undefined}
+      aria-label="Search notes, agents and commands"
+      placeholder="Search notes, agents, commands"
+      autocomplete="off"
+      spellcheck="false"
+    />
+    <ul id="palette-list" class="list" role="listbox" aria-label="Results">
+      {#each commands as c, i (c.id)}
+        <li id={`opt-${i}`} class="opt" class:active={i === active} role="option" aria-selected={i === active} onmousemove={() => (active = i)} onclick={() => void activate(c)} onkeydown={() => {}}>
+          <span class="group">{c.group}</span>
+          <span class="label">{c.label}</span>
+          {#if c.hint}<span class="hint">{c.hint}</span>{/if}
+        </li>
+      {:else}
+        <li class="none" role="presentation">Nothing found</li>
+      {/each}
+    </ul>
+    {#if message}<p class="error" role="alert">{message}</p>{/if}
   </div>
-{/if}
+</Dialog>
 
 <style>
-  .backdrop {
-    position: fixed;
-    inset: 0;
-    display: grid;
-    justify-items: center;
-    align-items: start;
-    padding-top: 14vh;
-    background: color-mix(in srgb, var(--bg) 70%, transparent);
-    z-index: 50;
+  .palette {
+    display: flex;
+    flex-direction: column;
   }
-  .dialog {
-    width: min(560px, calc(100vw - 32px));
-    border: 1px solid var(--hairline);
-    border-radius: var(--radius);
-    background: var(--surface);
-  }
+
   .query {
     width: 100%;
-    padding: var(--space-3) var(--space-4);
-    border: none;
-    border-bottom: 1px solid var(--hairline);
+    height: calc(var(--control-h) + var(--s-4));
+    padding: 0 var(--s-5);
+    border: 0;
+    border-radius: var(--r-float) var(--r-float) 0 0;
     background: transparent;
-    font-size: var(--text-ui);
+    color: var(--text);
+    font: var(--weight-regular) var(--type-body-size) / var(--type-body-lh) var(--font-ui);
+    box-shadow: 0 1px 0 var(--line-soft);
+  }
+
+  .query::placeholder {
+    color: var(--text-3);
+  }
+
+  .query:focus-visible {
     outline: none;
   }
-  .query:focus-visible {
-    outline: 2px solid var(--ink);
-    outline-offset: -2px;
-  }
+
   .list {
     list-style: none;
     margin: 0;
-    padding: 0;
+    padding: var(--s-1);
     max-height: 50vh;
     overflow-y: auto;
   }
+
   .opt {
     display: grid;
     grid-template-columns: 72px 1fr auto;
-    gap: var(--space-3);
+    gap: var(--s-3);
     align-items: baseline;
-    padding: var(--space-2) var(--space-4);
+    padding: var(--s-2) var(--s-3);
+    border-radius: var(--r-control);
     cursor: pointer;
+    font: var(--weight-regular) var(--type-ui-size) / var(--type-ui-lh) var(--font-ui);
   }
+
   .opt.active {
-    background: var(--hairline);
+    background: var(--fill-selected);
   }
+
   .group,
   .hint {
-    font-size: var(--text-label);
-    color: var(--ink-muted);
+    color: var(--text-3);
+    font: var(--weight-regular) var(--type-meta-size) / var(--type-meta-lh) var(--font-ui);
   }
+
   .none {
-    padding: var(--space-3) var(--space-4);
-    color: var(--ink-muted);
+    padding: var(--s-3);
+    color: var(--text-2);
+    font: var(--weight-regular) var(--type-ui-size) / var(--type-ui-lh) var(--font-ui);
   }
+
   .error {
-    padding: var(--space-2) var(--space-4);
-    color: var(--err-ink);
-    font-size: var(--text-label);
+    margin: 0;
+    padding: var(--s-2) var(--s-4);
+    color: var(--danger);
+    font: var(--weight-regular) var(--type-ui-size) / var(--type-ui-lh) var(--font-ui);
   }
 </style>

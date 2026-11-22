@@ -812,7 +812,7 @@
     font-family: var(--font-mono);
     font-size: 0.86em;
     background: var(--surface-hover);
-    border-radius: 4px;
+    border-radius: var(--r-control);
     padding: 1px 5px;
   }
   .block-editor :global(hr) {
@@ -822,9 +822,10 @@
   }
   .block-editor :global(blockquote) {
     margin: var(--space-2) 0;
-    padding-left: var(--space-4);
-    border-left: 3px solid var(--hairline);
-    color: var(--ink-muted);
+    padding: var(--space-2) var(--space-4);
+    border-radius: var(--r-control);
+    background: var(--fill-hover);
+    color: var(--text-2);
   }
   .block-editor :global(ul),
   .block-editor :global(ol) {
@@ -840,7 +841,7 @@
     font-family: var(--font-chrome);
     font-size: 0.85em;
     background: var(--surface-hover);
-    border-radius: 999px;
+    border-radius: var(--r-pill);
     padding: 1px 8px;
   }
   .block-editor :global(li > p) {
@@ -878,7 +879,7 @@
     width: 1.05em;
     height: 1.05em;
     border: 1.5px solid var(--ink-muted);
-    border-radius: 4px;
+    border-radius: var(--r-control);
     background: transparent;
     cursor: pointer;
     display: grid;
@@ -994,7 +995,7 @@
     color: var(--ink);
     background: var(--surface-hover);
     border-bottom: 1px solid var(--ink-muted);
-    border-radius: 3px;
+    border-radius: var(--r-control);
     padding: 0 3px;
     text-decoration: none;
     cursor: pointer;
@@ -1002,14 +1003,13 @@
   .block-editor :global(.cloze) {
     background: var(--surface-hover);
     border-bottom: 1px dashed var(--ink-muted);
-    border-radius: 4px;
+    border-radius: var(--r-control);
     padding: 0 2px;
   }
   .block-editor :global(.callout) {
     --tone: var(--canvas-5);
     margin: var(--space-3) 0;
-    border-left: 3px solid var(--tone);
-    border-radius: 0 var(--radius) var(--radius) 0;
+    border-radius: var(--r-surface);
     background: color-mix(in srgb, var(--tone) 9%, var(--surface));
     padding: var(--space-2) var(--space-4);
   }
@@ -1060,7 +1060,7 @@
     color: var(--ink-muted);
     cursor: pointer;
     transform: rotate(90deg);
-    transition: transform 0.12s;
+    transition: transform var(--dur-fast);
   }
   .block-editor :global(.callout-fold[hidden]) {
     display: none;

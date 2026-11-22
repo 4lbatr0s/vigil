@@ -12,7 +12,7 @@
     width: 8px;
     height: 8px;
     border-radius: 50%;
-    background: var(--ink-muted);
+    background: var(--text-2);
     flex: none;
   }
   .ok {
@@ -26,7 +26,7 @@
   }
   @media (prefers-reduced-motion: no-preference) {
     .running {
-      animation: breathe 1.6s ease-in-out infinite;
+      animation: breathe calc(var(--dur-slow) * 6) ease-in-out infinite;
     }
   }
   @keyframes breathe {

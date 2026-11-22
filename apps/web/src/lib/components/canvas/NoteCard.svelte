@@ -22,7 +22,7 @@
 </script>
 
 <NodeResizer isVisible={selected} minWidth={160} minHeight={80} onResizeEnd={() => board.commit()} />
-<div class="card" class:pic={image !== null} style:--accent={color} role="group" aria-label={image ? "Picture card" : "Note card"}>
+<div class="node" class:pic={image !== null} style:--accent={color} role="group" aria-label={image ? "Picture card" : "Note card"}>
   {#if image}
     <img src={`/api/attachments/${image}`} alt="" draggable="false" />
   {:else if noteId === null}
@@ -47,22 +47,21 @@
 <Handles />
 
 <style>
-  .card {
+  .node {
     box-sizing: border-box;
     width: 100%;
     height: 100%;
     overflow: hidden;
-    padding: var(--space-3);
+    padding: var(--s-3);
     display: grid;
     align-content: start;
-    gap: var(--space-2);
-    border: 1.5px solid var(--accent, var(--hairline));
-    border-left: 4px solid var(--accent, var(--ink-muted));
-    border-radius: var(--radius);
-    background: color-mix(in srgb, var(--surface) 90%, var(--accent, var(--surface)));
-    color: var(--ink);
+    gap: var(--s-2);
+    border: 1.5px solid var(--accent, var(--line-soft));
+    border-radius: var(--r-control);
+    background: color-mix(in srgb, var(--paper-float) 90%, var(--accent, var(--paper-float)));
+    color: var(--text);
   }
-  .card.pic {
+  .node.pic {
     padding: 0;
     border-left-width: 1.5px;
   }
@@ -73,10 +72,10 @@
     display: block;
   }
   .title {
-    font-family: var(--font-serif);
-    font-size: var(--text-prose);
+    font-family: var(--font-prose);
+    font-size: var(--type-body-size);
     font-weight: 600;
-    color: var(--ink);
+    color: var(--text);
     margin: 0;
     text-decoration: none;
   }
@@ -85,31 +84,31 @@
   }
   .excerpt {
     margin: 0;
-    font-family: var(--font-chrome);
-    font-size: var(--text-label);
-    color: var(--ink-muted);
+    font-family: var(--font-ui);
+    font-size: var(--type-meta-size);
+    color: var(--text-2);
     white-space: pre-wrap;
     overflow: hidden;
   }
   .hint {
     margin: 0;
-    color: var(--ink-muted);
-    font-size: var(--text-label);
+    color: var(--text-2);
+    font-size: var(--type-meta-size);
   }
   .part {
     font-weight: 400;
-    color: var(--ink-muted);
+    color: var(--text-2);
   }
   .progress {
     display: flex;
     align-items: center;
-    gap: var(--space-2);
+    gap: var(--s-2);
   }
   .bar {
     flex: 1;
     height: 4px;
-    border-radius: 2px;
-    background: var(--hairline);
+    border-radius: var(--r-pill);
+    background: var(--line-soft);
     overflow: hidden;
   }
   .fill {
@@ -118,7 +117,7 @@
     background: var(--canvas-4);
   }
   .count {
-    color: var(--ink-muted);
-    font-size: var(--text-label);
+    color: var(--text-2);
+    font-size: var(--type-meta-size);
   }
 </style>

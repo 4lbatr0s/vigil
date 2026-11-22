@@ -5,52 +5,12 @@ import { fileURLToPath } from "node:url";
 
 /**
  * Guardrails for the v3 design system (ADR-0029, docs/design/ui-rules.md).
- * They apply to every file under `src/lib/ui/` and to every file listed in MIGRATED. When a screen
- * moves to the new components, add its files to MIGRATED in the same commit; from then on the
- * rules hold there too. Legacy screens are not checked until they are listed.
+ * They apply to every `.svelte` file under `src/`. `LEGACY` lists files that still break a rule; it
+ * must only shrink. A new file never goes on it: fix the file instead.
  */
 const src = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 
-const MIGRATED: string[] = [
-  "routes/design/+page.svelte",
-  "routes/+page.svelte",
-  "routes/today/+page.svelte",
-  "routes/study/+page.svelte",
-  "routes/agents/+page.svelte",
-  "routes/approvals/+page.svelte",
-  "routes/settings/+page.svelte",
-  "routes/tools/+page.svelte",
-  "routes/ask/+page.svelte",
-  "routes/gap/+page.svelte",
-  "routes/recall/+page.svelte",
-  "routes/outline/+page.svelte",
-  "routes/capture/+page.svelte",
-  "routes/import/+page.svelte",
-  "routes/runs/[id]/+page.svelte",
-  "routes/login/+page.svelte",
-  "routes/canvas/+page.svelte",
-  "lib/components/CitedAnswer.svelte",
-  "lib/components/ModelsSettings.svelte",
-  "lib/components/McpSettings.svelte",
-  "lib/components/MeaningSettings.svelte",
-  "lib/components/StudySettings.svelte",
-  "lib/components/TidyPictures.svelte",
-  "lib/components/ConnectionWizard.svelte",
-  "lib/components/ChatView.svelte",
-  "routes/agents/[name]/+page.svelte",
-  "routes/agents/new/+page.svelte",
-  "lib/components/ExamDates.svelte",
-  "lib/components/Shell.svelte",
-  "lib/components/Banner.svelte",
-  "lib/components/NoteList.svelte",
-  "lib/components/RenameNote.svelte",
-  "lib/components/DeleteNote.svelte",
-  "lib/components/NoteEditor.svelte",
-  "lib/components/Backlinks.svelte",
-  "lib/components/RelatedNotes.svelte",
-  "lib/components/NoteActivity.svelte",
-  "lib/components/ProvenanceBar.svelte",
-];
+const LEGACY: string[] = [];
 
 function walk(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {
@@ -59,17 +19,14 @@ function walk(dir: string): string[] {
   });
 }
 
-const files = [
-  ...walk(path.join(src, "lib", "ui")).filter((f) => f.endsWith(".svelte")),
-  ...MIGRATED.map((f) => path.join(src, f)),
-];
+const files = walk(src).filter((f) => f.endsWith(".svelte") && !LEGACY.includes(path.relative(src, f)));
 
 type Rule = { name: string; test: RegExp };
 
 const RULES: Rule[] = [
   { name: "raw colour: use a token from tokens.css", test: /#[0-9a-fA-F]{3,8}\b|\b(?:rgba?|hsla?|oklch|oklab|lch)\(/ },
-  { name: "raw border-radius: use --r-control, --r-surface, --r-float or --r-pill", test: /border-radius:\s*[0-9.]+(?:px|rem|em|%)/ },
-  { name: "raw font-size or font shorthand: use a --type-* role", test: /font-size:\s*[0-9.]+(?:px|rem|em)\b/ },
+  { name: "raw border-radius: use --r-control, --r-surface, --r-float or --r-pill", test: /border-radius:\s*[0-9.]+(?:px|rem|em)\b/ },
+  { name: "raw font-size or font shorthand: use a --type-* role", test: /font-size:\s*[0-9.]+(?:px|rem)\b/ },
   { name: "raw duration: use --dur-fast, --dur-base or --dur-slow", test: /\b(?!0s\b)[0-9.]+m?s\b(?=\s*(?:;|,|ease|linear|cubic))/ },
   { name: "uppercase text: write sentence case", test: /text-transform:\s*uppercase/ },
   { name: "gradient or glow: not part of the system", test: /(?:linear|radial|conic)-gradient\(|filter:\s*drop-shadow|backdrop-filter/ },

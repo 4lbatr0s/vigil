@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased: UI v2 (ADR-0016)
+## Unreleased: UI v2 (ADR-0016), then design system v3 (ADR-0029)
+
+- Design system v3 "Quiet paper": one system sans, a neutral palette, soft fills instead of boxes, one primary action per screen, and a component library (`apps/web/src/lib/ui`, built on Bits UI) used by every screen. The Notes screen, Today, Study, Agents, Chat, Approvals, Settings, the Tools pages, Graph and the Canvas list were rebuilt on it. New note is a dialog, secondary note actions are in a More menu, the no-model banner shows only where a model is needed, and every dialog and menu has real focus handling. Rules are in `docs/design/ui-rules.md` and `DESIGN.md`; `ui-lint.test.ts` fails on raw colours, sizes and durations, uppercase labels, gradients, accent stripes and per-route buttons.
 
 A note app first, with agents inside it.
 

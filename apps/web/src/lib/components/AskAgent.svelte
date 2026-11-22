@@ -1,9 +1,9 @@
 <script lang="ts">
-  import { tick } from "svelte";
   import { goto } from "$app/navigation";
   import type { Agent } from "@vigil/shared";
   import { ApiError, createChat, listAgents } from "$lib/api";
   import { askMessage, stashDraft } from "$lib/chat-draft";
+  import { Button, Dialog, Field, Select, Stack, Textarea } from "$lib/ui";
 
   let {
     open = $bindable(false),
@@ -17,20 +17,13 @@
   let instruction = $state("");
   let error = $state("");
   let busy = $state(false);
-  let box = $state<HTMLTextAreaElement | undefined>();
-  let dialogEl = $state<HTMLDivElement | undefined>();
   let loaded = $state(false);
-  let opener: Element | null = null;
 
   $effect(() => {
     if (!open) return;
-    opener = document.activeElement;
     error = "";
     loaded = false;
     void (async () => {
-      // Take focus out of the editor at once: anything typed while the agent list loads must not land in the note.
-      await tick();
-      dialogEl?.focus();
       try {
         // Any enabled agent that can read notes can be asked about one.
         agents = (await listAgents()).filter((a) => a.enabled && a.tools.includes("read_notes"));
@@ -39,15 +32,12 @@
         error = err instanceof Error ? err.message : "Could not load the agents";
       }
       loaded = true;
-      await tick();
-      box?.focus();
     })();
   });
 
   function close(): void {
     open = false;
     instruction = "";
-    if (opener instanceof HTMLElement) opener.focus();
   }
 
   async function submit(event: SubmitEvent): Promise<void> {
@@ -68,154 +58,70 @@
     }
   }
 
-  function onKeydown(event: KeyboardEvent): void {
-    if (event.key === "Escape") {
-      event.stopPropagation();
-      close();
-    }
-  }
 </script>
 
-{#if open}
-  <button type="button" class="scrim" aria-label="Close" onclick={close}></button>
-  <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="ask-title" tabindex="-1" bind:this={dialogEl} onkeydown={onKeydown}>
-    <h2 id="ask-title">Ask an agent</h2>
-    <form onsubmit={submit}>
+<Dialog bind:open title="Ask an agent">
+  <form id="ask-form" onsubmit={submit}>
+    <Stack gap={4}>
       {#if !loaded}
         <p class="muted">Loading agents…</p>
       {:else if agents.length === 0}
         <p class="muted">No enabled agent can read notes yet. <a href="/agents">Add or turn on an agent</a>.</p>
       {:else}
-        <label class="field">
-          <span>Agent</span>
-          <select bind:value={agent}>
-            {#each agents as a (a.name)}<option value={a.name}>{a.name}</option>{/each}
-          </select>
-        </label>
+        <Field label="Agent">
+          {#snippet children({ id })}
+            <Select {id} bind:value={agent}>{#each agents as a (a.name)}<option value={a.name}>{a.name}</option>{/each}</Select>
+          {/snippet}
+        </Field>
         {#if selection && selection.trim() !== ""}
           <p class="quote" aria-label="Selected text">{selection.trim().slice(0, 200)}{selection.trim().length > 200 ? "…" : ""}</p>
         {:else}
           <p class="muted">About the whole note “{title}”.</p>
         {/if}
-        <label class="field">
-          <span>What should it do?</span>
-          <textarea
-            bind:this={box}
-            rows="3"
-            bind:value={instruction}
-            placeholder="Summarise this, tighten the wording, find related notes…"
-            onkeydown={(e) => {
-              if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) e.currentTarget.form?.requestSubmit();
-            }}
-          ></textarea>
-        </label>
-        <p class="muted">Opens a chat with this filled in. Nothing is sent until you press Send there, and changes to notes still need your approval when the agent is in strict mode.</p>
+        <Field label="What should it do?" hint="Opens a chat with this filled in. Nothing is sent until you press Send there.">
+          {#snippet children({ id, describedby })}
+            <Textarea
+              {id}
+              aria-describedby={describedby}
+              rows={3}
+              bind:value={instruction}
+              placeholder="Summarise this, tighten the wording, find related notes…"
+              onkeydown={(e) => {
+                if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) e.currentTarget.form?.requestSubmit();
+              }}
+            />
+          {/snippet}
+        </Field>
       {/if}
       {#if error}<p class="error" role="alert">{error}</p>{/if}
-      <div class="actions">
-        <button type="button" class="btn" onclick={close}>Cancel</button>
-        <button type="submit" class="btn primary" disabled={busy || !loaded || agents.length === 0 || instruction.trim() === ""}>Open chat</button>
-      </div>
-    </form>
-  </div>
-{/if}
+    </Stack>
+  </form>
+  {#snippet actions()}
+    <Button variant="ghost" onclick={close}>Cancel</Button>
+    <Button variant="primary" type="submit" form="ask-form" disabled={busy || !loaded || agents.length === 0 || instruction.trim() === ""}>Open chat</Button>
+  {/snippet}
+</Dialog>
 
 <style>
-  .scrim {
-    position: fixed;
-    inset: 0;
-    z-index: 40;
-    background: color-mix(in srgb, var(--bg) 70%, transparent);
-  }
-
-  .dialog {
-    position: fixed;
-    z-index: 41;
-    top: 18vh;
-    left: 50%;
-    width: min(480px, calc(100vw - 2 * var(--space-4)));
-    transform: translateX(-50%);
-    padding: var(--space-6);
-    border: 1px solid var(--hairline);
-    border-radius: var(--radius-lg);
-    background: var(--surface);
-    box-shadow: var(--shadow-pop);
-  }
-
-  h2 {
-    margin-bottom: var(--space-4);
-    font-family: var(--font-serif);
-    font-size: var(--text-h3);
-  }
-
-  form {
-    display: grid;
-    gap: var(--space-3);
-  }
-
-  .field {
-    display: grid;
-    gap: var(--space-1);
-    font-size: var(--text-label);
-    color: var(--ink-muted);
-  }
-
-  select,
-  textarea {
-    padding: var(--space-2) var(--space-3);
-    border: 1px solid var(--hairline);
-    border-radius: var(--radius);
-    background: var(--bg);
-    font: inherit;
-    font-size: var(--text-ui);
-    color: var(--ink);
-  }
-
-  textarea {
-    resize: vertical;
-  }
-
-  .quote {
-    padding-left: var(--space-3);
-    border-left: 2px solid var(--hairline);
-    font-family: var(--font-serif);
-    color: var(--ink-muted);
+  p {
+    margin: 0;
   }
 
   .muted {
-    font-size: var(--text-label);
-    color: var(--ink-muted);
+    color: var(--text-2);
+    font: var(--weight-regular) var(--type-ui-size) / var(--type-ui-lh) var(--font-ui);
   }
 
   .error {
-    font-size: var(--text-label);
-    color: var(--err-ink);
+    color: var(--danger);
+    font: var(--weight-regular) var(--type-ui-size) / var(--type-ui-lh) var(--font-ui);
   }
 
-  .actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: var(--space-2);
-  }
-
-  .btn {
-    padding: var(--space-2) var(--space-4);
-    border: 1px solid var(--hairline);
-    border-radius: var(--radius);
-  }
-
-  .btn:hover:not(:disabled) {
-    background: var(--surface-hover);
-  }
-
-  .btn.primary {
-    background: var(--ink);
-    border-color: var(--ink);
-    color: var(--bg);
-  }
-
-  .btn:disabled {
-    opacity: 0.5;
-    cursor: default;
+  .quote {
+    padding: var(--s-2) var(--s-3);
+    border-radius: var(--r-control);
+    background: var(--fill-hover);
+    color: var(--text-2);
+    font: var(--weight-regular) var(--type-ui-size) / var(--type-ui-lh) var(--font-prose);
   }
 </style>

@@ -1,7 +1,7 @@
 # ADR-0029: Design system v3, "Quiet paper", built from own tokens and Bits UI
 
 ## Status
-Proposed (2026-11-22). Becomes Accepted when the owner has reviewed the `/design` page (WP-UI1, step 4). Once Accepted it supersedes the parts of ADR-0005, ADR-0016 and ADR-0018 listed below and section 0 and the controls table of `docs/design/ux-spec.md`.
+Accepted (2026-11-22), after the owner reviewed the `/design` page and the migrated Notes screen. It supersedes the parts of ADR-0005, ADR-0016 and ADR-0018 listed below and section 0 and the controls table of `docs/design/ux-spec.md`. Every screen is migrated; `ui-lint.test.ts` now checks every `.svelte` file.
 
 ## Context
 The owner finds the UI amateur and machine-made, and far from current note apps. A screenshot review (`docs/design/research/README.md`) and a code audit found:
@@ -32,7 +32,7 @@ The owner finds the UI amateur and machine-made, and far from current note apps.
 - Unchanged: Lucide icons, no emoji, contrast of at least 4.5:1, visible focus, reduced motion, first-load budget of 180 KB gzip.
 
 ## Consequences
-- Every screen is migrated in phases. Until a screen is migrated it keeps its old CSS, so for a while two looks coexist; the Notes screen goes first so the owner judges the direction on the screen used most.
+- The legacy tokens in `app.css` (`--bg`, `--surface`, `--hairline`, `--ink`, `--space-*`) are still defined because the Graph renderer, the canvas colours and some editor internals read them; new code uses `tokens.css` only. `contrast.test.ts` still guards the legacy hex values.
 - `bits-ui` adds weight to the first-load bundle; `pnpm check:bundle` must stay under 180 KB gzip.
 - Old per-route classes are deleted as screens migrate, not kept alongside.
 - The rules are only as good as the review: `vigil-ui-review` (screenshots at 390, 1024 and 1440 px, dark and light, plus Impeccable `audit` and `critique`) runs after every UI change.

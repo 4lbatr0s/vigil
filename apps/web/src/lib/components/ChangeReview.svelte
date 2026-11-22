@@ -96,11 +96,11 @@
 <style>
   .review {
     display: grid;
-    gap: var(--space-3);
-    padding: var(--space-3) var(--space-6);
-    border-bottom: 1px solid var(--hairline);
-    background: var(--surface-raised);
-    font-size: var(--text-label);
+    gap: var(--s-3);
+    padding: var(--s-3) var(--s-6);
+    border-bottom: 1px solid var(--line-soft);
+    background: var(--fill-hover);
+    font-size: var(--type-meta-size);
     max-height: 40vh;
     overflow: auto;
   }
@@ -114,49 +114,49 @@
     padding: 0;
     list-style: none;
     display: grid;
-    gap: var(--space-3);
+    gap: var(--s-3);
   }
   li {
     display: flex;
     flex-wrap: wrap;
-    gap: var(--space-3);
+    gap: var(--s-3);
     align-items: flex-start;
     justify-content: space-between;
   }
   .diff {
     flex: 1 1 320px;
     min-width: 0;
-    font-family: var(--font-mono);
-    border: 1px solid var(--hairline);
-    border-radius: var(--radius);
+    font-family: var(--font-code);
+    border: 1px solid var(--line-soft);
+    border-radius: var(--r-control);
     overflow: hidden;
   }
   .line {
-    padding: 2px var(--space-3);
+    padding: 2px var(--s-3);
     white-space: pre-wrap;
     overflow-wrap: anywhere;
-    color: var(--ink-muted);
+    color: var(--text-2);
   }
   .line.add {
-    color: var(--ink);
-    border-left: 3px solid var(--amber);
+    color: var(--text);
+    background: var(--agent-fill);
   }
   .line.del {
-    color: var(--ink-muted);
+    color: var(--text-2);
     text-decoration: line-through;
-    border-left: 3px solid var(--hairline);
+    background: var(--fill-hover);
   }
   .act {
-    padding: 2px var(--space-3);
-    border: 1px solid var(--hairline);
-    border-radius: var(--radius);
+    padding: 2px var(--s-3);
+    border: 1px solid var(--line-soft);
+    border-radius: var(--r-control);
     background: transparent;
-    color: var(--ink);
+    color: var(--text);
     font: inherit;
     cursor: pointer;
   }
   .act:hover:not(:disabled) {
-    background: var(--surface-hover);
+    background: var(--fill-selected);
   }
   .act:disabled {
     opacity: 0.5;
@@ -164,10 +164,10 @@
   }
   .muted {
     margin: 0;
-    color: var(--ink-muted);
+    color: var(--text-2);
   }
   .error {
     margin: 0;
-    color: var(--err-ink);
+    color: var(--danger);
   }
 </style>

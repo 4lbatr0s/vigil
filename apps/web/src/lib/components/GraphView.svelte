@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { Button, Input, Row } from "$lib/ui";
   import { onMount } from "svelte";
   import { goto } from "$app/navigation";
   import { createCanvas, getBacklinks, getGraph, saveCanvas, type Backlink } from "$lib/api";
@@ -143,7 +144,7 @@
           size: { attribute: "size", defaultValue: 3 },
           labelColor: token("--ink-muted"),
           labelSize: 12,
-          labelFont: "Schibsted Grotesk Variable, system-ui, sans-serif",
+          labelFont: "system-ui, -apple-system, sans-serif",
           backdropColor: token("--surface"),
           backdropShadowColor: "transparent",
           backdropShadowBlur: 0,
@@ -339,9 +340,9 @@
 
 <div class="graph">
   <div class="bar">
-    <input type="search" bind:value={query} placeholder="Find a note" aria-label="Find a note" />
-    <button type="button" class="act" aria-pressed={memoryView} onclick={() => ((memoryView = !memoryView), renderer?.refresh())} title="Color notes by how much of them you remember">Memory</button>
-    <button type="button" class="act" aria-pressed={listView} onclick={() => (listView = !listView)} disabled={!webgl}>{listView ? "Show graph" : "List view"}</button>
+    <span class="find"><Input type="search" bind:value={query} placeholder="Find a note" aria-label="Find a note" /></span>
+    <Button size="sm" pressed={memoryView} onclick={() => ((memoryView = !memoryView), renderer?.refresh())}>Memory</Button>
+    <Button size="sm" pressed={listView} onclick={() => (listView = !listView)} disabled={!webgl}>{listView ? "Show graph" : "List view"}</Button>
     {#if data?.truncated}<span class="muted">Showing the 3000 most recent notes.</span>{/if}
   </div>
 
@@ -357,16 +358,15 @@
     <div class="list" aria-label="Notes by connections">
       {#each groups as g (g.label)}
         <h2>{g.label}</h2>
-        <ul>
+        <div class="rows">
           {#each g.nodes.filter((n) => matchesQuery(n.title, query)) as n (n.id)}
-            <li>
-              <button type="button" class="item" onclick={() => (n.ghost ? undefined : openNote(n.id))} disabled={n.ghost}>
-                <span class="title">{n.title}</span>
-                <span class="meta">{#if memoryView && n.memory}{memoryLine(n.memory)} · {/if}{n.degree} {n.degree === 1 ? "link" : "links"}{#if data && agentsTouching(data, n.id).length > 0} · {agentsTouching(data, n.id).join(", ")}{/if}</span>
-              </button>
-            </li>
+            {#if n.ghost}
+              <p class="ghost muted">{n.title} · linked but not written yet</p>
+            {:else}
+              <Row title={n.title} snippet={`${memoryView && n.memory ? `${memoryLine(n.memory)} · ` : ""}${n.degree} ${n.degree === 1 ? "link" : "links"}${data && agentsTouching(data, n.id).length > 0 ? ` · ${agentsTouching(data, n.id).join(", ")}` : ""}`} onclick={() => openNote(n.id)} />
+            {/if}
           {/each}
-        </ul>
+        </div>
       {/each}
     </div>
   {:else}
@@ -382,23 +382,25 @@
   {#if selectedNode}
     <aside class="panel" aria-label="Selected">
       <h2>{selectedNode.title}</h2>
-      {#if selectedNode.updatedAt}<p class="mono muted">{formatStamp(selectedNode.updatedAt)}</p>{/if}
+      {#if selectedNode.updatedAt}<p class="muted">{formatStamp(selectedNode.updatedAt)}</p>{/if}
       {#if selectedNode.ghost}
         <p class="muted">Linked but not written yet.</p>
       {:else}
         {#if selectedNode.memory}<p class="muted">{memoryLine(selectedNode.memory)}</p>{/if}
-        <button type="button" class="act primary" onclick={() => openNode(selectedNode.id)}>{selectedNode.kind === "agent" ? "Open agent" : "Open note"}</button>
-        {#if selectedNode.kind === "note" && selectedNode.memory}
-          {#if selectedNode.memory.cards > 0}<a class="act" href={`/study?note=${encodeURIComponent(selectedNode.id)}`}>Study this note</a>{/if}
-          <a class="act" href={`/recall?note=${encodeURIComponent(selectedNode.id)}`}>Recall check</a>
-        {/if}
-        {#if selectedNode.kind === "note"}<button type="button" class="act" onclick={() => void toCanvas(selectedNode.id)}>Put it and its neighbours on a canvas</button>{/if}
+        <div class="acts">
+          <Button variant="primary" onclick={() => openNode(selectedNode.id)}>{selectedNode.kind === "agent" ? "Open agent" : "Open note"}</Button>
+          {#if selectedNode.kind === "note" && selectedNode.memory}
+            {#if selectedNode.memory.cards > 0}<Button href={`/study?note=${encodeURIComponent(selectedNode.id)}`}>Study this note</Button>{/if}
+            <Button href={`/recall?note=${encodeURIComponent(selectedNode.id)}`}>Recall check</Button>
+          {/if}
+          {#if selectedNode.kind === "note"}<Button onclick={() => void toCanvas(selectedNode.id)}>Put it and its neighbours on a canvas</Button>{/if}
+        </div>
       {/if}
       {#if backlinks.length > 0}
         <h3>Linked from</h3>
         <ul>{#each backlinks as b (b.id)}<li><a href={`/?note=${encodeURIComponent(b.id)}`}>{b.title || b.id}</a></li>{/each}</ul>
       {/if}
-      <button type="button" class="act" onclick={clearSelection}>Close</button>
+      <div><Button variant="ghost" onclick={clearSelection}>Close</Button></div>
     </aside>
   {/if}
 </div>
@@ -408,34 +410,29 @@
     /* Fill the content area exactly: the canvas needs a real, non-zero height when it starts. */
     position: absolute;
     inset: 0;
-    background: var(--bg);
+    /* The drawing backdrop is read from the legacy --surface colour (it must be a plain hex for the renderer), so the page matches it. */
+    background: var(--surface);
     overflow: hidden;
   }
+
   .bar {
     position: absolute;
-    top: var(--space-3);
-    left: var(--space-3);
-    right: var(--space-3);
+    top: var(--s-3);
+    left: var(--s-3);
+    right: var(--s-3);
     z-index: 3;
     display: flex;
     flex-wrap: wrap;
-    gap: var(--space-2);
+    gap: var(--s-2);
     align-items: center;
   }
-  .bar :global(button) {
-    white-space: nowrap;
-  }
-  .bar input {
+
+  .find {
     flex: 1 1 8rem;
+    max-width: 22rem;
     min-width: 0;
   }
-  input {
-    padding: var(--space-1) var(--space-3);
-    border: 1px solid var(--hairline);
-    border-radius: var(--radius);
-    background: var(--surface);
-    font-size: var(--text-ui);
-  }
+
   .canvas,
   .overlay {
     position: absolute;
@@ -443,92 +440,88 @@
     width: 100%;
     height: 100%;
   }
+
   .overlay {
     pointer-events: none;
     z-index: 1;
   }
+
   .legend {
     position: absolute;
-    left: var(--space-3);
-    right: var(--space-3);
-    bottom: var(--space-3);
+    left: var(--s-3);
+    right: var(--s-3);
+    bottom: var(--s-3);
     z-index: 2;
-    padding: var(--space-1) var(--space-2);
-    border-radius: var(--radius);
-    background: color-mix(in srgb, var(--bg) 80%, transparent);
-    font-size: var(--text-label);
+    margin: 0;
+    padding: var(--s-1) var(--s-2);
+    border-radius: var(--r-control);
+    background: var(--surface);
   }
+
   .notice {
     position: absolute;
     top: 96px;
-    left: var(--space-3);
+    left: var(--s-3);
     z-index: 3;
-    font-size: var(--text-label);
-    color: var(--ink-muted);
+    margin: 0;
+    color: var(--text-2);
+    font: var(--weight-regular) var(--type-ui-size) / var(--type-ui-lh) var(--font-ui);
   }
+
   .center {
     position: absolute;
     inset: 0;
     display: grid;
     place-items: center;
-    padding: var(--space-6);
+    margin: 0;
+    padding: var(--s-6);
     text-align: center;
   }
+
   .muted {
-    color: var(--ink-muted);
+    color: var(--text-2);
+    font: var(--weight-regular) var(--type-ui-size) / var(--type-ui-lh) var(--font-ui);
   }
+
   .err {
-    color: var(--err-ink);
+    color: var(--danger);
   }
+
   .list {
     position: absolute;
     inset: 56px 0 0 0;
     overflow-y: auto;
-    padding: var(--space-2) var(--space-6) var(--space-6);
+    padding: var(--s-2) var(--s-6) var(--s-6);
   }
+
   @media (max-width: 639px) {
     .list {
       inset: 128px 0 0 0;
-      padding-inline: var(--space-4);
+      padding-inline: var(--s-4);
     }
   }
+
   .list h2 {
-    font-size: var(--text-label);
-    font-weight: 600;
-    color: var(--ink-muted);
-    margin: var(--space-4) 0 var(--space-1);
+    margin: var(--s-4) 0 var(--s-1);
+    color: var(--text-2);
+    font: var(--weight-medium) var(--type-ui-size) / var(--type-ui-lh) var(--font-ui);
   }
+
+  .rows {
+    margin: 0 calc(var(--s-3) * -1);
+  }
+
+  .ghost {
+    margin: 0;
+    padding: var(--s-2) var(--s-3);
+  }
+
   ul {
     list-style: none;
     margin: 0;
     padding: 0;
   }
-  .item {
-    display: flex;
-    justify-content: space-between;
-    gap: var(--space-4);
-    width: 100%;
-    padding: var(--space-2);
-    border-bottom: 1px solid var(--hairline);
-    text-align: left;
-  }
-  .item:hover:not(:disabled) {
-    background: var(--surface);
-  }
-  .item:disabled {
-    color: var(--ink-muted);
-    cursor: default;
-  }
-  .title {
-    font-family: var(--font-serif);
-    font-size: var(--text-prose);
-  }
-  .meta,
-  .mono {
-    font-family: var(--font-mono);
-    font-size: var(--text-label);
-    color: var(--ink-muted);
-  }
+
   .panel {
     position: absolute;
     top: 0;
@@ -536,37 +529,34 @@
     bottom: 0;
     z-index: 4;
     width: min(320px, 100%);
-    padding: var(--space-4);
-    background: var(--surface);
-    border-left: 1px solid var(--hairline);
-    display: grid;
-    align-content: start;
-    gap: var(--space-3);
+    padding: var(--s-4);
+    background: var(--paper-float);
+    box-shadow: var(--elev-float);
+    display: flex;
+    flex-direction: column;
+    gap: var(--s-3);
     overflow-y: auto;
   }
+
+  .panel p {
+    margin: 0;
+  }
+
   .panel h2 {
-    font-family: var(--font-serif);
-    font-size: var(--text-h3);
-    font-weight: 600;
+    margin: 0;
+    font: var(--weight-strong) var(--type-heading-size) / var(--type-heading-lh) var(--font-ui);
   }
+
   .panel h3 {
-    font-size: var(--text-label);
-    color: var(--ink-muted);
+    margin: 0;
+    color: var(--text-2);
+    font: var(--weight-medium) var(--type-ui-size) / var(--type-ui-lh) var(--font-ui);
   }
-  .act {
-    padding: var(--space-1) var(--space-3);
-    border: 1px solid var(--hairline);
-    border-radius: var(--radius);
-    background: var(--surface);
-    font-size: var(--text-label);
-    justify-self: start;
-  }
-  .act.primary {
-    background: var(--ink);
-    color: var(--bg);
-    border-color: var(--ink);
-  }
-  .act:disabled {
-    opacity: 0.5;
+
+  .acts {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--s-2);
   }
 </style>

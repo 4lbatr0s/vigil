@@ -2,7 +2,7 @@
 
 Short, imperative, checkable. Source of truth for how UI is written in `apps/web`. Reasons are in [ADR-0029](../adr/0029-design-system-v3.md); the product and its users are in [`PRODUCT.md`](../../PRODUCT.md). Read these first, then `apps/web/src/lib/styles/tokens.css`, then the `/design` page (`pnpm --filter @vigil/web dev`, open `/design`).
 
-Until the owner accepts ADR-0029 these rules apply to `src/lib/ui/`, `/design` and every file listed in `MIGRATED` in `apps/web/src/lib/ui-lint.test.ts`. Legacy screens keep their old CSS until migrated, one screen per commit.
+These rules apply to every `.svelte` file under `apps/web/src`; `ui-lint.test.ts` checks them. Its `LEGACY` list is empty and must stay that way.
 
 ## Build
 
@@ -40,4 +40,4 @@ Until the owner accepts ADR-0029 these rules apply to `src/lib/ui/`, `/design` a
 - `pnpm typecheck && pnpm test` (includes `ui-lint.test.ts`).
 - Screenshot the screen at 390, 1024 and 1440 px in light and dark. Look at them.
 - `impeccable detect --json --changed` from `apps/web`, then `/impeccable critique` for anything new.
-- Add the files you migrated to `MIGRATED` in `ui-lint.test.ts`.
+- Never add a file to `LEGACY` in `ui-lint.test.ts`: fix the file.

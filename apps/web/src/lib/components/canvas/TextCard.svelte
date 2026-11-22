@@ -56,7 +56,7 @@
 </script>
 
 <NodeResizer isVisible={selected} minWidth={120} minHeight={60} onResizeEnd={() => board.commit()} />
-<div class="card" class:scrolls={selected} style:--accent={color} ondblclick={start} role="group" aria-label="Text card">
+<div class="node" class:scrolls={selected} style:--accent={color} ondblclick={start} role="group" aria-label="Text card">
   {#if editing}
     <textarea
       bind:this={area}
@@ -85,50 +85,50 @@
 <Handles />
 
 <style>
-  .card {
+  .node {
     box-sizing: border-box;
     width: 100%;
     height: 100%;
     overflow: hidden;
-    padding: var(--space-3);
-    border: 1.5px solid var(--accent, var(--hairline));
-    border-radius: var(--radius);
-    background: color-mix(in srgb, var(--surface) 90%, var(--accent, var(--surface)));
-    color: var(--ink);
-    font-size: var(--text-ui);
+    padding: var(--s-3);
+    border: 1.5px solid var(--accent, var(--line-soft));
+    border-radius: var(--r-control);
+    background: color-mix(in srgb, var(--paper-float) 90%, var(--accent, var(--paper-float)));
+    color: var(--text);
+    font-size: var(--type-ui-size);
   }
-  .card.scrolls {
+  .node.scrolls {
     overflow: auto;
   }
   .prose :global(h1),
   .prose :global(h2),
   .prose :global(h3) {
-    font-family: var(--font-serif);
+    font-family: var(--font-prose);
     font-weight: 600;
     line-height: 1.25;
-    margin: 0 0 var(--space-1);
+    margin: 0 0 var(--s-1);
   }
   .prose :global(h1) {
-    font-size: var(--text-h3);
+    font-size: var(--type-heading-size);
   }
   .prose :global(h2) {
-    font-size: calc(var(--text-ui) * 1.15);
+    font-size: calc(var(--type-ui-size) * 1.15);
   }
   .prose :global(h3) {
-    font-size: var(--text-ui);
+    font-size: var(--type-ui-size);
   }
   .prose :global(code) {
-    padding: 0 var(--space-1);
-    border-radius: var(--radius);
-    background: var(--surface-hover);
-    font-family: var(--font-mono);
+    padding: 0 var(--s-1);
+    border-radius: var(--r-control);
+    background: var(--fill-selected);
+    font-family: var(--font-code);
     font-size: 0.9em;
   }
   .prose :global(pre) {
-    margin: 0 0 var(--space-2);
-    padding: var(--space-2);
-    border-radius: var(--radius);
-    background: var(--surface-hover);
+    margin: 0 0 var(--s-2);
+    padding: var(--s-2);
+    border-radius: var(--r-control);
+    background: var(--fill-selected);
     overflow: auto;
   }
   .prose :global(pre code) {
@@ -136,49 +136,50 @@
     background: transparent;
   }
   .prose :global(blockquote) {
-    margin: 0 0 var(--space-2);
-    padding-left: var(--space-3);
-    border-left: 3px solid var(--hairline);
-    color: var(--ink-muted);
+    margin: 0 0 var(--s-2);
+    padding: var(--s-1) var(--s-3);
+    border-radius: var(--r-control);
+    background: var(--fill-hover);
+    color: var(--text-2);
   }
   .prose :global(table) {
     border-collapse: collapse;
-    margin: 0 0 var(--space-2);
-    font-size: var(--text-label);
+    margin: 0 0 var(--s-2);
+    font-size: var(--type-meta-size);
   }
   .prose :global(th),
   .prose :global(td) {
-    padding: var(--space-1) var(--space-2);
-    border: 1px solid var(--hairline);
+    padding: var(--s-1) var(--s-2);
+    border: 1px solid var(--line-soft);
     text-align: left;
   }
   .prose :global(a) {
-    color: var(--ink);
+    color: var(--text);
     text-decoration: underline;
   }
   .prose :global(hr) {
     border: 0;
-    border-top: 1px solid var(--hairline);
+    border-top: 1px solid var(--line-soft);
   }
   .prose :global(p) {
-    margin: 0 0 var(--space-2);
+    margin: 0 0 var(--s-2);
   }
   .prose :global(ul),
   .prose :global(ol) {
-    margin: 0 0 var(--space-2);
-    padding-left: var(--space-4);
+    margin: 0 0 var(--s-2);
+    padding-left: var(--s-4);
   }
   .progress {
     display: flex;
     align-items: center;
-    gap: var(--space-2);
-    margin-top: var(--space-2);
+    gap: var(--s-2);
+    margin-top: var(--s-2);
   }
   .bar {
     flex: 1;
     height: 4px;
-    border-radius: 2px;
-    background: var(--hairline);
+    border-radius: var(--r-pill);
+    background: var(--line-soft);
     overflow: hidden;
   }
   .fill {
@@ -187,8 +188,8 @@
     background: var(--canvas-4);
   }
   .count {
-    color: var(--ink-muted);
-    font-size: var(--text-label);
+    color: var(--text-2);
+    font-size: var(--type-meta-size);
   }
   .prose :global(input[type="checkbox"]) {
     cursor: pointer;
@@ -200,12 +201,12 @@
     border: 0;
     resize: none;
     background: transparent;
-    color: var(--ink);
+    color: var(--text);
     font: inherit;
     outline: none;
   }
   .hint {
-    color: var(--ink-muted);
+    color: var(--text-2);
     margin: 0;
   }
 </style>
