@@ -6,8 +6,10 @@
     ApiError,
     createChat,
     deleteChat,
+    getAgent,
     getChat,
     getLlmStatus,
+    getModelCaps,
     listAgents,
     listChats,
     saveChat,
@@ -15,10 +17,12 @@
     type ChatMessage,
     type ChatThread,
   } from "$lib/api";
+  import type { Agent } from "@vigil/shared";
   import { takeDraft } from "$lib/chat-draft";
   import { applyLine, emptyLive, lastIsUser, speakerOf, type Live } from "$lib/chat-view";
   import { agoText } from "$lib/format";
   import { refreshOnLive } from "$lib/live";
+  import { capabilityWarnings, type ModelCaps } from "$lib/model-caps";
   import Ellipsis from "@lucide/svelte/icons/ellipsis";
   import Plus from "@lucide/svelte/icons/plus";
   import { Button, Dialog, EmptyState, Field, IconButton, Menu, Row, Select, Textarea } from "$lib/ui";
@@ -39,6 +43,33 @@
   let saved = $state<{ id: string } | null>(null);
   let box = $state<HTMLTextAreaElement | undefined>();
   let scroller = $state<HTMLDivElement | null>(null);
+
+  /** What the chat agent's model can do, so a model that cannot use tools is named before the first message. */
+  let caps = $state<ModelCaps | null>(null);
+  let chatAgent = $state<Agent | null>(null);
+  const modelWarnings = $derived(chatAgent ? capabilityWarnings({ tools: chatAgent.tools.length > 0, pictures: false }, caps) : []);
+  $effect(() => {
+    const name = thread?.agent;
+    caps = null;
+    chatAgent = null;
+    if (!name) return;
+    let stale = false;
+    void (async () => {
+      try {
+        const a = await getAgent(name);
+        const c = await getModelCaps({ ...(a.connection ? { connection: a.connection } : {}), ...(a.model ? { model: a.model } : {}) });
+        if (!stale) {
+          chatAgent = a;
+          caps = c;
+        }
+      } catch {
+        // No warning is better than a wrong one.
+      }
+    })();
+    return () => {
+      stale = true;
+    };
+  });
 
   const streaming = $derived(live !== null && !live.done && live.error === null && controller !== null);
   const waiting = $derived(live?.waitingForApproval === true || (!streaming && lastIsUser(messages) && live === null));
@@ -238,6 +269,8 @@
         </div>
       </header>
 
+      {#each modelWarnings as w (w)}<p class="warn" role="note">{w}</p>{/each}
+
       <div class="messages" bind:this={scroller} aria-live="polite">
         {#each messages as m (m.seq)}
           <article class="msg" class:user={m.role === "user"} class:err={m.role === "error"}>
@@ -423,6 +456,14 @@
     margin: 0;
     padding: 0 var(--s-6);
     color: var(--danger);
+    font: var(--weight-regular) var(--type-ui-size) / var(--type-ui-lh) var(--font-ui);
+  }
+
+  .warn {
+    margin: 0 var(--s-6);
+    padding: var(--s-2) var(--s-3);
+    border-radius: var(--r-control);
+    background: var(--danger-fill);
     font: var(--weight-regular) var(--type-ui-size) / var(--type-ui-lh) var(--font-ui);
   }
 

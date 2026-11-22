@@ -3,10 +3,11 @@
   import { goto } from "$app/navigation";
   import { page } from "$app/state";
   import { AgentNameSchema, type Agent, type PermissionSettings, type Run, type ToolGrant } from "@vigil/shared";
-  import { ApiError, createChat, getAgent, getAgentSkill, listAgents, listConnections, probeConnection, type Connection, getPermissions, getSchedule, listRuns, putAgent, runAgent, type Schedule } from "$lib/api";
+  import { ApiError, createChat, getModelCaps, getAgent, getAgentSkill, listAgents, listConnections, probeConnection, type Connection, getPermissions, getSchedule, listRuns, putAgent, runAgent, type Schedule } from "$lib/api";
   import { duplicateAgent } from "$lib/agent-design";
   import { TOOL_LABELS, addHost, agentToForm, describeGrants, exposure, formToAgent, noHostsWarning, riskyCombination, triggerProblem, type AgentForm } from "$lib/agent-form";
   import { describeCheck, formatStamp } from "$lib/format";
+  import { capabilityWarnings, type ModelCaps } from "$lib/model-caps";
   import { refreshOnLive } from "$lib/live";
   import { describeTrigger, describeTriggerSentence, statusDot } from "$lib/schedule";
   import StatusDot from "$lib/components/StatusDot.svelte";
@@ -33,6 +34,25 @@
   const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
   const TOOLS: ToolGrant[] = ["read_notes", "write_notes", "web_fetch", "call_agents"];
   const problem = $derived(agent && form ? triggerProblem(form, agent) : null);
+
+  /** What the agent's model can do, when its provider says (Ollama does). Warns before a run fails for it. */
+  let caps = $state<ModelCaps | null>(null);
+  const modelWarnings = $derived(agent && form ? capabilityWarnings({ tools: form.tools.length > 0, pictures: false }, caps) : []);
+  $effect(() => {
+    const connection = form?.connection ?? "";
+    const model = form?.model ?? "";
+    let stale = false;
+    getModelCaps({ ...(connection ? { connection } : {}), ...(model ? { model } : {}) })
+      .then((c) => {
+        if (!stale) caps = c;
+      })
+      .catch(() => {
+        if (!stale) caps = null;
+      });
+    return () => {
+      stale = true;
+    };
+  });
 
   /** The models of the connection this agent uses (its own, else the default), for the model list. */
   async function loadModels(): Promise<void> {
@@ -238,6 +258,8 @@
         {#if agent.description}<p class="muted">{agent.description}</p>{/if}
         {#if runError}<p class="error" role="alert">{runError}</p>{/if}
       </header>
+
+      {#each modelWarnings as w (w)}<p class="warn" role="note">{w}</p>{/each}
 
       {#if !agent.enabled}
         <section class="notice" aria-labelledby="turn-on-title">

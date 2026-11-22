@@ -35,7 +35,8 @@ import { planRename, renameNote } from "./rename";
 import { refreshSchedule } from "./scheduler";
 import { llmStatus } from "./llm-status";
 import { SaveBodySchema, createCanvas, listCanvases, readCanvas, removeCanvas, saveCanvas } from "./canvas";
-import { ConnectionInputSchema, ProbeInputSchema, createConnection, listConnections, probeConnection, removeConnection, savedKey, setDefaultConnection, updateConnection } from "./connections";
+import { ConnectionInputSchema, ProbeInputSchema, createConnection, listConnections, probeConnection, removeConnection, resolveConnection, savedKey, setDefaultConnection, updateConnection } from "./connections";
+import { UNKNOWN_CAPS, modelCaps } from "./model-caps";
 import { usage } from "./usage";
 import { getRunResult } from "./state-db";
 import { exportTsv } from "./anki-export";
@@ -817,6 +818,25 @@ const routes: { method: string; pattern: RegExp; keys: string[]; handler: Handle
       const parsed = ConnectionInputSchema.safeParse(await readJsonBody(req));
       if (!parsed.success) throw new AppError("invalid-body", `Invalid connection: ${parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ")}`, 400);
       send(res, 201, { data: createConnection(parsed.data) });
+    },
+  },
+  {
+    // What a model can do (tools, pictures, context size), when its provider says. `known: false` means "could not tell".
+    method: "GET",
+    pattern: /^\/api\/llm\/capabilities$/,
+    keys: [],
+    handler: async (req, res) => {
+      const query = new URL(req.url ?? "/", "http://localhost").searchParams;
+      let caps = { ...UNKNOWN_CAPS };
+      try {
+        const conn = resolveConnection(query.get("connection") || undefined);
+        const model = query.get("model") || conn.model || "";
+        if (model !== "") caps = await modelCaps(conn, model);
+      } catch (err) {
+        // No model is connected yet, or the saved connection is gone: nothing to report, not an error.
+        if (!isAppError(err)) throw err;
+      }
+      send(res, 200, { data: caps });
     },
   },
   {

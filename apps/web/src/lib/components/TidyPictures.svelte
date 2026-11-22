@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { ApiError, getImageSettings, getUnusedImages, putImageSettings, tidyImages } from "$lib/api";
+  import { ApiError, getImageSettings, getModelCaps, getUnusedImages, putImageSettings, tidyImages } from "$lib/api";
+  import { capabilityWarnings, type ModelCaps } from "$lib/model-caps";
   import { Button, Dialog, Stack, Switch } from "$lib/ui";
 
   let unused = $state<{ count: number; bytes: number } | null>(null);
@@ -9,6 +10,8 @@
   let error = $state("");
   let busy = $state(false);
   let sees = $state(false);
+  let caps = $state<ModelCaps | null>(null);
+  const visionWarning = $derived(sees ? (capabilityWarnings({ tools: false, pictures: true }, caps).find((w) => w.includes("pictures")) ?? "") : "");
 
   const size = (bytes: number): string => (bytes >= 1_048_576 ? `${(bytes / 1_048_576).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`);
 
@@ -16,6 +19,7 @@
     try {
       unused = await getUnusedImages();
       sees = (await getImageSettings()).agentsSeePictures;
+      caps = await getModelCaps().catch(() => null);
     } catch (err) {
       error = err instanceof Error ? err.message : "Could not check your pictures";
     }
@@ -53,6 +57,7 @@
     <Stack gap={3}>
       <Switch label="Let the card maker and recall checker see the pictures in a note" checked={sees} onchange={(on) => void setSees(on)} />
       <p class="muted">Needs a model that can read images. The pictures go to your model provider.</p>
+      {#if visionWarning}<p class="error" role="note">{visionWarning} (Your default model.)</p>{/if}
       {#if unused.count === 0}
         <p class="muted">{notice || "Every picture in your vault is used by a note."}</p>
       {:else}

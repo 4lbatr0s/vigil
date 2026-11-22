@@ -138,6 +138,13 @@ describe("json api", () => {
     expect((await req("GET", "/api/graph?focus=nothing-here")).json.data).toEqual({ nodes: [], edges: [], truncated: false });
   });
 
+  it("reports model capabilities as unknown when there is no model or the provider does not say", async () => {
+    const res = await req("GET", "/api/llm/capabilities");
+    expect(res.status).toBe(200);
+    expect(res.json.data).toEqual({ known: false, tools: null, vision: null, contextTokens: null });
+    expect((await req("GET", "/api/llm/capabilities?model=gpt-test")).json.data).toMatchObject({ known: false });
+  });
+
   it("caps a long backlink snippet at 160 characters", async () => {
     await req("PUT", "/api/notes/bl-long", { title: "BL Long", body: `[[Cap target]] ${"x".repeat(400)}` });
     const rows = (await req("GET", "/api/notes/cap-target/backlinks")).json.data as Array<{ snippet: string }>;

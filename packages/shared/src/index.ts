@@ -189,6 +189,7 @@ export const PermissionSettingsSchema = z.object({
 });
 export type PermissionSettings = z.infer<typeof PermissionSettingsSchema>;
 
+export * from "./citations";
 export * from "./templates";
 export * from "./skill";
 

@@ -291,6 +291,15 @@ export type Usage = { month: string; tokens: number; cap: number | null; level: 
 export type LlmStatus = { provider: string; baseUrl: string; model: string | null; hasKey: boolean; reachable: boolean | null; connection: { id: string; name: string } | null };
 
 export const getUsage = () => request<Usage>("/api/usage");
+/** What a model can do (tools, pictures, window size). With no arguments: the default connection's default model. */
+export const getModelCaps = (opts: { connection?: string; model?: string } = {}) => {
+  const q = new URLSearchParams();
+  if (opts.connection) q.set("connection", opts.connection);
+  if (opts.model) q.set("model", opts.model);
+  const qs = q.toString();
+  return request<import("./model-caps").ModelCaps>(`/api/llm/capabilities${qs ? `?${qs}` : ""}`);
+};
+
 export const getLlmStatus = (probe = false) => request<LlmStatus>(`/api/llm/status${probe ? "?probe=1" : ""}`);
 export const getPermissions = () => request<PermissionSettings>("/api/settings/permissions");
 export const putPermissions = (settings: PermissionSettings) => request<PermissionSettings>("/api/settings/permissions", json("PUT", settings));

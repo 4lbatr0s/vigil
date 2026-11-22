@@ -10,7 +10,7 @@ A self-hosted, single-user notes app where AI agents keep vigil: they read notes
 
 - **Runtime and tooling:** Node 24, pnpm 11 workspaces, TypeScript 5.7 (`strict`, `noUncheckedIndexedAccess`), ESM only, vitest.
 - **Server (`apps/server`):** plain `node:http` with a hand-written router (`http.ts`), `better-sqlite3` (plain SQL, no ORM, ADR-0008), `chokidar` (watcher), `gray-matter` (frontmatter), `zod` 4.
-- **Agents:** LangGraph JS `@langchain/langgraph` 1.7.4, `@langchain/core` 1.4.1, `@langchain/openai` 1.8.4, `@langchain/ollama` 1.3.0, all pinned exactly (ADR-0009). Models are bring-your-own-key: any OpenAI-compatible endpoint or Ollama.
+- **Agents:** LangGraph JS `@langchain/langgraph` 1.7.4, `@langchain/core` 1.4.1, `@langchain/openai` 1.8.4, `@langchain/ollama` 1.3.0, `@langchain/anthropic` 1.6.1, `@langchain/langgraph-checkpoint-sqlite` 1.1.0, all pinned exactly (ADR-0009, ADR-0031). Models are bring-your-own-key: any OpenAI-compatible endpoint, Anthropic or Ollama. Model calls retry on 429, 5xx and dropped connections; Anthropic calls use prompt caching. No coding-agent harness runs inside the app (ADR-0031).
 - **Web (`apps/web`):** SvelteKit 2 + Svelte 5, Vite 7, CodeMirror 6, `marked` + DOMPurify, jsdom for tests. Becomes a static SPA served by the API server (ADR-0014).
 - **Shared (`packages/shared`):** zod schemas and `slugify`; the only place cross-boundary types live.
 - **Later packages (pin exact versions when added):** `cron-parser` (WP2), `@langchain/langgraph-checkpoint-sqlite` (WP8), `sigma` + `graphology` (WP11), `@sveltejs/adapter-static`, `esbuild`, Lucide icons for Svelte (WP4, WP12).
