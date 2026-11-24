@@ -10,7 +10,7 @@ import { truncate, MAX_TOOL_OUTPUT } from "./agent-tools";
 import { closeDb, getNote as indexGet, reindexNote } from "./index-db";
 import { withNoteLock } from "./lock";
 import { modelFactoryFromEnv, redact, type ModelFactory } from "./llm";
-import { setRunDeps, startRun, undoRun, waitForRuns } from "./runs";
+import { cancelRun, setRunDeps, startRun, undoRun, waitForRuns } from "./runs";
 import { closeState, createRun, finishRun, getRun, listEvents, listSnapshots, putAgent, recordSnapshot } from "./state-db";
 import { createNote, getNote, readNoteFile, updateNote } from "./vault";
 
@@ -304,3 +304,23 @@ describe("provider adapter", () => {
   });
 });
 
+
+describe("cancelling a run", () => {
+  it("stops a manual run that waits for the model, as failed with the error cancelled", async () => {
+    const hang: ModelFactory = () => ({ invoke: () => new Promise<AIMessage>(() => {}) });
+    const a = agent({ tools: ["read_notes"] });
+    putAgent(a);
+    setRunDeps({ makeModel: hang });
+    const started = startRun(a.name);
+    expect(cancelRun(started.id).id).toBe(started.id);
+    await waitForRuns();
+    expect(getRun(started.id)).toMatchObject({ status: "failed", error: "cancelled" });
+  });
+
+  it("answers 409 for a run that is not in progress, and 404 for an unknown run", async () => {
+    const { make } = scripted([say("done")]);
+    const finished = await run(agent({ tools: ["read_notes"] }), make);
+    expect(() => cancelRun(finished.id)).toThrowError(expect.objectContaining({ status: 409 }));
+    expect(() => cancelRun("nope")).toThrowError(expect.objectContaining({ status: 404 }));
+  });
+});

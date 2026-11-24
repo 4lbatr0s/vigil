@@ -30,7 +30,7 @@ import { chatTurn, chatWithMessages, newChat, removeChat, saveChatAsNote, type C
 import { cronError, nextTickAfter } from "./cron";
 import { buildGraphData } from "./graph";
 import { attachStream } from "./events";
-import { bodyBeforeRun, resumeRun, startRun, undoRun } from "./runs";
+import { bodyBeforeRun, cancelRun, resumeRun, startRun, undoRun } from "./runs";
 import { getPermissions, putPermissions } from "./permissions";
 import { planRename, renameNote } from "./rename";
 import { refreshSchedule } from "./scheduler";
@@ -1164,6 +1164,14 @@ const routes: { method: string; pattern: RegExp; keys: string[]; handler: Handle
       const after = rawAfter === null ? 0 : Number(rawAfter);
       if (!Number.isInteger(after) || after < 0) throw new AppError("invalid-query", "after must be a whole number, 0 or more", 400);
       send(res, 200, { data: { run, events: listEvents(run.id, after) } });
+    },
+  },
+  {
+    method: "POST",
+    pattern: /^\/api\/runs\/([^/]+)\/cancel$/,
+    keys: ["id"],
+    handler: (_req, res, params) => {
+      send(res, 202, { data: cancelRun(params["id"] ?? "") });
     },
   },
   {

@@ -89,7 +89,7 @@ export const runAgent: AgentRunner = async ({ agent, task, runId, makeModel, dep
     createRun(childRunId, name, budget, "call", runId);
     let outcome: RunOutcome;
     try {
-      outcome = await runAgent({ agent: { ...child, tokenBudget: budget }, task: message, runId: childRunId, makeModel, depth: 1 });
+      outcome = await runAgent({ agent: { ...child, tokenBudget: budget }, task: message, runId: childRunId, makeModel, depth: 1, ...(signal ? { signal } : {}) });
     } catch (err) {
       outcome = { status: "failed", tokensUsed: 0, error: redact(err instanceof Error ? err.message : "child run failed") };
     }

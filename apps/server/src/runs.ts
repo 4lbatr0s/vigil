@@ -32,6 +32,8 @@ type Deps = { runner: AgentRunner; makeModel: ModelFactory };
 // The model is built per call from the current environment, so a changed env needs no restart.
 let deps: Deps = { runner: runAgent, makeModel: (tools, options) => modelFactoryFromConnections()(tools, options) };
 const inFlight = new Set<Promise<void>>();
+/** One controller per run that is executing now, so the owner can cancel it. */
+const controllers = new Map<string, AbortController>();
 
 /** Tests swap in a fake runner or model. */
 export function setRunDeps(next: Partial<Deps>): void {
@@ -92,9 +94,24 @@ function settleFailure(runId: string, err: unknown): void {
   if (thread) addChatMessage(thread, "error", message, runId);
 }
 
+/**
+ * Cancels a run that is executing now: it stops at the next step (or at once while it waits for the model) and ends as
+ * `failed` with the error `cancelled`. A run that waits for approval is not executing; reject its writes instead.
+ */
+export function cancelRun(runId: string): Run {
+  const run = getRun(runId);
+  if (!run) throw new AppError("run-not-found", `Run not found: ${runId}`, 404);
+  const controller = controllers.get(runId);
+  if (!controller) throw new AppError("run-not-active", "This run is not in progress", 409);
+  controller.abort();
+  return run;
+}
+
 /** Runs the agent in the background. A run that stops at `waiting-approval` is not finished: it waits for the owner. */
 function launch(runId: string, agent: Agent, task: string, resume?: { decisions: Record<string, "approve" | "reject"> }, images?: { mime: string; data: string }[]): void {
   const threadId = resume ? chatThreadForRun(runId) : null;
+  const controller = new AbortController();
+  controllers.set(runId, controller);
   const work = (async () => {
     try {
       const outcome = await deps.runner({
@@ -102,6 +119,7 @@ function launch(runId: string, agent: Agent, task: string, resume?: { decisions:
         task,
         runId,
         makeModel: deps.makeModel,
+        signal: controller.signal,
         ...(resume ? { resume } : {}),
         ...(images && images.length > 0 ? { images } : {}),
         ...(threadId ? { chat: { threadId, first: false } } : {}),
@@ -109,6 +127,8 @@ function launch(runId: string, agent: Agent, task: string, resume?: { decisions:
       settle(runId, noEmptyAnswer(agent, outcome));
     } catch (err) {
       settleFailure(runId, err);
+    } finally {
+      controllers.delete(runId);
     }
   })();
   inFlight.add(work);
