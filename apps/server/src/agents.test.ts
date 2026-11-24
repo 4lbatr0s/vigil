@@ -378,3 +378,14 @@ describe("paging tools", () => {
     expect(String(await list.invoke({ offset: 99 }))).toBe("no more notes (5 in total)");
   });
 });
+
+describe("run log detail", () => {
+  it("keeps a long model reply (up to 4000 characters) and records how long each step took", async () => {
+    const reply = "z".repeat(3000);
+    const { make } = scripted([say(reply)]);
+    const finished = await run(agent({ tools: ["read_notes"] }), make);
+    const model = listEvents(finished.id).find((e) => e.kind === "model");
+    expect(model?.text).toBe(reply);
+    expect(typeof model?.data["ms"]).toBe("number");
+  });
+});
