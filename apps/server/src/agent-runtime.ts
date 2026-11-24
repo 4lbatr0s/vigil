@@ -7,7 +7,7 @@ import { redact, type ModelFactory } from "./llm";
 import { randomUUID } from "node:crypto";
 import { effectiveAgent } from "./permissions";
 import { getCheckpointer } from "./checkpoints";
-import { MIN_BUDGET_FOR_SUMMARY, RESUMMARIZE_AFTER_CHARS, SUMMARY_MAX_TOKENS, SUMMARY_PROMPT, droppedMessages, summaryNote, transcriptOf, trimHistory } from "./history";
+import { MIN_BUDGET_FOR_SUMMARY, RESUMMARIZE_AFTER_CHARS, SUMMARY_MAX_TOKENS, SUMMARY_PROMPT, droppedMessages, repairDangling, summaryNote, transcriptOf, trimHistory } from "./history";
 import { addEvent, createApproval, createRun, finishRun, getAgent, getChatSummary, getRun, hasRunning, putChatSummary, setTokensUsed } from "./state-db";
 import { getNote as vaultGetNote, slugify, validateId } from "./vault";
 
@@ -65,6 +65,10 @@ export const REJECTED_TEXT = "error: the owner rejected this write";
 
 type PendingCall = { id: string; name: string; args: Record<string, unknown> };
 
+/** Tool messages for calls that did not run, so no tool call is left without an answer. */
+const notRun = (calls: { id?: string | undefined; name: string }[], why: string): ToolMessage[] =>
+  calls.map((c, i) => new ToolMessage({ content: `error: not run, ${why}`, tool_call_id: c.id || `unnamed-${i}`, name: c.name }));
+
 export const runAgent: AgentRunner = async ({ agent, task, runId, makeModel, depth = 0, resume, chat, images, signal, onEvent }) => {
   // A resumed run continues its token count; it never starts from zero.
   let used = resume ? (getRun(runId)?.tokensUsed ?? 0) : 0;
@@ -119,7 +123,9 @@ export const runAgent: AgentRunner = async ({ agent, task, runId, makeModel, dep
     addEvent(runId, "note", `model call failed (${redact(err instanceof Error ? err.message : "error")}); trying again (${retry})`);
   };
 
-  const agentNode = async (state: { messages: BaseMessage[] }) => {
+  const agentNode = async (rawState: { messages: BaseMessage[] }) => {
+    // Old checkpoints and crashed turns can hold a tool call with no answer; fix that before anything is sent.
+    const state = { messages: repairDangling(rawState.messages) };
     const remaining = agent.tokenBudget - used;
     if (remaining <= 0) {
       stop = "budget-exceeded";
@@ -206,9 +212,10 @@ export const runAgent: AgentRunner = async ({ agent, task, runId, makeModel, dep
       toolCalls: (reply.tool_calls ?? []).map((c) => c.name),
     });
     if (used >= agent.tokenBudget && (reply.tool_calls?.length ?? 0) > 0) {
-      // Out of budget with work still requested: stop before running any tool.
+      // Out of budget with work still requested: stop before running any tool. Every call still gets an answer,
+      // or the next chat turn would send a tool call nobody answered and the provider would reject it.
       stop = "budget-exceeded";
-      return { messages: [reply] };
+      return { messages: [reply, ...notRun(reply.tool_calls ?? [], "the token budget is used up")] };
     }
     return { messages: [reply] };
   };
@@ -219,10 +226,12 @@ export const runAgent: AgentRunner = async ({ agent, task, runId, makeModel, dep
     const last = state.messages.at(-1);
     const calls = AIMessage.isInstance(last) ? (last.tool_calls ?? []) : [];
     const results: ToolMessage[] = [];
-    for (const call of calls) {
+    for (const [index, call] of calls.entries()) {
       if (signal?.aborted) {
         cancelled = true;
         stop = "failed";
+        // The calls that did not run still need an answer (see `notRun`).
+        results.push(...notRun(calls.slice(index), "the run was cancelled"));
         break;
       }
       const id = call.id ?? "";

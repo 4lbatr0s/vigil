@@ -1,4 +1,4 @@
-import { SystemMessage, type BaseMessage } from "@langchain/core/messages";
+import { AIMessage, SystemMessage, ToolMessage, type BaseMessage } from "@langchain/core/messages";
 
 /** About 12k tokens of recent conversation (characters / 4). Older turns stay in the checkpoint, not in the prompt. */
 export const DEFAULT_HISTORY_CHARS = 48_000;
@@ -41,6 +41,28 @@ export function trimHistory(messages: BaseMessage[], maxChars: number = DEFAULT_
   }
   const kept = body.slice(start);
   return system ? [system, ...kept] : kept;
+}
+
+/**
+ * Gives every tool call that no tool message answers a short error answer, right after the message that asked.
+ * A turn that stopped half way (a restart, or a checkpoint from before this fix) leaves such calls, and a provider
+ * rejects a request that holds one. It returns the same array when nothing is missing.
+ */
+export function repairDangling(messages: BaseMessage[]): BaseMessage[] {
+  const answered = new Set(messages.filter((m): m is ToolMessage => ToolMessage.isInstance(m)).map((m) => m.tool_call_id));
+  let changed = false;
+  const out: BaseMessage[] = [];
+  for (const m of messages) {
+    out.push(m);
+    if (!AIMessage.isInstance(m)) continue;
+    for (const [i, call] of (m.tool_calls ?? []).entries()) {
+      const id = call.id ?? "";
+      if (id !== "" && answered.has(id)) continue;
+      changed = true;
+      out.push(new ToolMessage({ content: "error: not run, the turn stopped before this call", tool_call_id: id || `unnamed-${i}`, name: call.name }));
+    }
+  }
+  return changed ? out : messages;
 }
 
 /** What `trimHistory` left out: the messages between the system message and the first kept one, oldest first. */

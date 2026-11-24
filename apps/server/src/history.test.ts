@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { AIMessage, HumanMessage, SystemMessage, ToolMessage } from "@langchain/core/messages";
-import { trimHistory } from "./history";
+import { repairDangling, trimHistory } from "./history";
 
 const turn = (n: number, pad = 100) => [new HumanMessage(`q${n} ${"x".repeat(pad)}`), new AIMessage(`a${n} ${"y".repeat(pad)}`)];
 
@@ -46,5 +46,23 @@ describe("trimHistory", () => {
     const out = trimHistory(m, 250);
     expect(out[0]?._getType()).toBe("human");
     expect(String(out[0]?.content).slice(0, 2)).toBe("q3");
+  });
+});
+
+describe("repairDangling", () => {
+  const ask = (...ids: string[]) => new AIMessage({ content: "", tool_calls: ids.map((id) => ({ id, name: "list_notes", args: {}, type: "tool_call" as const })) });
+
+  it("returns the same array when every call is answered", () => {
+    const m = [new HumanMessage("q"), ask("a"), new ToolMessage({ content: "ok", tool_call_id: "a" }), new AIMessage("done")];
+    expect(repairDangling(m)).toBe(m);
+  });
+
+  it("answers an unanswered call right after the message that asked, and keeps real answers", () => {
+    const m = [new HumanMessage("q"), ask("a", "b"), new ToolMessage({ content: "ok", tool_call_id: "a" }), new HumanMessage("next")];
+    const fixed = repairDangling(m);
+    expect(fixed.map((x) => x._getType())).toEqual(["human", "ai", "tool", "tool", "human"]);
+    expect((fixed[2] as ToolMessage).tool_call_id).toBe("b");
+    expect(String(fixed[2]?.content)).toContain("not run");
+    expect((fixed[3] as ToolMessage).tool_call_id).toBe("a");
   });
 });
