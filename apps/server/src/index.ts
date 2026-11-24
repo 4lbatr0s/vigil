@@ -4,7 +4,7 @@ import { startSemanticIndex } from "./semantic";
 import { resumeDecidedRuns, startRun } from "./runs";
 import { startHousekeeping } from "./housekeeping";
 import { createScheduler } from "./scheduler";
-import { hasRunning, listAgents, markInterruptedRuns } from "./state-db";
+import { hasRunning, hasWaitingApproval, listAgents, markInterruptedRuns } from "./state-db";
 import { shutdown } from "./shutdown";
 import { start } from "./server";
 import { startWatcher } from "./watcher";
@@ -38,6 +38,7 @@ async function main(): Promise<void> {
     listAgents,
     startRun,
     hasRunning,
+    waitingApproval: hasWaitingApproval,
     catchUpWindowMs: (Number.isFinite(catchUpHours) && catchUpHours > 0 ? catchUpHours : 24) * 3_600_000,
   });
   scheduler.start();

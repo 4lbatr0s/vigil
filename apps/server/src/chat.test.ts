@@ -240,6 +240,19 @@ describe("chat turns", () => {
   });
 });
 
+describe("a chat turn while the agent waits for approval", () => {
+  it("is refused with a message that says what to do", async () => {
+    setRunDeps({ makeModel: scripted([say("ok")]).make });
+    const { createRun, setRunStatus } = await import("./state-db");
+    createRun("waiting-run", "helper", 100);
+    setRunStatus("waiting-run", "waiting-approval");
+    const id = await newChat();
+    const res = await turn(id, "hi");
+    expect(res.json.error.code).toBe("agent-busy");
+    expect(res.json.error.message).toMatch(/waiting for your approval.*Approvals/);
+  });
+});
+
 describe("chat management", () => {
   it("lists, deletes (and forgets the conversation), and saves a transcript as a note", async () => {
     setRunDeps({ makeModel: scripted([say("an answer")]).make });

@@ -12,6 +12,7 @@ const saved = { ...process.env };
 let clock = new Date("2026-11-15T10:00:00Z");
 let started: string[] = [];
 let running = new Set<string>();
+let waiting = new Set<string>();
 let failStart = false;
 
 beforeEach(async () => {
@@ -19,6 +20,7 @@ beforeEach(async () => {
   process.env.STATE_DB_PATH = path.join(root, "state.db");
   started = [];
   running = new Set();
+  waiting = new Set();
   failStart = false;
 });
 
@@ -47,7 +49,8 @@ function make(catchUpHours = 24) {
       started.push(`${name}@${clock.toISOString()}`);
       return { id: "r" } as Run;
     },
-    hasRunning: (name) => running.has(name),
+    hasRunning: (name) => running.has(name) || waiting.has(name),
+    waitingApproval: (name) => waiting.has(name),
     catchUpWindowMs: catchUpHours * 3_600_000,
   });
 }
@@ -103,6 +106,18 @@ describe("scheduler", () => {
     s.tick();
     expect(started).toEqual([]);
     expect(getSchedule("digest")).toMatchObject({ lastSkipReason: "previous run still going", lastScheduledFor: "2026-11-15T07:00:00.000Z" });
+  });
+
+  it("says when the skip is because a run waits for the owner's approval", () => {
+    putAgent(cronAgent());
+    clock = new Date("2026-11-14T10:00:00Z");
+    const s = make();
+    s.tick();
+    waiting.add("digest");
+    clock = new Date("2026-11-15T07:00:05Z");
+    s.tick();
+    expect(started).toEqual([]);
+    expect(getSchedule("digest")?.lastSkipReason).toBe("waiting for your approval");
   });
 
   it("never runs a disabled agent; re-enabling starts from a baseline, not a run", () => {

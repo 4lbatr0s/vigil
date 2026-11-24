@@ -368,6 +368,11 @@ export function hasRunning(agent: string): boolean {
   return row !== undefined;
 }
 
+/** True when the agent has a run that stopped to wait for the owner's decision on a write. */
+export function hasWaitingApproval(agent: string): boolean {
+  return open().prepare("SELECT 1 AS x FROM runs WHERE agent = ? AND status = 'waiting-approval' LIMIT 1").get(agent) !== undefined;
+}
+
 export function markUndone(id: string): void {
   open().prepare("UPDATE runs SET undone = 1 WHERE id = ?").run(id);
   const run = getRun(id);

@@ -8,6 +8,8 @@ export type SchedulerDeps = {
   listAgents: () => Agent[];
   startRun: (name: string, task: string | undefined, trigger: "cron" | "heartbeat") => Run;
   hasRunning: (name: string) => boolean;
+  /** Tells a run that waits for the owner from one that is executing, for the skip reason. */
+  waitingApproval?: (name: string) => boolean;
   catchUpWindowMs: number;
 };
 
@@ -28,6 +30,9 @@ export function refreshSchedule(name: string): void {
 
 export function createScheduler(deps: SchedulerDeps): Scheduler {
   let timer: NodeJS.Timeout | null = null;
+
+  /** Why an agent that has a run cannot start another: the owner's decision is missing, or the run is executing. */
+  const busyReason = (name: string): string => (deps.waitingApproval?.(name) ? "waiting for your approval" : "previous run still going");
 
   /** One heartbeat check. `fire` false stores the baseline only (refresh). */
   function beat(agent: Agent, everyMinutes: number, fire: boolean): void {
@@ -50,7 +55,7 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
     if (deps.hasRunning(agent.name)) {
       // The change stays pending: last_hashes is not advanced, only the check time.
       touchHeartbeat(agent.name, now.toISOString());
-      putSchedule(agent.name, { lastSkipReason: "previous run still going" });
+      putSchedule(agent.name, { lastSkipReason: busyReason(agent.name) });
       return;
     }
     // Persist before starting (at most once per change), as for cron.
@@ -94,7 +99,7 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
     // Persist before starting: at most once per scheduled time, even if the process dies next.
     putSchedule(agent.name, { lastScheduledFor: prevIso });
     if (deps.hasRunning(agent.name)) {
-      putSchedule(agent.name, { lastSkipReason: "previous run still going" });
+      putSchedule(agent.name, { lastSkipReason: busyReason(agent.name) });
       return;
     }
     try {
