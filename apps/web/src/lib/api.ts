@@ -200,6 +200,8 @@ export const getRun = (id: string, after?: number) =>
   request<{ run: Run; events: RunEvent[] }>(`/api/runs/${seg(id)}${after ? `?after=${after}` : ""}`);
 export const getBodyBeforeRun = (runId: string, noteId: string) => request<{ existed: boolean; body: string | null }>(`/api/runs/${seg(runId)}/before/${seg(noteId)}`);
 export const undoRun = (id: string) => request<Run>(`/api/runs/${seg(id)}/undo`, json("POST"));
+/** Stops a run that is executing. The run ends as failed with the error "cancelled". */
+export const cancelRun = (id: string) => request<Run>(`/api/runs/${seg(id)}/cancel`, json("POST"));
 
 // ---- Session ----
 

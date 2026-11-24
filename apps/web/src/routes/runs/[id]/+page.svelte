@@ -3,7 +3,7 @@
   import { onMount } from "svelte";
   import { page } from "$app/state";
   import type { Run, RunEvent } from "@vigil/shared";
-  import { ApiError, getRun, undoRun } from "$lib/api";
+  import { ApiError, cancelRun, getRun, undoRun } from "$lib/api";
   import { formatStamp } from "$lib/format";
   import { budgetShare, canUndo, childRunIdOf, KIND_LABEL, lastSeq, mergeEvents, noteIdOf, noteIdsInMessage, preview } from "$lib/run-log";
   import { refreshOnLive } from "$lib/live";
@@ -17,6 +17,7 @@
   let loadError = $state("");
   let undoError = $state("");
   let undoing = $state(false);
+  let cancelling = $state(false);
   let open = $state<Record<number, boolean>>({});
 
   async function load(): Promise<void> {
@@ -51,6 +52,19 @@
     );
   });
 
+  async function cancel(): Promise<void> {
+    undoError = "";
+    cancelling = true;
+    try {
+      await cancelRun(id);
+      await tail();
+    } catch (err) {
+      undoError = err instanceof ApiError ? err.detail : err instanceof Error ? err.message : "Could not cancel";
+    } finally {
+      cancelling = false;
+    }
+  }
+
   async function undo(): Promise<void> {
     undoError = "";
     undoing = true;
@@ -79,7 +93,11 @@
           <StatusDot state={statusDot({ enabled: true }, run)} label={run.status} />
           <h1>{run.status}{run.undone ? " · undone" : ""}</h1>
           <span class="grow"></span>
-          <Button variant="primary" disabled={!canUndo(run) || undoing} onclick={() => void undo()}>{run.undone ? "Undone" : undoing ? "Undoing…" : "Undo this run"}</Button>
+          {#if run.status === "running"}
+            <Button variant="quiet" disabled={cancelling} onclick={() => void cancel()}>{cancelling ? "Cancelling…" : "Cancel run"}</Button>
+          {:else}
+            <Button variant="primary" disabled={!canUndo(run) || undoing} onclick={() => void undo()}>{run.undone ? "Undone" : undoing ? "Undoing…" : "Undo this run"}</Button>
+          {/if}
         </div>
       </header>
 
