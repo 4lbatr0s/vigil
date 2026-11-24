@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { AgentSchema, type Agent } from "@vigil/shared";
 import { runAgent } from "./agent-runtime";
-import { truncate, MAX_TOOL_OUTPUT } from "./agent-tools";
+import { buildTools, pageText, READ_PAGE, truncate, MAX_TOOL_OUTPUT } from "./agent-tools";
 import { closeDb, getNote as indexGet, reindexNote } from "./index-db";
 import { withNoteLock } from "./lock";
 import { modelFactoryFromEnv, redact, type ModelFactory } from "./llm";
@@ -334,5 +334,47 @@ describe("hard monthly cap", () => {
     expect(() => startRun("morning-digest")).toThrowError(expect.objectContaining({ code: "monthly-cap-reached", status: 429 }));
     delete process.env.VIGIL_MONTHLY_TOKEN_HARD_CAP;
     expect(() => startRun("morning-digest")).not.toThrow();
+  });
+});
+
+describe("paging tools", () => {
+  it("pageText gives a footer that names the next offset, and the last page says it is the end", () => {
+    const text = "a".repeat(250);
+    expect(pageText(text, 0, 100)).toContain("offset=100");
+    expect(pageText(text, 100, 100)).toContain("offset=200");
+    expect(pageText(text, 200, 100)).toContain("[end of note: characters 200 to 250 of 250]");
+    expect(pageText("short", 0)).toBe("short");
+    expect(pageText(text, 300, 100)).toMatch(/^error: offset 300 is past the end/);
+  });
+
+  it("read_note reads a long note in pages that join back into the whole body", async () => {
+    const body = Array.from({ length: 1500 }, (_, i) => `line ${i}`).join("\n");
+    expect(body.length).toBeGreaterThan(READ_PAGE * 2);
+    await seedNote("Long", body);
+    createRun("r-page", "a", 1000);
+    const read = buildTools(["read_notes"], { runId: "r-page", agentName: "a" }).find((t) => t.name === "read_note")!;
+    let joined = "";
+    let offset = 0;
+    for (let i = 0; i < 10; i++) {
+      const out = String(await read.invoke(offset === 0 ? { id: "long" } : { id: "long", offset }));
+      const m = /\n\[(?:characters \d+ to (\d+) of \d+; call read_note again with offset=\d+ for the rest|end of note[^\]]*)\]$/.exec(out);
+      const page = m ? out.slice(0, m.index) : out;
+      joined += offset === 0 ? page.slice(page.indexOf("\n\n") + 2) : page;
+      if (!m || m[1] === undefined) break;
+      offset = Number(m[1]);
+    }
+    expect(joined).toBe(body);
+  });
+
+  it("list_notes pages with offset and says how many are left", async () => {
+    for (let i = 0; i < 5; i++) await seedNote(`Note ${i}`, "x");
+    createRun("r-list", "a", 1000);
+    const list = buildTools(["read_notes"], { runId: "r-list", agentName: "a" }).find((t) => t.name === "list_notes")!;
+    const first = String(await list.invoke({ limit: 2 }));
+    expect(first.split("\n")).toHaveLength(3);
+    expect(first).toContain("3 more notes; call list_notes again with offset=2");
+    const last = String(await list.invoke({ limit: 2, offset: 4 }));
+    expect(last.split("\n")).toHaveLength(1);
+    expect(String(await list.invoke({ offset: 99 }))).toBe("no more notes (5 in total)");
   });
 });
