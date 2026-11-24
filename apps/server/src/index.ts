@@ -1,4 +1,4 @@
-import { accessFromEnv } from "./access";
+import { accessFromEnv, accessWarnings } from "./access";
 import { rebuildAll, isEmpty } from "./index-db";
 import { startSemanticIndex } from "./semantic";
 import { resumeDecidedRuns, startRun } from "./runs";
@@ -13,7 +13,7 @@ const port = Number(process.env.PORT ?? 3001);
 
 async function main(): Promise<void> {
   // Fail fast on bad access settings (a non-local bind without a token) before touching any data.
-  accessFromEnv();
+  for (const line of accessWarnings(accessFromEnv())) console.warn(line);
   const interrupted = markInterruptedRuns();
   if (interrupted > 0) console.log(`vigil-server marked ${interrupted} unfinished run(s) as interrupted`);
   // Runs paused for approval stay paused; one whose writes were all decided just before a crash continues.

@@ -42,6 +42,12 @@ export function accessFromEnv(overrides: Partial<Access> = {}): Access {
   return access;
 }
 
+/** Lines to print at start when the access settings are legal but weak. Empty means nothing to say. */
+export function accessWarnings(access: Access): string[] {
+  if (access.token) return [];
+  return ["vigil-server has no VIGIL_TOKEN: any program on this machine can call the API (notes, agents, settings). Set VIGIL_TOKEN if other people or programs share this machine."];
+}
+
 export function hostNameOf(hostHeader: string): string {
   // "localhost:3001" -> "localhost"; "[::1]:3001" -> "[::1]".
   const match = /^(\[[^\]]+\]|[^:]+)(?::\d+)?$/.exec(hostHeader.trim().toLowerCase());
