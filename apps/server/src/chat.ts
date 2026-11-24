@@ -22,6 +22,7 @@ import {
   type ChatMessage,
   type ChatThread,
 } from "./state-db";
+import { assertUnderHardCap } from "./usage";
 import { createNote, slugify, validateId } from "./vault";
 
 export const MAX_CHAT_TEXT = 20_000;
@@ -69,6 +70,7 @@ export async function chatTurn(threadId: string, text: string, begin: () => void
     const waiting = hasWaitingApproval(thread.agent);
     throw new AppError("agent-busy", waiting ? `Agent ${thread.agent} is waiting for your approval. Decide its writes on the Approvals page, then send your message again.` : `Agent ${thread.agent} already has a run in progress`, 409);
   }
+  assertUnderHardCap();
   const agent = effectiveAgent(stored);
 
   // First turn means no conversation in the checkpoint yet (a failed first turn leaves none behind).

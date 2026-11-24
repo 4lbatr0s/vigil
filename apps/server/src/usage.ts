@@ -1,3 +1,4 @@
+import { AppError } from "./errors";
 import { tokensSince } from "./state-db";
 
 export type UsageLevel = "ok" | "warn" | "over";
@@ -28,4 +29,22 @@ export function usage(now: Date = new Date(), env: NodeJS.ProcessEnv = process.e
     else if (tokens >= cap * 0.8) level = "warn";
   }
   return { month: now.toISOString().slice(0, 7), tokens, cap, level };
+}
+
+/** The hard cap from VIGIL_MONTHLY_TOKEN_HARD_CAP (ADR-0032); unset, empty or not a positive number means no hard cap. */
+export function hardCap(env: NodeJS.ProcessEnv = process.env): number | null {
+  const raw = env.VIGIL_MONTHLY_TOKEN_HARD_CAP;
+  if (!raw) return null;
+  const n = Number(raw);
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : null;
+}
+
+/** Throws 429 `monthly-cap-reached` when this month's tokens have reached the hard cap. Call before a run or chat turn starts. */
+export function assertUnderHardCap(now: Date = new Date(), env: NodeJS.ProcessEnv = process.env): void {
+  const cap = hardCap(env);
+  if (cap === null) return;
+  const tokens = monthTokens(now);
+  if (tokens >= cap) {
+    throw new AppError("monthly-cap-reached", `The monthly token cap is reached (${tokens} of ${cap}). New runs start again next month, or raise VIGIL_MONTHLY_TOKEN_HARD_CAP.`, 429);
+  }
 }

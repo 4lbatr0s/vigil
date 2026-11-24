@@ -324,3 +324,15 @@ describe("cancelling a run", () => {
     expect(() => cancelRun("nope")).toThrowError(expect.objectContaining({ status: 404 }));
   });
 });
+
+describe("hard monthly cap", () => {
+  it("refuses to start a run once the month's tokens reach the cap, and starts again without it", async () => {
+    const { make } = scripted([say("done")]);
+    const first = await run(agent({ tools: ["read_notes"] }), make);
+    expect(first.tokensUsed).toBeGreaterThan(0);
+    process.env.VIGIL_MONTHLY_TOKEN_HARD_CAP = String(first.tokensUsed);
+    expect(() => startRun("morning-digest")).toThrowError(expect.objectContaining({ code: "monthly-cap-reached", status: 429 }));
+    delete process.env.VIGIL_MONTHLY_TOKEN_HARD_CAP;
+    expect(() => startRun("morning-digest")).not.toThrow();
+  });
+});

@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import Database from "better-sqlite3";
 import { closeState, createRun, finishRun } from "./state-db";
-import { monthTokens, usage } from "./usage";
+import { assertUnderHardCap, hardCap, monthTokens, usage } from "./usage";
 
 let root = "";
 const saved = { ...process.env };
@@ -51,5 +51,26 @@ describe("usage", () => {
 
   it("treats a bad cap as no cap", () => {
     for (const bad of ["", "abc", "0", "-5"]) expect(usage(now, { VIGIL_MONTHLY_TOKEN_CAP: bad }).cap).toBeNull();
+  });
+});
+
+describe("hard cap (ADR-0032)", () => {
+  it("reads the cap and treats a bad value as no cap", () => {
+    expect(hardCap({ VIGIL_MONTHLY_TOKEN_HARD_CAP: "500.9" })).toBe(500);
+    for (const bad of [undefined, "", "abc", "0", "-5"]) expect(hardCap({ VIGIL_MONTHLY_TOKEN_HARD_CAP: bad })).toBeNull();
+  });
+
+  it("allows runs below the cap and refuses with 429 at the cap", () => {
+    run("r1", "2026-11-02T08:00:00.000Z", 99);
+    const env = { VIGIL_MONTHLY_TOKEN_HARD_CAP: "100" };
+    expect(() => assertUnderHardCap(now, env)).not.toThrow();
+    run("r2", "2026-11-03T08:00:00.000Z", 1);
+    expect(() => assertUnderHardCap(now, env)).toThrowError(expect.objectContaining({ code: "monthly-cap-reached", status: 429 }));
+    expect(() => assertUnderHardCap(now, {})).not.toThrow();
+  });
+
+  it("does not count last month", () => {
+    run("old", "2026-10-31T23:59:59.000Z", 9999);
+    expect(() => assertUnderHardCap(now, { VIGIL_MONTHLY_TOKEN_HARD_CAP: "100" })).not.toThrow();
   });
 });

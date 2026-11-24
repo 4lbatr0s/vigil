@@ -3,6 +3,7 @@ import type { Agent, Run } from "@vigil/shared";
 import { runAgent, type AgentRunner, type RunOutcome, type TurnEvent } from "./agent-runtime";
 import { AppError } from "./errors";
 import { effectiveAgent } from "./permissions";
+import { assertUnderHardCap } from "./usage";
 import { reindexNote, removeNote } from "./index-db";
 import { withNoteLock } from "./lock";
 import { modelFactoryFromConnections, redact, type ModelFactory } from "./llm";
@@ -54,6 +55,7 @@ export function startRun(agentName: string, task?: string, trigger: Run["trigger
   if (hasRunning(agentName)) {
     throw new AppError("agent-busy", `Agent ${agentName} already has a run in progress`, 409);
   }
+  assertUnderHardCap();
   const run = createRun(randomUUID(), agent.name, agent.tokenBudget, trigger);
   launch(run.id, agent, task ?? agent.defaultTask, undefined, images);
   return run;
