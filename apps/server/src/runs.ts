@@ -3,6 +3,7 @@ import type { Agent, Run } from "@vigil/shared";
 import { runAgent, type AgentRunner, type RunOutcome, type TurnEvent } from "./agent-runtime";
 import { AppError } from "./errors";
 import { effectiveAgent } from "./permissions";
+import { notifyRun } from "./notify";
 import { assertUnderHardCap } from "./usage";
 import { reindexNote, removeNote } from "./index-db";
 import { withNoteLock } from "./lock";
@@ -78,6 +79,8 @@ function settle(runId: string, outcome: RunOutcome): void {
   if (outcome.status === "succeeded" && outcome.finalText?.trim()) setRunResult(runId, redact(outcome.finalText.trim()));
   if (outcome.status === "waiting-approval") setRunStatus(runId, "waiting-approval");
   else finishRun(runId, outcome.status, outcome.tokensUsed, outcome.error);
+  const row = getRun(runId);
+  if (row) void notifyRun(row);
   const thread = chatThreadForRun(runId);
   if (!thread) return;
   if (outcome.status === "succeeded") addChatMessage(thread, "assistant", outcome.finalText?.trim() || "(no answer)", runId);
