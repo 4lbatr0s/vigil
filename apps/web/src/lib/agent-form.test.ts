@@ -17,6 +17,13 @@ describe("agent form", () => {
     expect(formToAgent(base, agentToForm(base))).toEqual(base);
   });
 
+  it("keepState is saved only when switched on", () => {
+    const on = formToAgent(base, { ...agentToForm(base), keepState: true });
+    expect(on.keepState).toBe(true);
+    expect(agentToForm(on).keepState).toBe(true);
+    expect("keepState" in formToAgent(on, { ...agentToForm(on), keepState: false })).toBe(false);
+  });
+
   it("applies edits and keeps every field the form does not know", () => {
     const form = { ...agentToForm(base), systemPrompt: "New.", tokenBudget: "5000", strict: true, enabled: false, model: " gpt-x " };
     const out = formToAgent(base, form);

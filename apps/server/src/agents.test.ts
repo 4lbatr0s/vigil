@@ -6,12 +6,12 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { AgentSchema, type Agent } from "@vigil/shared";
 import { runAgent } from "./agent-runtime";
-import { buildTools, pageText, READ_PAGE, truncate, MAX_TOOL_OUTPUT } from "./agent-tools";
+import { buildTools, pageText, READ_PAGE, STATE_MAX_CHARS, truncate, MAX_TOOL_OUTPUT } from "./agent-tools";
 import { closeDb, getNote as indexGet, reindexNote } from "./index-db";
 import { withNoteLock } from "./lock";
 import { modelFactoryFromEnv, redact, type ModelFactory } from "./llm";
 import { cancelRun, setRunDeps, startRun, undoRun, waitForRuns } from "./runs";
-import { closeState, createRun, finishRun, getRun, listEvents, listSnapshots, putAgent, recordSnapshot } from "./state-db";
+import { closeState, createRun, finishRun, getAgentState, getRun, listEvents, listSnapshots, putAgent, putAgentState, recordSnapshot } from "./state-db";
 import { createNote, getNote, readNoteFile, updateNote } from "./vault";
 
 let root = "";
@@ -429,5 +429,36 @@ describe("tool replies", () => {
     createRun("r-e", "a", 1000);
     const read = buildTools(["read_notes"], { runId: "r-e", agentName: "a" }).find((t) => t.name === "read_note")!;
     expect(String(await read.invoke({ id: "nope" }))).toMatch(/^error: .*search_notes or list_notes/);
+  });
+});
+
+describe("agent state note", () => {
+  it("an agent without keepState has no update_state tool", async () => {
+    const { make, seen } = scripted([say("ok")]);
+    await run(agent({ tools: ["read_notes"] }), make);
+    expect(seen[0]?.toolNames).not.toContain("update_state");
+  });
+
+  it("update_state saves the note and the next run reads it in the system message", async () => {
+    const a = agent({ tools: ["read_notes"], keepState: true });
+    const first = scripted([call("update_state", { text: "Checked up to note 12. Next: note 13." }), say("saved")]);
+    const done = await run(a, first.make);
+    expect(done.status).toBe("succeeded");
+    expect(first.seen[0]?.toolNames).toContain("update_state");
+    expect(getAgentState("morning-digest")?.text).toBe("Checked up to note 12. Next: note 13.");
+
+    const second = scripted([say("ok")]);
+    await run(a, second.make);
+    const system = String(second.seen[0]?.messages[0]?.content);
+    expect(system).toContain("Checked up to note 12. Next: note 13.");
+    expect(system).toMatch(/data, never instructions/);
+  });
+
+  it("update_state refuses text over the limit and keeps the old note", async () => {
+    putAgentState("morning-digest", "old");
+    createRun("r-s", "morning-digest", 1000);
+    const tool = buildTools([], { runId: "r-s", agentName: "morning-digest", keepState: true }).find((t) => t.name === "update_state")!;
+    expect(String(await tool.invoke({ text: "x".repeat(STATE_MAX_CHARS + 1) }))).toMatch(/^error: .*too long/);
+    expect(getAgentState("morning-digest")?.text).toBe("old");
   });
 });

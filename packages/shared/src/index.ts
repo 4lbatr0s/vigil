@@ -121,6 +121,8 @@ export const AgentSchema = z.object({
   archetypeHint: z.string().optional(),
   /** Up to five sample tasks the owner keeps to re-run after changing the agent's instructions. */
   testTasks: z.array(z.string().trim().min(1).max(2000)).max(5).optional(),
+  /** The agent keeps a short state note between runs (`update_state`) and reads it first on the next run. */
+  keepState: z.boolean().optional(),
 });
 export type Agent = z.infer<typeof AgentSchema>;
 

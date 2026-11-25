@@ -229,6 +229,14 @@ export const MIGRATIONS: readonly string[] = [
     updated_at TEXT NOT NULL
   );
   `,
+  `
+  -- migration 16: a short note an agent keeps for its own next run (opt-in per agent)
+  CREATE TABLE agent_state (
+    agent TEXT PRIMARY KEY,
+    text TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+  `,
 ];
 
 let current: { key: string; db: Database.Database } | null = null;
@@ -718,6 +726,20 @@ export function putChatSummary(threadId: string, summary: ChatSummary): void {
   open()
     .prepare("INSERT INTO chat_summaries (thread_id, covered, text, updated_at) VALUES (?, ?, ?, ?) ON CONFLICT(thread_id) DO UPDATE SET covered = excluded.covered, text = excluded.text, updated_at = excluded.updated_at")
     .run(threadId, summary.covered, summary.text, new Date().toISOString());
+}
+
+/** The state note an agent keeps between runs. */
+export type AgentState = { text: string; updatedAt: string };
+
+export function getAgentState(agent: string): AgentState | null {
+  const row = open().prepare("SELECT text, updated_at AS updatedAt FROM agent_state WHERE agent = ?").get(agent) as AgentState | undefined;
+  return row ?? null;
+}
+
+export function putAgentState(agent: string, text: string): void {
+  open()
+    .prepare("INSERT INTO agent_state (agent, text, updated_at) VALUES (?, ?, ?) ON CONFLICT(agent) DO UPDATE SET text = excluded.text, updated_at = excluded.updated_at")
+    .run(agent, text, new Date().toISOString());
 }
 
 export function deleteChatThread(id: string): void {

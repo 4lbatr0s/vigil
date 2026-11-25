@@ -329,6 +329,8 @@
             <Switch label="Enabled" bind:checked={form.enabled} />
             <Switch label="Ask me before this agent writes" bind:checked={form.strict} onchange={onStrictChange} />
             <p class="muted">Writes wait in <a href="/approvals">Approvals</a> until you accept them.</p>
+            <Switch label="Remember where it stopped" bind:checked={form.keepState} />
+            <p class="muted">It keeps a short note for its next run and reads it first. The note is not one of your notes.</p>
           </Stack>
 
           <Stack gap={2}>

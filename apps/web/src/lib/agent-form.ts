@@ -57,6 +57,8 @@ export type AgentForm = {
   systemPrompt: string;
   enabled: boolean;
   strict: boolean;
+  /** The agent keeps a short state note between runs. */
+  keepState: boolean;
   tokenBudget: string;
   model: string;
   /** Hosts `fetch_url` may call. */
@@ -74,6 +76,7 @@ export function agentToForm(agent: Agent): AgentForm {
     systemPrompt: agent.systemPrompt,
     enabled: agent.enabled,
     strict: agent.strict,
+    keepState: agent.keepState === true,
     tokenBudget: String(agent.tokenBudget),
     model: agent.model ?? "",
     allowedHosts: [...agent.allowedHosts],
@@ -90,7 +93,7 @@ export function agentToForm(agent: Agent): AgentForm {
  * empty model is left out rather than sent as an empty string.
  */
 export function formToAgent(base: Agent, form: AgentForm): Agent {
-  const { model: _m, connection: _c, ...rest } = base;
+  const { model: _m, connection: _c, keepState: _k, ...rest } = base;
   const model = form.model.trim();
   const trigger = formToTrigger(form.trigger, base.trigger.kind === "cron" ? base.trigger.timezone : undefined);
   return {
@@ -107,6 +110,7 @@ export function formToAgent(base: Agent, form: AgentForm): Agent {
     tokenBudget: form.tokenBudget.trim() === "" ? Number.NaN : Number(form.tokenBudget),
     ...(model === "" ? {} : { model }),
     ...(form.connection === "" ? {} : { connection: form.connection }),
+    ...(form.keepState ? { keepState: true } : {}),
   };
 }
 

@@ -9,7 +9,7 @@ import { getNote as indexedNote, listNotes, reindexNote, searchNotes } from "./i
 import { semanticIds } from "./semantic";
 import { addressProblem, scrubUntrusted } from "./untrusted";
 import { learnerReport } from "./learner";
-import { addEvent, dropSnapshot, recordSnapshot, recordTouch, setWrittenUpdatedAt } from "./state-db";
+import { addEvent, dropSnapshot, putAgentState, recordSnapshot, recordTouch, setWrittenUpdatedAt } from "./state-db";
 import { createNote, getNote, readNoteFile, slugify, updateNote, validateId } from "./vault";
 
 /** Tool results count toward the token budget and may carry untrusted text, so cap them. */
@@ -30,9 +30,14 @@ export type ToolContext = {
   remainingBudget?: () => number;
   /** Starts the named agent as a child run and waits for it. Never throws: problems come back as `text` starting with "error:". */
   runChild?: (name: string, message: string) => Promise<ChildResult>;
+  /** The agent keeps a state note between runs: gives it the `update_state` tool. */
+  keepState?: boolean;
   /** Set by the call_agent tool so the runtime can link the child run in the log. */
   lastChildRunId?: string | null;
 };
+
+/** The most characters a state note holds. It goes into every run's prompt, so it stays short. */
+export const STATE_MAX_CHARS = 2000;
 
 /** "concise" drops detail the agent rarely needs; the default keeps it. */
 const FORMAT = z.enum(["concise", "detailed"]);
@@ -137,6 +142,23 @@ export function buildTools(grants: ToolGrant[], ctx: ToolContext): StructuredToo
           description:
             "Read-only summary of the user's study memory: cards due, exam dates, recall rate per note, cards that keep slipping and recall checks. Pass a note `id` to narrow it to one note.",
           schema: z.object({ id: z.string().optional() }),
+        },
+      ),
+    );
+  }
+  if (ctx.keepState) {
+    tools.push(
+      tool(
+        async ({ text }) => {
+          if (text.length > STATE_MAX_CHARS) return `error: the state note is too long (${text.length} characters, the most is ${STATE_MAX_CHARS}). Shorten it and call update_state again. The old note is kept.`;
+          putAgentState(ctx.agentName, text);
+          addEvent(ctx.runId, "note", "state note updated");
+          return `state note saved (${text.length} characters)`;
+        },
+        {
+          name: "update_state",
+          description: `Replace your state note: a short memory for your next run (what you finished, where to continue). At most ${STATE_MAX_CHARS} characters. It replaces the old note, so keep what still matters. It is not one of the user's notes.`,
+          schema: z.object({ text: z.string().min(1) }),
         },
       ),
     );
