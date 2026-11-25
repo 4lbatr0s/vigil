@@ -234,3 +234,15 @@ describe("redact", () => {
     expect(redact("error talking to host with custom-format-key-ABCDEF in it")).toBe("error talking to host with [redacted] in it");
   });
 });
+
+describe("probing tools", () => {
+  it("refuses a connection that does not exist and one with no model chosen, and a bad body", async () => {
+    expect((await j("POST", "/api/connections/probe-tools", { connectionId: "nope" })).status).toBeGreaterThanOrEqual(400);
+    await j("POST", "/api/connections", { name: "Bare", kind: "openai", baseUrl: `${fakeBase}/v1`, apiKey: KEY });
+    const bare = await j("POST", "/api/connections/probe-tools", { connectionId: "bare" });
+    expect(bare.status).toBe(400);
+    expect(bare.body.error?.code).toBe("no-model");
+    expect((await j("POST", "/api/connections/probe-tools", {})).status).toBe(400);
+    expect(bare.text).not.toContain(KEY);
+  });
+});

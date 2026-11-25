@@ -129,6 +129,7 @@ export const createConnection = (c: ConnectionInput) => request<Connection>("/ap
 export const updateConnection = (id: string, c: ConnectionInput) => request<Connection>(`/api/connections/${seg(id)}`, json("PUT", c));
 export const deleteConnection = (id: string) => request<{ id: string }>(`/api/connections/${seg(id)}`, { method: "DELETE" });
 export const setDefaultConnection = (id: string) => request<Connection[]>("/api/connections/default", json("PUT", { id }));
+export const probeConnectionTools = (p: { connectionId: string; model?: string }) => request<{ ok: boolean; message: string }>("/api/connections/probe-tools", json("POST", p));
 export const probeConnection = (p: { kind: Connection["kind"]; baseUrl: string; apiKey?: string; connectionId?: string }) => request<ProbeResult>("/api/connections/probe", json("POST", p));
 export type ImageSettings = { agentsSeePictures: boolean };
 export const getImageSettings = () => request<ImageSettings>("/api/images/settings");

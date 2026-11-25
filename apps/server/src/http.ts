@@ -36,6 +36,7 @@ import { planRename, renameNote } from "./rename";
 import { refreshSchedule } from "./scheduler";
 import { llmStatus } from "./llm-status";
 import { SaveBodySchema, createCanvas, listCanvases, readCanvas, removeCanvas, saveCanvas } from "./canvas";
+import { probeTools } from "./tool-probe";
 import { ConnectionInputSchema, ProbeInputSchema, createConnection, listConnections, probeConnection, removeConnection, resolveConnection, savedKey, setDefaultConnection, updateConnection } from "./connections";
 import { UNKNOWN_CAPS, modelCaps } from "./model-caps";
 import { usage } from "./usage";
@@ -851,6 +852,20 @@ const routes: { method: string; pattern: RegExp; keys: string[]; handler: Handle
       if (!parsed.success) throw new AppError("invalid-body", `Invalid address: ${parsed.error.issues.map((i) => i.message).join("; ")}`, 400);
       const key = parsed.data.apiKey || (parsed.data.connectionId ? savedKey(parsed.data.connectionId) : undefined);
       send(res, 200, { data: await probeConnection({ kind: parsed.data.kind, baseUrl: parsed.data.baseUrl, apiKey: key }) });
+    },
+  },
+  {
+    // One tiny model call that asks for a tool call: can this connection's model run agents with tools?
+    method: "POST",
+    pattern: /^\/api\/connections\/probe-tools$/,
+    keys: [],
+    handler: async (req, res) => {
+      const parsed = z.object({ connectionId: z.string().min(1).max(60), model: z.string().min(1).max(200).optional() }).safeParse(await readJsonBody(req));
+      if (!parsed.success) throw new AppError("invalid-body", `Invalid request: ${parsed.error.issues.map((i) => i.message).join("; ")}`, 400);
+      const conn = resolveConnection(parsed.data.connectionId);
+      const model = parsed.data.model ?? conn.model;
+      if (!model) throw new AppError("no-model", "This connection has no model chosen. Choose one first.", 400);
+      send(res, 200, { data: await probeTools(conn, model) });
     },
   },
   {

@@ -2,6 +2,7 @@
 
 ## Unreleased: UI v2 (ADR-0016), then design system v3 (ADR-0029)
 
+- Models: a "Check tools" button on each connection in Settings asks the model to call a harmless tool once (a few tokens) and says whether agents with tools can work with it, or why the provider refused.
 - Evals: `pnpm --filter @vigil/server eval --agent --trials 3` runs five agent cases (finding an answer by reading notes, a write that waits for approval, an instruction planted in a note, a job the agent has no tool for, a note that does not exist) several times each against a real model, judges the result from what the agent left behind (tool calls, approvals, notes), and reports pass^k. A regression case that fails once fails the run.
 - Runs: the run page shows tokens and time for each model and tool step, the setup fingerprint of the agent, and a "Run again" button; the Cancel button and the title row wrap on a phone.
 - Agents: an optional token limit per day for each agent (Advanced on the agent page). When an agent has used it, a new run or chat message is refused with a clear message until tomorrow (UTC). The monthly caps are unchanged.

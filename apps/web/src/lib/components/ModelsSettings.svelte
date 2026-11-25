@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { ApiError, deleteConnection, listConnections, probeConnection, setDefaultConnection, type Connection } from "$lib/api";
+  import { ApiError, deleteConnection, listConnections, probeConnection, probeConnectionTools, setDefaultConnection, type Connection } from "$lib/api";
   import ConnectionWizard from "$lib/components/ConnectionWizard.svelte";
   import { Badge, Button, Cluster, Dialog, Stack } from "$lib/ui";
 
@@ -31,6 +31,16 @@
       results[c.id] = `${r.ok ? `Reachable, ${r.models.length} ${r.models.length === 1 ? "model" : "models"}.` : (r.error ?? "Not reachable.")} Tested ${at}.`;
     } catch (err) {
       results[c.id] = err instanceof Error ? err.message : "Could not test";
+    }
+  }
+
+  async function checkTools(c: Connection): Promise<void> {
+    results[c.id] = "Asking the model to call a tool…";
+    try {
+      const r = await probeConnectionTools({ connectionId: c.id });
+      results[c.id] = r.message;
+    } catch (err) {
+      results[c.id] = err instanceof ApiError ? err.detail : err instanceof Error ? err.message : "Could not check";
     }
   }
 
@@ -83,6 +93,7 @@
             <div class="detail">{c.baseUrl} · {c.defaultModel ?? "no model chosen"} · {c.hasKey ? "key saved" : "no key"}</div>
             <Cluster gap={1}>
               <Button variant="ghost" size="sm" onclick={() => void test(c)}>Test</Button>
+              {#if c.defaultModel}<Button variant="ghost" size="sm" onclick={() => void checkTools(c)}>Check tools</Button>{/if}
               {#if !c.isDefault}<Button variant="ghost" size="sm" onclick={() => void makeDefault(c)}>Make default</Button>{/if}
               {#if !c.readOnly}
                 <Button variant="ghost" size="sm" onclick={() => ((editing = c), (adding = false))}>Change</Button>
