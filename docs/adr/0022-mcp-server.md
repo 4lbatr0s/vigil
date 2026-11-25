@@ -1,7 +1,7 @@
 # ADR-0022: Vigil speaks MCP so other agents can work in the vault
 
 ## Status
-Accepted (2026-11-17).
+Accepted (2026-11-17). Amended by ADR-0033 (named client tokens).
 
 ## Context
 Vigil is where the learner's notes and study memory live. People already work with other AI tools (Claude Code, Claude Desktop, editors) that speak the Model Context Protocol (MCP). Letting those tools read and write notes makes the vault useful beyond our own agents, but it adds a second way in, so it needs the same protection as the first (snapshots, undo, token, Host and Origin checks).

@@ -1,6 +1,7 @@
 import { timingSafeEqual } from "node:crypto";
 import type { IncomingMessage } from "node:http";
 import { AppError } from "./errors";
+import { clientForToken } from "./mcp-clients";
 import { hasValidSession } from "./session";
 
 /** Who may reach the API (ADR-0007). */
@@ -88,6 +89,8 @@ export function checkAccess(req: IncomingMessage, access: Access, pathname: stri
     const auth = req.headers.authorization ?? "";
     const given = auth.startsWith("Bearer ") ? auth.slice(7) : "";
     if (!sameToken(given, access.token) && !hasValidSession(req, access.token)) {
+      // A named MCP client token (ADR-0033) opens the MCP route and nothing else.
+      if (pathname === "/api/mcp" && clientForToken(given) !== null) return;
       throw new AppError("unauthorized", "Missing or wrong token", 401);
     }
   }

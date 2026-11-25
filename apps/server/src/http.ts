@@ -10,6 +10,7 @@ import { AddBodySchema, addMisconceptions, resolveOne } from "./misconceptions";
 import { embedModel, setEmbedModel } from "./embeddings";
 import { hybridIds, relatedIds, semanticStatus, syncVectors } from "./semantic";
 import { McpSettingsSchema, handleMcp, mcpSettings, saveMcpSettings } from "./mcp";
+import { bearerOf, clientForToken, createMcpClient, listMcpClients, revokeMcpClient } from "./mcp-clients";
 import { AskBodySchema, GapBodySchema, askTask, findPassages, gapPassages, gapTask, questionWords } from "./ask";
 import { AppError, isAppError } from "./errors";
 import { healthPayload } from "./health";
@@ -47,7 +48,7 @@ import { ResultBodySchema, enroll, recordResult } from "./recall";
 import { GoalBodySchema, goalStatuses, validGoalDay } from "./goals";
 import { StudySettingsSchema, answerCard, deckStats, dueCards, saveStudySettings, studyForecast, stuckCards, studyHistory, studySettings, studyStats, undoAnswer } from "./study";
 import { cardsForNote } from "./index-db";
-import { addPin, approvalsForRun, clearHeartbeat, decideApproval, deleteAgentState, getAgentState, getApproval, listApprovals, listChatThreads, getAgent, getHeartbeat, getRun, getSchedule, listAgents, listEvents, listPins, listRuns, putAgent, listMisconceptions, listRecall, putSchedule, removeGoal, removePin, removeRecall, setGoal } from "./state-db";
+import { addPin, approvalsForRun, clearHeartbeat, touchMcpClient, decideApproval, deleteAgentState, getAgentState, getApproval, listApprovals, listChatThreads, getAgent, getHeartbeat, getRun, getSchedule, listAgents, listEvents, listPins, listRuns, putAgent, listMisconceptions, listRecall, putSchedule, removeGoal, removePin, removeRecall, setGoal } from "./state-db";
 import { createNote, deleteNote, getNote as vaultGetNote, slugify, updateNote, validateId } from "./vault";
 
 const MAX_BODY_BYTES = 2 * 1024 * 1024;
@@ -432,7 +433,10 @@ const routes: { method: string; pattern: RegExp; keys: string[]; handler: Handle
         send(res, 400, { jsonrpc: "2.0", id: null, error: { code: -32700, message: "Parse error" } });
         return;
       }
-      const reply = await handleMcp(body, mcpSettings());
+      // A call made with a named client token is logged under that name (ADR-0033).
+      const client = clientForToken(bearerOf(req));
+      if (client) touchMcpClient(client.id);
+      const reply = await handleMcp(body, mcpSettings(), Date.now(), client?.name ?? null);
       if (reply.body === undefined) {
         res.writeHead(reply.status).end();
         return;
@@ -445,6 +449,32 @@ const routes: { method: string; pattern: RegExp; keys: string[]; handler: Handle
     pattern: /^\/api\/mcp\/settings$/,
     keys: [],
     handler: async (_req, res) => send(res, 200, { data: mcpSettings() }),
+  },
+  {
+    method: "GET",
+    pattern: /^\/api\/mcp\/clients$/,
+    keys: [],
+    handler: async (_req, res) => send(res, 200, { data: listMcpClients() }),
+  },
+  {
+    // The token is in this answer and nowhere else, ever again.
+    method: "POST",
+    pattern: /^\/api\/mcp\/clients$/,
+    keys: [],
+    handler: async (req, res) => {
+      const parsed = z.object({ name: z.string() }).safeParse(await readJsonBody(req));
+      if (!parsed.success) throw new AppError("invalid-body", "Body must be { name: string }", 400);
+      send(res, 201, { data: createMcpClient(parsed.data.name) });
+    },
+  },
+  {
+    method: "DELETE",
+    pattern: /^\/api\/mcp\/clients\/([^/]+)$/,
+    keys: ["id"],
+    handler: async (_req, res, params) => {
+      if (!revokeMcpClient(params["id"] ?? "")) throw new AppError("mcp-client-not-found", "No such client", 404);
+      send(res, 200, { data: { revoked: true } });
+    },
   },
   {
     method: "PUT",

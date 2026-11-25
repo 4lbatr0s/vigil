@@ -237,6 +237,16 @@ export const MIGRATIONS: readonly string[] = [
     updated_at TEXT NOT NULL
   );
   `,
+  `
+  -- migration 17: named tokens for MCP clients (ADR-0033). Only a SHA-256 hash of the token is kept.
+  CREATE TABLE mcp_clients (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL UNIQUE COLLATE NOCASE,
+    token_hash TEXT NOT NULL UNIQUE,
+    created_at TEXT NOT NULL,
+    last_used_at TEXT
+  );
+  `,
 ];
 
 let current: { key: string; db: Database.Database } | null = null;
@@ -984,4 +994,31 @@ export function putConnectionRow(row: ConnectionRow): void {
 
 export function deleteConnectionRow(id: string): boolean {
   return open().prepare("DELETE FROM connections WHERE id = ?").run(id).changes > 0;
+}
+
+// ---- MCP clients (ADR-0033) ----
+
+export type McpClientRow = { id: string; name: string; createdAt: string; lastUsedAt: string | null };
+const CLIENT_COLUMNS = "id, name, created_at AS createdAt, last_used_at AS lastUsedAt";
+
+export function insertMcpClient(row: { id: string; name: string; tokenHash: string }): McpClientRow {
+  const now = new Date().toISOString();
+  open().prepare("INSERT INTO mcp_clients (id, name, token_hash, created_at) VALUES (?, ?, ?, ?)").run(row.id, row.name, row.tokenHash, now);
+  return { id: row.id, name: row.name, createdAt: now, lastUsedAt: null };
+}
+
+export function listMcpClientRows(): McpClientRow[] {
+  return open().prepare(`SELECT ${CLIENT_COLUMNS} FROM mcp_clients ORDER BY created_at, rowid`).all() as McpClientRow[];
+}
+
+export function mcpClientByHash(tokenHash: string): McpClientRow | null {
+  return (open().prepare(`SELECT ${CLIENT_COLUMNS} FROM mcp_clients WHERE token_hash = ?`).get(tokenHash) as McpClientRow | undefined) ?? null;
+}
+
+export function touchMcpClient(id: string): void {
+  open().prepare("UPDATE mcp_clients SET last_used_at = ? WHERE id = ?").run(new Date().toISOString(), id);
+}
+
+export function deleteMcpClientRow(id: string): boolean {
+  return open().prepare("DELETE FROM mcp_clients WHERE id = ?").run(id).changes > 0;
 }
