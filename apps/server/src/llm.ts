@@ -2,10 +2,10 @@ import type { AIMessage, AIMessageChunk, BaseMessage } from "@langchain/core/mes
 import type { StructuredToolInterface } from "@langchain/core/tools";
 import { ChatAnthropic } from "@langchain/anthropic";
 import { ChatOllama } from "@langchain/ollama";
-import { ChatOpenAI } from "@langchain/openai";
 import { DEFAULT_URLS, envConnection, resolveConnection, type ResolvedConnection } from "./connections";
 import { knownSecrets } from "./secrets";
 import { withRetry } from "./llm-retry";
+import { reasoningChatOpenAI } from "./llm-reasoning";
 
 /**
  * All the runtime needs from a model: messages in, one AI message out (tools already bound).
@@ -56,7 +56,8 @@ function buildPlainChatModel(conn: ResolvedConnection, tools: StructuredToolInte
   }
   if (conn.kind === "anthropic") return anthropicRunnable(conn, tools, name, maxTokens) as unknown as ChatModel;
   return bind(
-    new ChatOpenAI({
+    // Sends `reasoning_content` back, which DeepSeek's thinking mode needs when tools are on (todo-agent 17).
+    reasoningChatOpenAI({
       model: name,
       apiKey: conn.apiKey ?? "not-needed",
       configuration: { baseURL: conn.baseUrl || DEFAULT_URLS.openai },
