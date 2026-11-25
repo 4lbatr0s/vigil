@@ -2,6 +2,7 @@
   import { Badge, Button, Cluster, EmptyState, Kbd, Page, Row, Stack } from "$lib/ui";
   import { onMount } from "svelte";
   import { ApiError, decideApproval, listApprovals, type ApprovalItem } from "$lib/api";
+  import { actionText } from "$lib/approval-text";
   import { diffLines, diffStats } from "$lib/diff";
   import { agoText } from "$lib/format";
   import { refreshOnLive } from "$lib/live";
@@ -82,13 +83,14 @@
     {:else}
       <div class="list" role="list" aria-label="Writes waiting for approval">
         {#each items as item (item.id)}
+          {@const isNote = item.tool === "write_note" || item.tool === "append_note"}
           {@const lines = diffLines(item.currentBody, item.proposedBody)}
           {@const stats = diffStats(lines)}
           <div role="listitem">
             <Row
-              title={item.title || item.noteId}
+              title={isNote ? item.title || item.noteId : item.target}
               meta={agoText(item.createdAt)}
-              snippet={`${item.agent ?? "agent"} · ${item.currentBody === null ? "creates a note" : item.tool === "append_note" ? "adds to the note" : "replaces the note"}`}
+              snippet={`${item.agent ?? "agent"} · ${actionText(item)}`}
               selected={openId === item.id}
               onclick={() => (openId = openId === item.id ? null : item.id)}
             >
@@ -99,13 +101,17 @@
               <p class="muted continues">Run continues. <a href={`/runs/${item.runId}`}>Open the run</a></p>
             {/if}
             {#if openId === item.id && !done[item.id]}
-              <section class="review" aria-label={`Review ${item.title}`}>
-                {#if stale[item.id] || item.stale}
-                  <p class="warn" role="status">This note changed after the agent proposed this write.</p>
-                {/if}
-                <p class="muted">+{stats.added} −{stats.removed}</p>
-                <pre class="diff" aria-label="Changes">{#each lines as l, i (i)}<span class={l.kind}>{l.kind === "add" ? "+ " : l.kind === "del" ? "- " : "  "}{l.text}
+              <section class="review" aria-label={`Review ${isNote ? item.title : item.target}`}>
+                {#if isNote}
+                  {#if stale[item.id] || item.stale}
+                    <p class="warn" role="status">This note changed after the agent proposed this write.</p>
+                  {/if}
+                  <p class="muted">+{stats.added} −{stats.removed}</p>
+                  <pre class="diff" aria-label="Changes">{#each lines as l, i (i)}<span class={l.kind}>{l.kind === "add" ? "+ " : l.kind === "del" ? "- " : "  "}{l.text}
 </span>{/each}</pre>
+                {:else}
+                  <p class="target">{item.target}</p>
+                {/if}
                 <Cluster gap={2}>
                   {#if stale[item.id] || item.stale}
                     <Button variant="danger" disabled={busy === item.id} onclick={() => void decide(item, "approve", true)}>Apply anyway</Button>
@@ -168,6 +174,12 @@
     border-radius: var(--r-control);
     background: var(--agent-fill);
     font: var(--weight-regular) var(--type-ui-size) / var(--type-ui-lh) var(--font-ui);
+  }
+
+  .target {
+    margin: 0;
+    overflow-wrap: anywhere;
+    font: var(--weight-regular) var(--type-ui-size) / var(--type-body-lh) var(--font-code);
   }
 
   .diff {

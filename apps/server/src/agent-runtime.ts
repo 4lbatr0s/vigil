@@ -73,6 +73,8 @@ export const REJECTED_TEXT = "error: the owner rejected this write";
 
 /** The tools that change a note. A strict agent needs approval for each of them. */
 const WRITE_TOOLS = ["write_note", "append_note"];
+/** Every tool an owner can ask to approve first. */
+const GUARDED_TOOLS = [...WRITE_TOOLS, "fetch_url", "call_agent"];
 
 type PendingCall = { id: string; name: string; args: Record<string, unknown> };
 
@@ -118,11 +120,12 @@ export const runAgent: AgentRunner = async ({ agent, task, runId, makeModel, dep
   let stop = null as RunStatus | null;
   let cancelled = false;
 
-  // Approvals apply to write_note for a strict agent. A resumed run is always treated as strict, so
-  // switching approvals off while it waits can never turn a rejected write into an executed one.
-  const hasWriteTool = WRITE_TOOLS.some((t) => byName.has(t));
-  const strictActive = hasWriteTool && (agent.strict || resume !== undefined);
-  const needsApproval = (callName: string): boolean => strictActive && WRITE_TOOLS.includes(callName);
+  // Writes need approval for a strict agent, and `approveTools` adds fetch_url and call_agent whatever `strict` says.
+  // A resumed run exists only because some call waited for a decision, so every tool that can need one still does:
+  // switching approvals off while it waits can never turn a rejected call into an executed one.
+  const askFirst = new Set<string>((resume !== undefined ? GUARDED_TOOLS : [...(agent.strict ? WRITE_TOOLS : []), ...(agent.approveTools ?? [])]).filter((t) => byName.has(t)));
+  const strictActive = askFirst.size > 0;
+  const needsApproval = (callName: string): boolean => askFirst.has(callName);
 
   const State = new StateSchema({
     messages: MessagesValue,

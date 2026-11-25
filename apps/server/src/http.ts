@@ -1032,15 +1032,21 @@ const routes: { method: string; pattern: RegExp; keys: string[]; handler: Handle
       }
       const rows = await Promise.all(
         listApprovals(raw ?? undefined).map(async (a) => {
+          const agent = getRun(a.runId)?.agent ?? null;
+          if (!isNoteWrite(a.tool)) {
+            // fetch_url and call_agent: there is no note to compare, only what the agent wants to do.
+            return { ...a, agent, noteId: "", title: "", currentBody: null, currentUpdatedAt: null, proposedBody: "", stale: false, target: targetOf(a.tool, a.args) };
+          }
           const title = typeof a.args["title"] === "string" ? a.args["title"] : "";
           const noteId = slugify(title);
           // The current text, so the page can show a diff against what is on disk now (it may have changed since).
           const current = await vaultGetNote(noteId).catch(() => null);
           return {
             ...a,
-            agent: getRun(a.runId)?.agent ?? null,
+            agent,
             noteId,
             title,
+            target: "",
             currentBody: current?.body ?? null,
             currentUpdatedAt: current?.updatedAt ?? null,
             proposedBody: proposedBodyOf(a.tool, a.args, current?.body ?? null),
@@ -1061,7 +1067,7 @@ const routes: { method: string; pattern: RegExp; keys: string[]; handler: Handle
       const approval = getApproval(params["id"] ?? "");
       if (!approval) throw new AppError("approval-not-found", `Approval not found: ${params["id"]}`, 404);
       if (approval.status !== "pending") throw new AppError("approval-decided", "This write was already decided", 409);
-      if (parsed.data.decision === "approve" && !parsed.data.force) {
+      if (parsed.data.decision === "approve" && !parsed.data.force && isNoteWrite(approval.tool)) {
         const title = typeof approval.args["title"] === "string" ? approval.args["title"] : "";
         const current = await vaultGetNote(slugify(title)).catch(() => null);
         const stale = current === null ? approval.baseUpdatedAt !== null : current.updatedAt !== approval.baseUpdatedAt;
@@ -1289,6 +1295,15 @@ async function readJsonBody(req: IncomingMessage, options: { emptyIs?: unknown }
   } catch {
     throw new AppError("invalid-body", "Request body is not valid JSON", 400);
   }
+}
+
+const isNoteWrite = (tool: string): boolean => tool === "write_note" || tool === "append_note";
+
+/** What an approval for a tool that is not a note write is about, in one short line: the address, or the agent and its message. */
+function targetOf(tool: string, args: Record<string, unknown>): string {
+  if (tool === "fetch_url") return typeof args["url"] === "string" ? args["url"].slice(0, 500) : "";
+  if (tool === "call_agent") return `${typeof args["name"] === "string" ? args["name"] : "?"}: ${typeof args["message"] === "string" ? args["message"].slice(0, 300) : ""}`;
+  return tool;
 }
 
 /** The note text a write would leave behind: the new body for `write_note`, the old body plus the added text for `append_note`. */

@@ -99,6 +99,11 @@
     }
   }
 
+  function toggleApprove(tool: "fetch_url" | "call_agent", on: boolean): void {
+    if (!form) return;
+    form.approveTools = on ? [...new Set([...form.approveTools, tool])] : form.approveTools.filter((t) => t !== tool);
+  }
+
   async function clearNote(): Promise<void> {
     try {
       await clearAgentState(name);
@@ -340,6 +345,12 @@
             <Switch label="Enabled" bind:checked={form.enabled} />
             <Switch label="Ask me before this agent writes" bind:checked={form.strict} onchange={onStrictChange} />
             <p class="muted">Writes wait in <a href="/approvals">Approvals</a> until you accept them.</p>
+            {#if form.tools.includes("web_fetch")}
+              <Switch label="Ask me before it reads a web page" checked={form.approveTools.includes("fetch_url")} onchange={(on: boolean) => toggleApprove("fetch_url", on)} />
+            {/if}
+            {#if form.tools.includes("call_agents")}
+              <Switch label="Ask me before it asks another agent" checked={form.approveTools.includes("call_agent")} onchange={(on: boolean) => toggleApprove("call_agent", on)} />
+            {/if}
             <Switch label="Remember where it stopped" bind:checked={form.keepState} />
             <p class="muted">It keeps a short note for its next run and reads it first. The note is not one of your notes.</p>
             {#if stateNote}

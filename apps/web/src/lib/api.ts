@@ -283,6 +283,8 @@ export type ApprovalItem = {
   /** The note as it is on disk now; null when it does not exist. */
   currentBody: string | null;
   proposedBody: string;
+  /** For fetch_url and call_agent: the address, or the agent and its message. Empty for note writes. */
+  target: string;
   /** The note changed (or appeared) after the agent proposed this write. */
   stale: boolean;
 };

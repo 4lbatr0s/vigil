@@ -31,6 +31,13 @@ describe("agent form", () => {
     expect("dailyTokenCap" in formToAgent(withCap, { ...agentToForm(withCap), dailyTokenCap: " " })).toBe(false);
   });
 
+  it("approveTools round-trips and is left out when empty", () => {
+    const on = formToAgent(base, { ...agentToForm(base), approveTools: ["fetch_url"] });
+    expect(on.approveTools).toEqual(["fetch_url"]);
+    expect(agentToForm(on).approveTools).toEqual(["fetch_url"]);
+    expect("approveTools" in formToAgent(on, { ...agentToForm(on), approveTools: [] })).toBe(false);
+  });
+
   it("applies edits and keeps every field the form does not know", () => {
     const form = { ...agentToForm(base), systemPrompt: "New.", tokenBudget: "5000", strict: true, enabled: false, model: " gpt-x " };
     const out = formToAgent(base, form);
