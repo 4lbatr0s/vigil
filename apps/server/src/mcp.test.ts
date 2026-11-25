@@ -138,3 +138,13 @@ describe("MCP over HTTP", () => {
     expect(res.status).toBe(403);
   });
 });
+
+describe("mcp tool schemas", () => {
+  it("read_note and list_notes advertise the concise format", async () => {
+    await on();
+    const tools = (await rpc("tools/list")).body.result.tools as { name: string; inputSchema: { properties: Record<string, { enum?: string[] }> } }[];
+    for (const name of ["read_note", "list_notes"]) {
+      expect(tools.find((t) => t.name === name)?.inputSchema.properties["format"]?.enum).toEqual(["concise", "detailed"]);
+    }
+  });
+});

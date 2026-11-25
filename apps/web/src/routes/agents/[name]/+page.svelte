@@ -3,7 +3,7 @@
   import { goto } from "$app/navigation";
   import { page } from "$app/state";
   import { AgentNameSchema, type Agent, type PermissionSettings, type Run, type ToolGrant } from "@vigil/shared";
-  import { ApiError, createChat, getModelCaps, getAgent, getAgentSkill, listAgents, listConnections, probeConnection, type Connection, getPermissions, getSchedule, listRuns, putAgent, runAgent, type Schedule } from "$lib/api";
+  import { ApiError, clearAgentState, createChat, getAgentState, getModelCaps, getAgent, getAgentSkill, listAgents, listConnections, probeConnection, type Connection, getPermissions, getSchedule, listRuns, putAgent, runAgent, type Schedule } from "$lib/api";
   import { duplicateAgent } from "$lib/agent-design";
   import { TOOL_LABELS, addHost, agentToForm, describeGrants, exposure, formToAgent, noHostsWarning, riskyCombination, triggerProblem, type AgentForm } from "$lib/agent-form";
   import { describeCheck, formatStamp } from "$lib/format";
@@ -31,6 +31,7 @@
   let hostError = $state("");
   let connections = $state<Connection[]>([]);
   let models = $state<string[]>([]);
+  let stateNote = $state<{ text: string; updatedAt: string } | null>(null);
   const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
   const TOOLS: ToolGrant[] = ["read_notes", "write_notes", "web_fetch", "call_agents"];
   const problem = $derived(agent && form ? triggerProblem(form, agent) : null);
@@ -90,10 +91,20 @@
       [agent, settings] = await Promise.all([getAgent(name), getPermissions()]);
       form = agentToForm(agent);
       schedule = await getSchedule(name);
+      stateNote = await getAgentState(name).catch(() => null);
       connections = await listConnections().catch(() => [] as Connection[]);
       void loadModels();
     } catch (err) {
       loadError = err instanceof Error ? err.message : "Could not load the agent";
+    }
+  }
+
+  async function clearNote(): Promise<void> {
+    try {
+      await clearAgentState(name);
+      stateNote = null;
+    } catch (err) {
+      saveError = err instanceof ApiError ? err.detail : "Could not clear the note";
     }
   }
 
@@ -331,6 +342,13 @@
             <p class="muted">Writes wait in <a href="/approvals">Approvals</a> until you accept them.</p>
             <Switch label="Remember where it stopped" bind:checked={form.keepState} />
             <p class="muted">It keeps a short note for its next run and reads it first. The note is not one of your notes.</p>
+            {#if stateNote}
+              <p class="note-text" aria-label="The agent's saved note">{stateNote.text}</p>
+              <Cluster gap={2}>
+                <span class="muted">Saved {formatStamp(stateNote.updatedAt)}.</span>
+                <Button variant="ghost" size="sm" onclick={() => void clearNote()}>Clear note</Button>
+              </Cluster>
+            {/if}
           </Stack>
 
           <Stack gap={2}>
@@ -657,5 +675,16 @@
 
   .list {
     margin: 0 calc(var(--s-3) * -1);
+  }
+
+  .note-text {
+    margin: 0;
+    padding: var(--s-2) var(--s-3);
+    border-radius: var(--r-surface);
+    background: var(--fill-hover);
+    color: var(--text-2);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    font: var(--weight-regular) var(--type-meta-size) / var(--type-body-lh) var(--font-code);
   }
 </style>

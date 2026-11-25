@@ -748,6 +748,10 @@ export function putAgentState(agent: string, text: string): void {
     .run(agent, text, new Date().toISOString());
 }
 
+export function deleteAgentState(agent: string): boolean {
+  return open().prepare("DELETE FROM agent_state WHERE agent = ?").run(agent).changes > 0;
+}
+
 export function deleteChatThread(id: string): void {
   const db = open();
   db.prepare("DELETE FROM chat_summaries WHERE thread_id = ?").run(id);
