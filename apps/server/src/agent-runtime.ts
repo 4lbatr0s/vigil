@@ -71,6 +71,9 @@ const hasWrite = (a: Agent): boolean => a.tools.includes("write_notes");
 /** What the tools node answers for a write the owner rejected. */
 export const REJECTED_TEXT = "error: the owner rejected this write";
 
+/** The tools that change a note. A strict agent needs approval for each of them. */
+const WRITE_TOOLS = ["write_note", "append_note"];
+
 type PendingCall = { id: string; name: string; args: Record<string, unknown> };
 
 /** Tool messages for calls that did not run, so no tool call is left without an answer. */
@@ -117,8 +120,9 @@ export const runAgent: AgentRunner = async ({ agent, task, runId, makeModel, dep
 
   // Approvals apply to write_note for a strict agent. A resumed run is always treated as strict, so
   // switching approvals off while it waits can never turn a rejected write into an executed one.
-  const strictActive = byName.has("write_note") && (agent.strict || resume !== undefined);
-  const needsApproval = (callName: string): boolean => strictActive && callName === "write_note";
+  const hasWriteTool = WRITE_TOOLS.some((t) => byName.has(t));
+  const strictActive = hasWriteTool && (agent.strict || resume !== undefined);
+  const needsApproval = (callName: string): boolean => strictActive && WRITE_TOOLS.includes(callName);
 
   const State = new StateSchema({
     messages: MessagesValue,

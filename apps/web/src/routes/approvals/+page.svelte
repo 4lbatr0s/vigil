@@ -88,7 +88,7 @@
             <Row
               title={item.title || item.noteId}
               meta={agoText(item.createdAt)}
-              snippet={`${item.agent ?? "agent"} · ${item.currentBody === null ? "creates a note" : "replaces the note"}`}
+              snippet={`${item.agent ?? "agent"} · ${item.currentBody === null ? "creates a note" : item.tool === "append_note" ? "adds to the note" : "replaces the note"}`}
               selected={openId === item.id}
               onclick={() => (openId = openId === item.id ? null : item.id)}
             >

@@ -2,6 +2,7 @@
 
 ## Unreleased: UI v2 (ADR-0016), then design system v3 (ADR-0029)
 
+- Agents: a new `append_note` tool (part of the write grant) adds text at the end of a note instead of replacing the whole body, so an agent that only adds something cannot overwrite what is there. Strict agents need approval for it like for `write_note`, and the Approvals page shows the old text plus the added text as a diff.
 - Agents: the agent page shows the note an agent saved for its next run, with a Clear note button; MCP clients now see the `format` option of `read_note` and `list_notes`.
 - Models: a "Check tools" button on each connection in Settings asks the model to call a harmless tool once (a few tokens) and says whether agents with tools can work with it, or why the provider refused.
 - Evals: `pnpm --filter @vigil/server eval --agent --trials 3` runs five agent cases (finding an answer by reading notes, a write that waits for approval, an instruction planted in a note, a job the agent has no tool for, a note that does not exist) several times each against a real model, judges the result from what the agent left behind (tool calls, approvals, notes), and reports pass^k. A regression case that fails once fails the run.

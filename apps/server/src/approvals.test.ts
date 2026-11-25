@@ -310,3 +310,35 @@ describe("stale approvals and the approvals API", () => {
     expect((await call("GET", "/api/approvals?status=rejected")).json.data).toHaveLength(1);
   });
 });
+
+describe("append_note", () => {
+  const appendCall = (title: string, text: string, id: string) =>
+    new AIMessage({ content: "", tool_calls: [{ id, name: "append_note", args: { title, text }, type: "tool_call" }], usage_metadata: usage(10) });
+
+  it("a strict agent's append waits, and the Approvals list shows the old body plus the new text", async () => {
+    await createNote({ title: "Log", body: "first entry" });
+    const { runId } = await startStrict([appendCall("Log", "second entry", "a1"), say("done")]);
+    expect(getRun(runId)?.status).toBe("waiting-approval");
+    expect((await getNote("log")).body).toBe("first entry");
+    const item = (await call("GET", "/api/approvals")).json.data[0];
+    expect(item).toMatchObject({ tool: "append_note", title: "Log", currentBody: "first entry", proposedBody: "first entry\n\nsecond entry" });
+  });
+
+  it("approving it appends to the note, keeps the old text, and the run snapshot lets undo restore the note", async () => {
+    await createNote({ title: "Log", body: "first entry" });
+    const { runId } = await startStrict([appendCall("Log", "second entry", "a1"), say("done")]);
+    const approval = pendingForRun(runId)[0];
+    expect((await call("POST", `/api/approvals/${approval?.id}/decision`, { decision: "approve" })).status).toBe(200);
+    await waitForRuns();
+    expect((await getNote("log")).body).toBe("first entry\n\nsecond entry");
+    expect(listSnapshots(runId)).toMatchObject([{ noteId: "log", existed: true }]);
+  });
+
+  it("creates the note when it does not exist", async () => {
+    const { runId } = await startStrict([appendCall("Fresh", "hello", "a1"), say("done")]);
+    expect((await call("GET", "/api/approvals")).json.data[0]).toMatchObject({ currentBody: null, proposedBody: "hello" });
+    await call("POST", `/api/approvals/${pendingForRun(runId)[0]?.id}/decision`, { decision: "approve" });
+    await waitForRuns();
+    expect((await getNote("fresh")).body).toBe("hello");
+  });
+});

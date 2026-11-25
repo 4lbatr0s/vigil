@@ -1043,7 +1043,7 @@ const routes: { method: string; pattern: RegExp; keys: string[]; handler: Handle
             title,
             currentBody: current?.body ?? null,
             currentUpdatedAt: current?.updatedAt ?? null,
-            proposedBody: typeof a.args["body"] === "string" ? a.args["body"] : "",
+            proposedBody: proposedBodyOf(a.tool, a.args, current?.body ?? null),
             stale: current === null ? a.baseUpdatedAt !== null : current.updatedAt !== a.baseUpdatedAt,
           };
         }),
@@ -1289,6 +1289,15 @@ async function readJsonBody(req: IncomingMessage, options: { emptyIs?: unknown }
   } catch {
     throw new AppError("invalid-body", "Request body is not valid JSON", 400);
   }
+}
+
+/** The note text a write would leave behind: the new body for `write_note`, the old body plus the added text for `append_note`. */
+function proposedBodyOf(tool: string, args: Record<string, unknown>, old: string | null): string {
+  if (tool === "append_note") {
+    const text = typeof args["text"] === "string" ? args["text"].trim() : "";
+    return old === null || old.trim() === "" ? text : `${old.trimEnd()}\n\n${text}`;
+  }
+  return typeof args["body"] === "string" ? args["body"] : "";
 }
 
 export function createHandler(access: Access): (req: IncomingMessage, res: ServerResponse) => void {

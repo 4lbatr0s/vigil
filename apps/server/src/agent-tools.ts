@@ -61,7 +61,7 @@ export function truncate(text: string, max = MAX_TOOL_OUTPUT): string {
 /** Which tool names a grant opens. The allowlist is the only way a tool gets built. */
 export const GRANTS: Record<ToolGrant, string[]> = {
   read_notes: ["list_notes", "read_note", "search_notes", "learner_status"],
-  write_notes: ["write_note"],
+  write_notes: ["write_note", "append_note"],
   web_fetch: ["fetch_url"],
   call_agents: [], // WP7 builds the call_agent tool
 };
@@ -211,40 +211,62 @@ export function buildTools(grants: ToolGrant[], ctx: ToolContext): StructuredToo
     );
   }
   if (grants.includes("write_notes")) {
+    /**
+     * The shared write path for `write_note` and `append_note`: lock, snapshot first (once per run and note, the one-click
+     * undo restores it), write, index, log, then read the note back. `makeBody` gets the old body (null when the note does
+     * not exist) and returns the new one, or an `error:` text that stops the write.
+     */
+    const commit = (title: string, makeBody: (old: string | null) => string | { error: string }): Promise<string> => {
+      const id = validateId(slugify(title));
+      return withNoteLock(async () => {
+        const before = await readNoteFile(id);
+        const oldBody = before === null ? null : (await getNote(id)).body;
+        const body = makeBody(oldBody);
+        if (typeof body !== "string") return body.error;
+        const fresh = await recordSnapshot(ctx.runId, id, before);
+        try {
+          const note = before === null
+            ? await createNote({ title, body }, { author: "agent", agentName: ctx.agentName })
+            : await updateNote(id, { title, body }, { author: "agent", agentName: ctx.agentName });
+          setWrittenUpdatedAt(ctx.runId, id, note.updatedAt);
+          recordTouch(ctx.agentName, id, "wrote", ctx.runId);
+          reindexNote(note);
+          addEvent(ctx.runId, "note", `${before === null ? "created" : "updated"} ${id}`, { id });
+          // Read it back: the reply tells the agent what is really on disk.
+          const onDisk = await getNote(id);
+          if (onDisk.body.trim() === "") return `error: ${before === null ? "created" : "updated"} note ${id} but its body reads back empty. Check it and write it again.`;
+          return `${before === null ? "created" : "updated"} note ${id} (checked: ${onDisk.body.length} characters on disk)`;
+        } catch (err) {
+          // The write never happened, so undo must not touch this note: forget the snapshot.
+          if (fresh) await dropSnapshot(ctx.runId, id);
+          throw err;
+        }
+      });
+    };
     tools.push(
       tool(
         async ({ title, body }) => {
           // An empty body would erase a note. The snapshot could undo it, but the agent almost surely did not mean it.
           if (body.trim() === "") return "error: the body is empty, so nothing was written. To leave a note as it is, do not call write_note.";
-          const id = validateId(slugify(title));
-          return withNoteLock(async () => {
-            // Snapshot first, once per run and note: the one-click undo restores this copy.
-            const before = await readNoteFile(id);
-            const fresh = await recordSnapshot(ctx.runId, id, before);
-            try {
-              const note = before === null
-                ? await createNote({ title, body }, { author: "agent", agentName: ctx.agentName })
-                : await updateNote(id, { title, body }, { author: "agent", agentName: ctx.agentName });
-              setWrittenUpdatedAt(ctx.runId, id, note.updatedAt);
-              recordTouch(ctx.agentName, id, "wrote", ctx.runId);
-              reindexNote(note);
-              addEvent(ctx.runId, "note", `${before === null ? "created" : "updated"} ${id}`, { id });
-              // Read it back: the reply tells the agent what is really on disk.
-              const onDisk = await getNote(id);
-              if (onDisk.body.trim() === "") return `error: ${before === null ? "created" : "updated"} note ${id} but its body reads back empty. Check it and write it again.`;
-              return `${before === null ? "created" : "updated"} note ${id} (checked: ${onDisk.body.length} characters on disk)`;
-            } catch (err) {
-              // The write never happened, so undo must not touch this note: forget the snapshot.
-              if (fresh) await dropSnapshot(ctx.runId, id);
-              throw err;
-            }
-          });
+          return commit(title, () => body);
         },
         {
           name: "write_note",
           description:
-            "Create a note, or replace the body of the note with the same title. The previous version is saved automatically.",
+            "Create a note, or replace the body of the note with the same title. The previous version is saved automatically. To add to a note without replacing it, use append_note.",
           schema: z.object({ title: z.string().min(1), body: z.string() }),
+        },
+      ),
+      tool(
+        async ({ title, text }) => {
+          if (text.trim() === "") return "error: the text is empty, so nothing was added.";
+          return commit(title, (old) => (old === null || old.trim() === "" ? text.trim() : `${old.trimEnd()}\n\n${text.trim()}`));
+        },
+        {
+          name: "append_note",
+          description:
+            "Add text at the end of the note with this title, after a blank line. The old text stays as it is. Creates the note when it does not exist. The previous version is saved automatically. Prefer this to write_note when you only add something.",
+          schema: z.object({ title: z.string().min(1), text: z.string() }),
         },
       ),
     );

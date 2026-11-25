@@ -293,7 +293,7 @@ describe("provider adapter", () => {
       expect(requests).toHaveLength(2);
       expect(requests[0]).toMatchObject({ url: "/v1/chat/completions", auth: "Bearer test-key-123456" });
       expect(requests[0]?.body.model).toBe("stub-model");
-      expect(requests[0]?.body.tools?.length).toBe(5);
+      expect(requests[0]?.body.tools?.length).toBe(6); // four read tools, write_note and append_note
       expect(JSON.stringify(listEvents(created.id))).not.toContain("test-key-123456");
     } finally {
       await new Promise<void>((r) => server.close(() => r()));
@@ -492,5 +492,28 @@ describe("daily cap on start", () => {
     const { make } = scripted([say("ok", 60)]);
     expect((await run(a, make)).tokensUsed).toBeGreaterThanOrEqual(50);
     expect(() => startRun(a.name)).toThrowError(expect.objectContaining({ code: "agent-daily-cap-reached", status: 429 }));
+  });
+});
+
+describe("append_note tool", () => {
+  it("refuses empty text and leaves the note alone", async () => {
+    await seedNote("Log", "first");
+    createRun("r-ap", "a", 1000);
+    const append = buildTools(["write_notes"], { runId: "r-ap", agentName: "a" }).find((t) => t.name === "append_note")!;
+    expect(String(await append.invoke({ title: "Log", text: "  " }))).toMatch(/^error: .*empty/);
+    expect((await getNote("log")).body).toBe("first");
+  });
+
+  it("adds the text after the old body with a blank line, and reports the length it checked", async () => {
+    await seedNote("Log", "first\n");
+    createRun("r-ap2", "a", 1000);
+    const append = buildTools(["write_notes"], { runId: "r-ap2", agentName: "a" }).find((t) => t.name === "append_note")!;
+    expect(String(await append.invoke({ title: "Log", text: "second" }))).toMatch(/^updated note log \(checked: \d+ characters on disk\)/);
+    expect((await getNote("log")).body).toBe("first\n\nsecond");
+  });
+
+  it("is not built without the write grant", () => {
+    const names = buildTools(["read_notes"], { runId: "r-x", agentName: "a" }).map((t) => t.name);
+    expect(names).not.toContain("append_note");
   });
 });

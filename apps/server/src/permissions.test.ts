@@ -116,7 +116,7 @@ describe("permission settings", () => {
     putPermissions(PermissionSettingsSchema.parse({ tools: { write_notes: false } }));
     release();
     await waitForRuns();
-    expect(offered).toEqual(["write_note"]);
+    expect(offered).toEqual(["write_note", "append_note"]); // the write grant opens both write tools
   });
 
   it("newAgentsStrict sets the default for new and template agents only", async () => {
