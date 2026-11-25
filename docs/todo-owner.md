@@ -13,7 +13,7 @@ Only you can do these (a decision, an account, a real device, or publishing). Ti
 - [ ] **Share to Vigil:** install Vigil as an app on your phone, share a link or text to it from another app, and report whether it arrives in the Capture page.
 - [ ] **Anki:** import a file from Study, "Download cards", into real Anki; report any problem.
 - [ ] **MCP:** switch it on in Settings and connect Claude Code or Claude Desktop to `/api/mcp`; report what works.
-- [ ] **Run the evals:** `VIGIL_LLM_PROVIDER=ollama VIGIL_LLM_MODEL=<model> pnpm --filter @vigil/server eval` for your local model, then again with a larger or hosted model, and tell the agent both summaries. It uses a temp folder and never touches your notes.
+- [ ] **Run the evals:** `VIGIL_LLM_PROVIDER=ollama VIGIL_LLM_MODEL=<model> pnpm --filter @vigil/server eval` for your local model, then again with a larger or hosted model, and tell the agent both summaries. Then the same with `--agent --trials 3` added (agent evals: tool use, approvals, a planted instruction). It uses a temp folder and never touches your notes.
 - [ ] **A larger model:** try a model bigger than the local 4B on filing (Inbox), the weekly study review, recall checks and Ask your notes; tell the agent the model name and how it did.
 
 ## Your setup
