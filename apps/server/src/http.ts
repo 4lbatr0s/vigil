@@ -1329,10 +1329,11 @@ async function readJsonBody(req: IncomingMessage, options: { emptyIs?: unknown }
 
 const isNoteWrite = (tool: string): boolean => tool === "write_note" || tool === "append_note";
 
-/** What an approval for a tool that is not a note write is about, in one short line: the address, or the agent and its message. */
+/** What an approval for a tool that is not a note write is about: the whole address, or the agent and its whole message. */
 function targetOf(tool: string, args: Record<string, unknown>): string {
-  if (tool === "fetch_url") return typeof args["url"] === "string" ? args["url"].slice(0, 500) : "";
-  if (tool === "call_agent") return `${typeof args["name"] === "string" ? args["name"] : "?"}: ${typeof args["message"] === "string" ? args["message"].slice(0, 300) : ""}`;
+  // Never cut: what the owner approves must be exactly what runs. The tools cap the input length (2,000 and 4,000 characters).
+  if (tool === "fetch_url") return typeof args["url"] === "string" ? args["url"] : "";
+  if (tool === "call_agent") return `${typeof args["name"] === "string" ? args["name"] : "?"}: ${typeof args["message"] === "string" ? args["message"] : ""}`;
   return tool;
 }
 

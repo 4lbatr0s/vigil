@@ -380,6 +380,13 @@ describe("approval for other tools", () => {
     expect(listEvents(runId).some((e) => e.kind === "tool-result")).toBe(true);
   });
 
+  it("the approval shows the whole address and the whole message, never a cut copy", async () => {
+    const long = `https://example.com/p?d=${"x".repeat(1900)}`;
+    const { runId } = await startWith(agentWithFetch(), [fetchCall(long, "f1"), say("done")]);
+    expect(getRun(runId)?.status).toBe("waiting-approval");
+    expect((await call("GET", "/api/approvals")).json.data[0].target).toBe(long);
+  });
+
   it("a rejected fetch never runs, even when the owner switches the approval off while it waits", async () => {
     const a = agentWithFetch({ allowedHosts: [] });
     const { runId, inputs } = await startWith(a, [fetchCall("https://example.com/page", "f1"), say("done")]);

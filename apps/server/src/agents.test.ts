@@ -517,3 +517,19 @@ describe("append_note tool", () => {
     expect(names).not.toContain("append_note");
   });
 });
+
+describe("tool input limits", () => {
+  it("call_agent refuses a message longer than the approval screen can show in full", async () => {
+    createRun("r-m", "a", 1000);
+    const tool = buildTools(["call_agents"], { runId: "r-m", agentName: "a", callable: ["b"], remainingBudget: () => 100, runChild: async () => ({ text: "ok", tokensUsed: 1, childRunId: null }) }).find((t) => t.name === "call_agent")!;
+    await expect(tool.invoke({ name: "b", message: "x".repeat(4001) })).rejects.toThrow();
+    expect(String(await tool.invoke({ name: "b", message: "x".repeat(4000) }))).toBe("ok");
+  });
+
+  it("update_state writes the saved text to the run log, so the owner can see what was kept", async () => {
+    createRun("r-l", "morning-digest", 1000);
+    const tool = buildTools([], { runId: "r-l", agentName: "morning-digest", keepState: true }).find((t) => t.name === "update_state")!;
+    await tool.invoke({ text: "Next: note 13." });
+    expect(listEvents("r-l").some((e) => e.kind === "note" && e.text.includes("Next: note 13."))).toBe(true);
+  });
+});
