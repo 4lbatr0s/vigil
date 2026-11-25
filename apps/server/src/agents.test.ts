@@ -7,6 +7,7 @@ import path from "node:path";
 import { AgentSchema, type Agent } from "@vigil/shared";
 import { runAgent } from "./agent-runtime";
 import { buildTools, pageText, READ_PAGE, STATE_MAX_CHARS, truncate, MAX_TOOL_OUTPUT } from "./agent-tools";
+import { configVersion } from "./harness-config";
 import { closeDb, getNote as indexGet, reindexNote } from "./index-db";
 import { withNoteLock } from "./lock";
 import { modelFactoryFromEnv, redact, type ModelFactory } from "./llm";
@@ -460,5 +461,15 @@ describe("agent state note", () => {
     const tool = buildTools([], { runId: "r-s", agentName: "morning-digest", keepState: true }).find((t) => t.name === "update_state")!;
     expect(String(await tool.invoke({ text: "x".repeat(STATE_MAX_CHARS + 1) }))).toMatch(/^error: .*too long/);
     expect(getAgentState("morning-digest")?.text).toBe("old");
+  });
+});
+
+describe("run log config version", () => {
+  it("the prompt event records the config version of the agent", async () => {
+    const a = agent({ tools: ["read_notes"] });
+    const { make } = scripted([say("ok")]);
+    const finished = await run(a, make);
+    const prompt = listEvents(finished.id).find((e) => e.kind === "prompt");
+    expect(prompt?.data["config"]).toBe(configVersion(AgentSchema.parse(a)));
   });
 });

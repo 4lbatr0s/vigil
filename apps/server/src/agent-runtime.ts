@@ -7,6 +7,7 @@ import { redact, type ModelFactory } from "./llm";
 import { randomUUID } from "node:crypto";
 import { effectiveAgent } from "./permissions";
 import { getCheckpointer } from "./checkpoints";
+import { configVersion } from "./harness-config";
 import { MIN_BUDGET_FOR_SUMMARY, RESUMMARIZE_AFTER_CHARS, SUMMARY_MAX_TOKENS, SUMMARY_PROMPT, clearOldToolResults, droppedMessages, repairDangling, summaryNote, transcriptOf, trimHistory } from "./history";
 import { addEvent, createApproval, createRun, finishRun, getAgent, getAgentState, getChatSummary, getRun, hasRunning, putChatSummary, setTokensUsed } from "./state-db";
 import { getNote as vaultGetNote, slugify, validateId } from "./vault";
@@ -331,11 +332,11 @@ export const runAgent: AgentRunner = async ({ agent, task, runId, makeModel, dep
     } else {
       if (chat && !chat.first) {
         // A later turn: the checkpoint already holds the conversation, so only the new message goes in.
-        addEvent(runId, "prompt", truncate(redact(`Message: ${task}`), 2000), { tools: [...byName.keys()] });
+        addEvent(runId, "prompt", truncate(redact(`Message: ${task}`), 2000), { tools: [...byName.keys()], config: configVersion(agent) });
         result = await graph.invoke({ messages: [new HumanMessage(task)] }, config);
       } else {
         const pictures = images ?? [];
-        addEvent(runId, "prompt", truncate(redact(`${system}\n\n${chat ? "Message" : "Task"}: ${task}${pictures.length > 0 ? `\n[+ ${pictures.length} ${pictures.length === 1 ? "picture" : "pictures"}]` : ""}`), 2000), { tools: [...byName.keys()] });
+        addEvent(runId, "prompt", truncate(redact(`${system}\n\n${chat ? "Message" : "Task"}: ${task}${pictures.length > 0 ? `\n[+ ${pictures.length} ${pictures.length === 1 ? "picture" : "pictures"}]` : ""}`), 2000), { tools: [...byName.keys()], config: configVersion(agent) });
         const human = pictures.length === 0 ? new HumanMessage(task) : new HumanMessage({ content: [{ type: "text", text: task }, ...pictures.map((p) => ({ type: "image_url" as const, image_url: { url: `data:${p.mime};base64,${p.data}` } }))] });
         result = await graph.invoke({ messages: [new SystemMessage(system), human] }, config);
       }
