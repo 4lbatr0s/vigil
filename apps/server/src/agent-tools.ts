@@ -233,6 +233,8 @@ export function buildTools(grants: ToolGrant[], ctx: ToolContext): StructuredToo
         const old = before === null ? null : await getNote(id);
         const body = makeBody(old === null ? null : old.body);
         if (typeof body !== "string") return body.error;
+        // A key in a note would sit in plain text, in snapshots and in every later prompt. `redact` knows the key shapes and the owner's saved keys.
+        if (redact(body) !== body) return `error: the text holds what looks like a secret (an API key or a bearer token), so nothing was written. Remove it and write again.`;
         const scope = ctx.writeTags ?? [];
         if (scope.length > 0 && !inScope(scope, old === null ? allTags([], body) : allTags(old.tags, old.body))) {
           const list = scope.map((t) => `#${t}`).join(", ");

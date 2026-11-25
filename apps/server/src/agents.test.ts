@@ -553,6 +553,26 @@ describe("write scope", () => {
   });
 });
 
+describe("secrets in a write", () => {
+  it("refuses a body that holds a key or a bearer token and writes nothing", async () => {
+    createRun("r-sec", "a", 1000);
+    const built = buildTools(["write_notes"], { runId: "r-sec", agentName: "a" });
+    const write = built.find((t) => t.name === "write_note")!;
+    const append = built.find((t) => t.name === "append_note")!;
+    expect(String(await write.invoke({ title: "Keys", body: "key is sk-abcdefghijklmnop1234" }))).toMatch(/^error: .*secret/);
+    expect(await readNoteFile("keys")).toBeNull();
+    await seedNote("Log", "start");
+    expect(String(await append.invoke({ title: "Log", text: "Authorization: Bearer abcdefghij123456" }))).toMatch(/^error: .*secret/);
+    expect((await getNote("log")).body).toBe("start");
+  });
+
+  it("lets a normal body through", async () => {
+    createRun("r-sec2", "a", 1000);
+    const write = buildTools(["write_notes"], { runId: "r-sec2", agentName: "a" }).find((t) => t.name === "write_note")!;
+    expect(String(await write.invoke({ title: "Fine", body: "the task-list is short" }))).toMatch(/^created note fine/);
+  });
+});
+
 describe("tool input limits", () => {
   it("call_agent refuses a message longer than the approval screen can show in full", async () => {
     createRun("r-m", "a", 1000);
