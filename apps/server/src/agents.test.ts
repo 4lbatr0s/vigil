@@ -485,3 +485,12 @@ describe("run log config version", () => {
     expect(prompt?.data["config"]).toBe(configVersion(AgentSchema.parse(a)));
   });
 });
+
+describe("daily cap on start", () => {
+  it("startRun refuses an agent that used its daily limit", async () => {
+    const a = agent({ tools: ["read_notes"], dailyTokenCap: 50 });
+    const { make } = scripted([say("ok", 60)]);
+    expect((await run(a, make)).tokensUsed).toBeGreaterThanOrEqual(50);
+    expect(() => startRun(a.name)).toThrowError(expect.objectContaining({ code: "agent-daily-cap-reached", status: 429 }));
+  });
+});

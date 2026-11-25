@@ -1,5 +1,5 @@
 import { AppError } from "./errors";
-import { tokensSince } from "./state-db";
+import { agentTokensSince, tokensSince } from "./state-db";
 
 export type UsageLevel = "ok" | "warn" | "over";
 export type Usage = { month: string; tokens: number; cap: number | null; level: UsageLevel };
@@ -46,5 +46,17 @@ export function assertUnderHardCap(now: Date = new Date(), env: NodeJS.ProcessEn
   const tokens = monthTokens(now);
   if (tokens >= cap) {
     throw new AppError("monthly-cap-reached", `The monthly token cap is reached (${tokens} of ${cap}). New runs start again next month, or raise VIGIL_MONTHLY_TOKEN_HARD_CAP.`, 429);
+  }
+}
+
+/**
+ * Throws 429 `agent-daily-cap-reached` when this agent's runs started today (UTC) have used `cap` tokens. No cap, no check.
+ * It limits what a runaway cron agent can spend in a day, even when the monthly cap is far away.
+ */
+export function assertAgentUnderDailyCap(agent: string, cap: number | undefined, now: Date = new Date()): void {
+  if (cap === undefined) return;
+  const tokens = agentTokensSince(agent, new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())).toISOString());
+  if (tokens >= cap) {
+    throw new AppError("agent-daily-cap-reached", `Agent ${agent} used its daily token limit (${tokens} of ${cap}). It can run again tomorrow (UTC), or raise the limit on the agent page.`, 429);
   }
 }

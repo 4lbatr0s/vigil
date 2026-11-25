@@ -60,6 +60,8 @@ export type AgentForm = {
   /** The agent keeps a short state note between runs. */
   keepState: boolean;
   tokenBudget: string;
+  /** Tokens per day this agent may use; empty means no limit. */
+  dailyTokenCap: string;
   model: string;
   /** Hosts `fetch_url` may call. */
   allowedHosts: string[];
@@ -78,6 +80,7 @@ export function agentToForm(agent: Agent): AgentForm {
     strict: agent.strict,
     keepState: agent.keepState === true,
     tokenBudget: String(agent.tokenBudget),
+    dailyTokenCap: agent.dailyTokenCap === undefined ? "" : String(agent.dailyTokenCap),
     model: agent.model ?? "",
     allowedHosts: [...agent.allowedHosts],
     trigger: triggerToForm(agent.trigger),
@@ -93,7 +96,7 @@ export function agentToForm(agent: Agent): AgentForm {
  * empty model is left out rather than sent as an empty string.
  */
 export function formToAgent(base: Agent, form: AgentForm): Agent {
-  const { model: _m, connection: _c, keepState: _k, ...rest } = base;
+  const { model: _m, connection: _c, keepState: _k, dailyTokenCap: _d, ...rest } = base;
   const model = form.model.trim();
   const trigger = formToTrigger(form.trigger, base.trigger.kind === "cron" ? base.trigger.timezone : undefined);
   return {
@@ -111,6 +114,7 @@ export function formToAgent(base: Agent, form: AgentForm): Agent {
     ...(model === "" ? {} : { model }),
     ...(form.connection === "" ? {} : { connection: form.connection }),
     ...(form.keepState ? { keepState: true } : {}),
+    ...(form.dailyTokenCap.trim() === "" ? {} : { dailyTokenCap: Number(form.dailyTokenCap) }),
   };
 }
 

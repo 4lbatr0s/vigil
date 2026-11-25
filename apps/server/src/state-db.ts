@@ -502,6 +502,12 @@ export function putSchedule(agent: string, patch: Partial<Omit<ScheduleState, "a
 }
 
 /** Sum of tokens used by runs that started at or after `sinceIso`. */
+/** Tokens used by one agent's runs started at or after `sinceIso`. */
+export function agentTokensSince(agent: string, sinceIso: string): number {
+  const row = open().prepare("SELECT COALESCE(SUM(tokens_used), 0) AS total FROM runs WHERE agent = ? AND started_at >= ?").get(agent, sinceIso) as { total: number };
+  return row.total;
+}
+
 export function tokensSince(sinceIso: string): number {
   const row = open().prepare("SELECT COALESCE(SUM(tokens_used), 0) AS total FROM runs WHERE started_at >= ?").get(sinceIso) as { total: number };
   return row.total;

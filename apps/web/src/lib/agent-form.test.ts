@@ -24,6 +24,13 @@ describe("agent form", () => {
     expect("keepState" in formToAgent(on, { ...agentToForm(on), keepState: false })).toBe(false);
   });
 
+  it("dailyTokenCap round-trips and is left out when empty", () => {
+    const withCap = formToAgent(base, { ...agentToForm(base), dailyTokenCap: "50000" });
+    expect(withCap.dailyTokenCap).toBe(50000);
+    expect(agentToForm(withCap).dailyTokenCap).toBe("50000");
+    expect("dailyTokenCap" in formToAgent(withCap, { ...agentToForm(withCap), dailyTokenCap: " " })).toBe(false);
+  });
+
   it("applies edits and keeps every field the form does not know", () => {
     const form = { ...agentToForm(base), systemPrompt: "New.", tokenBudget: "5000", strict: true, enabled: false, model: " gpt-x " };
     const out = formToAgent(base, form);

@@ -404,6 +404,9 @@
               <Field label="Token budget per run">
                 {#snippet children({ id })}<span class="w-narrow"><Input {id} inputmode="numeric" bind:value={form.tokenBudget} /></span>{/snippet}
               </Field>
+              <Field label="Token limit per day (optional)">
+                {#snippet children({ id })}<span class="w-narrow"><Input {id} inputmode="numeric" placeholder="No limit" bind:value={form.dailyTokenCap} /></span>{/snippet}
+              </Field>
               {#if missingConnection}
                 <p class="warn" role="alert">This agent uses the connection "{missingConnection}", which no longer exists, so its runs will fail. Pick another connection below.</p>
               {/if}

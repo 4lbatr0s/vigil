@@ -4,7 +4,7 @@ import { runAgent, type AgentRunner, type RunOutcome, type TurnEvent } from "./a
 import { AppError } from "./errors";
 import { effectiveAgent } from "./permissions";
 import { notifyRun } from "./notify";
-import { assertUnderHardCap } from "./usage";
+import { assertAgentUnderDailyCap, assertUnderHardCap } from "./usage";
 import { reindexNote, removeNote } from "./index-db";
 import { withNoteLock } from "./lock";
 import { modelFactoryFromConnections, redact, type ModelFactory } from "./llm";
@@ -57,6 +57,7 @@ export function startRun(agentName: string, task?: string, trigger: Run["trigger
     throw new AppError("agent-busy", `Agent ${agentName} already has a run in progress`, 409);
   }
   assertUnderHardCap();
+  assertAgentUnderDailyCap(agent.name, agent.dailyTokenCap);
   const run = createRun(randomUUID(), agent.name, agent.tokenBudget, trigger);
   launch(run.id, agent, task ?? agent.defaultTask, undefined, images);
   return run;

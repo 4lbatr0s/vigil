@@ -123,6 +123,8 @@ export const AgentSchema = z.object({
   testTasks: z.array(z.string().trim().min(1).max(2000)).max(5).optional(),
   /** The agent keeps a short state note between runs (`update_state`) and reads it first on the next run. */
   keepState: z.boolean().optional(),
+  /** The most tokens this agent's runs may use per day (UTC). Absent means no daily limit. */
+  dailyTokenCap: z.number().int().positive().max(100_000_000).optional(),
 });
 export type Agent = z.infer<typeof AgentSchema>;
 

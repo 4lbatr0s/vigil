@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import Database from "better-sqlite3";
 import { closeState, createRun, finishRun } from "./state-db";
-import { assertUnderHardCap, hardCap, monthTokens, usage } from "./usage";
+import { assertAgentUnderDailyCap, assertUnderHardCap, hardCap, monthTokens, usage } from "./usage";
 
 let root = "";
 const saved = { ...process.env };
@@ -21,8 +21,8 @@ afterEach(async () => {
 });
 
 /** Insert a finished run with a chosen start time and token count. */
-function run(id: string, startedAt: string, tokens: number): void {
-  createRun(id, "a", 1000);
+function run(id: string, startedAt: string, tokens: number, agent = "a"): void {
+  createRun(id, agent, 1000);
   finishRun(id, "succeeded", tokens, null);
   closeState();
   const raw = new Database(process.env.STATE_DB_PATH as string);
@@ -72,5 +72,18 @@ describe("hard cap (ADR-0032)", () => {
   it("does not count last month", () => {
     run("old", "2026-10-31T23:59:59.000Z", 9999);
     expect(() => assertUnderHardCap(now, { VIGIL_MONTHLY_TOKEN_HARD_CAP: "100" })).not.toThrow();
+  });
+});
+
+describe("per-agent daily cap", () => {
+  it("blocks an agent that used its day's tokens, and only that agent, and only today (UTC)", () => {
+    run("t1", "2026-11-15T01:00:00.000Z", 600, "a");
+    run("t2", "2026-11-15T09:00:00.000Z", 500, "a");
+    run("y", "2026-11-14T23:59:00.000Z", 9999, "a");
+    run("other", "2026-11-15T09:00:00.000Z", 9999, "b");
+    expect(() => assertAgentUnderDailyCap("a", 2000, now)).not.toThrow();
+    expect(() => assertAgentUnderDailyCap("a", 1100, now)).toThrowError(expect.objectContaining({ code: "agent-daily-cap-reached", status: 429 }));
+    expect(() => assertAgentUnderDailyCap("b", 5000, now)).toThrowError(expect.objectContaining({ code: "agent-daily-cap-reached" }));
+    expect(() => assertAgentUnderDailyCap("a", undefined, now)).not.toThrow();
   });
 });
