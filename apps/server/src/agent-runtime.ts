@@ -68,6 +68,17 @@ class CancelledError extends Error {}
 
 const hasWrite = (a: Agent): boolean => a.tools.includes("write_notes");
 
+/**
+ * The write scope a delegated child runs under. A child never gets more reach than its caller: with no scope of its own it
+ * takes the caller's; with one, only the tags inside the caller's scope stay. Null means nothing is left, so the call is refused.
+ */
+export function childWriteScope(parent: string[] | undefined, child: string[] | undefined): string[] | null | undefined {
+  if (parent === undefined || parent.length === 0) return child;
+  if (child === undefined || child.length === 0) return parent;
+  const inside = child.filter((t) => parent.some((p) => t === p || t.startsWith(`${p}/`)));
+  return inside.length > 0 ? inside : null;
+}
+
 /** What the tools node answers for a write the owner rejected. */
 export const REJECTED_TEXT = "error: the owner rejected this write";
 
@@ -95,6 +106,8 @@ export const runAgent: AgentRunner = async ({ agent, task, runId, makeModel, dep
     if (!stored) return fail(`no agent called ${name}`);
     const child = effectiveAgent(stored);
     if (hasWrite(child) && (agent.strict || child.strict)) return fail("strict agents cannot delegate writes");
+    const scope = hasWrite(child) ? childWriteScope(agent.writeTags, child.writeTags) : child.writeTags;
+    if (scope === null) return fail(`agent ${name} may write only notes outside your write scope`);
     if (hasRunning(name)) return fail(`agent ${name} already has a run in progress`);
     const budget = Math.min(child.tokenBudget, agent.tokenBudget - used);
     if (budget <= 0) return fail("no token budget left");
@@ -102,7 +115,7 @@ export const runAgent: AgentRunner = async ({ agent, task, runId, makeModel, dep
     createRun(childRunId, name, budget, "call", runId);
     let outcome: RunOutcome;
     try {
-      outcome = await runAgent({ agent: { ...child, tokenBudget: budget }, task: message, runId: childRunId, makeModel, depth: 1, ...(signal ? { signal } : {}) });
+      outcome = await runAgent({ agent: { ...child, ...(scope === undefined ? {} : { writeTags: scope }), tokenBudget: budget }, task: message, runId: childRunId, makeModel, depth: 1, ...(signal ? { signal } : {}) });
     } catch (err) {
       outcome = { status: "failed", tokensUsed: 0, error: redact(err instanceof Error ? err.message : "child run failed") };
     }

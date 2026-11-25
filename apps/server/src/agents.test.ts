@@ -5,7 +5,7 @@ import { mkdtemp, rm, utimes } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { AgentSchema, type Agent } from "@vigil/shared";
-import { runAgent } from "./agent-runtime";
+import { childWriteScope, runAgent } from "./agent-runtime";
 import { buildTools, pageText, READ_PAGE, STATE_MAX_CHARS, truncate, MAX_TOOL_OUTPUT } from "./agent-tools";
 import { configVersion } from "./harness-config";
 import { closeDb, getNote as indexGet, reindexNote } from "./index-db";
@@ -566,10 +566,33 @@ describe("secrets in a write", () => {
     expect((await getNote("log")).body).toBe("start");
   });
 
+  it("refuses a title that holds a secret", async () => {
+    createRun("r-sec3", "a", 1000);
+    const write = buildTools(["write_notes"], { runId: "r-sec3", agentName: "a" }).find((t) => t.name === "write_note")!;
+    expect(String(await write.invoke({ title: "key sk-abcdefghijklmnop1234", body: "ok" }))).toMatch(/^error: .*secret/);
+  });
+
   it("lets a normal body through", async () => {
     createRun("r-sec2", "a", 1000);
     const write = buildTools(["write_notes"], { runId: "r-sec2", agentName: "a" }).find((t) => t.name === "write_note")!;
     expect(String(await write.invoke({ title: "Fine", body: "the task-list is short" }))).toMatch(/^created note fine/);
+  });
+});
+
+describe("write scope of a delegated child", () => {
+  it("gives the child the parent's scope when the child has none", () => {
+    expect(childWriteScope(["journal"], undefined)).toEqual(["journal"]);
+    expect(childWriteScope(["journal"], [])).toEqual(["journal"]);
+  });
+  it("keeps only the child's tags that sit inside the parent's scope", () => {
+    expect(childWriteScope(["journal"], ["journal/2026", "plans"])).toEqual(["journal/2026"]);
+  });
+  it("refuses a child whose scope shares nothing with the parent's", () => {
+    expect(childWriteScope(["journal"], ["plans"])).toBeNull();
+  });
+  it("leaves the child alone when the parent has no scope", () => {
+    expect(childWriteScope(undefined, ["plans"])).toEqual(["plans"]);
+    expect(childWriteScope([], undefined)).toBeUndefined();
   });
 });
 
