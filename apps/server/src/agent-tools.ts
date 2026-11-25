@@ -187,6 +187,8 @@ export function buildTools(grants: ToolGrant[], ctx: ToolContext): StructuredToo
     tools.push(
       tool(
         async ({ title, body }) => {
+          // An empty body would erase a note. The snapshot could undo it, but the agent almost surely did not mean it.
+          if (body.trim() === "") return "error: the body is empty, so nothing was written. To leave a note as it is, do not call write_note.";
           const id = validateId(slugify(title));
           return withNoteLock(async () => {
             // Snapshot first, once per run and note: the one-click undo restores this copy.
@@ -200,7 +202,10 @@ export function buildTools(grants: ToolGrant[], ctx: ToolContext): StructuredToo
               recordTouch(ctx.agentName, id, "wrote", ctx.runId);
               reindexNote(note);
               addEvent(ctx.runId, "note", `${before === null ? "created" : "updated"} ${id}`, { id });
-              return `${before === null ? "created" : "updated"} note ${id}`;
+              // Read it back: the reply tells the agent what is really on disk.
+              const onDisk = await getNote(id);
+              if (onDisk.body.trim() === "") return `error: ${before === null ? "created" : "updated"} note ${id} but its body reads back empty. Check it and write it again.`;
+              return `${before === null ? "created" : "updated"} note ${id} (checked: ${onDisk.body.length} characters on disk)`;
             } catch (err) {
               // The write never happened, so undo must not touch this note: forget the snapshot.
               if (fresh) await dropSnapshot(ctx.runId, id);

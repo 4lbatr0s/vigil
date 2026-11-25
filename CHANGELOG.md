@@ -2,6 +2,7 @@
 
 ## Unreleased: UI v2 (ADR-0016), then design system v3 (ADR-0029)
 
+- AI runtime: `write_note` refuses an empty body (it would erase the note) and reads the note back, so its answer says how many characters are on disk; the agents' safety text now tells them not to invent facts and to name conflicts between sources.
 - AI runtime: models behind an OpenAI-compatible connection that return `reasoning_content` (DeepSeek thinking mode, some routers) now get it back on later requests; before, DeepSeek answered 400 once an agent used a tool.
 - AI runtime: model calls retry on rate limits, server errors and dropped connections; Anthropic calls use prompt caching; chat summaries survive a restart; an agent that answers with nothing and uses no tool now fails with a clear message; the agent page, Chat and the pictures setting warn when your Ollama model cannot use tools or read pictures; `pnpm --filter @vigil/server eval` compares models on a fixed set of questions. See ADR-0031.
 - Graph: a Connections panel on every note (a small graph of the note and its neighbours, lists of links, backlinks and notes that mention it without a link, and the agents that touched it; links to notes not written yet have a Create note button). The Graph page now has filters (tag, orphans, hide unwritten, search), three lenses (tags, memory, agents) and a Needs attention panel, follows changes live, and keeps its place when you change a filter. See ADR-0030.

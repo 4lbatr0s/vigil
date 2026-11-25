@@ -389,3 +389,22 @@ describe("run log detail", () => {
     expect(typeof model?.data["ms"]).toBe("number");
   });
 });
+
+describe("write_note check", () => {
+  it("refuses an empty body and leaves the note as it was", async () => {
+    await seedNote("Keep me", "important text");
+    createRun("r-empty", "a", 1000);
+    const write = buildTools(["write_notes"], { runId: "r-empty", agentName: "a" }).find((t) => t.name === "write_note")!;
+    const out = String(await write.invoke({ title: "Keep me", body: "   \n" }));
+    expect(out).toMatch(/^error: .*empty/);
+    const read = buildTools(["read_notes"], { runId: "r-empty", agentName: "a" }).find((t) => t.name === "read_note")!;
+    expect(String(await read.invoke({ id: "keep-me" }))).toContain("important text");
+  });
+
+  it("reports the length it read back after a good write", async () => {
+    createRun("r-ok", "a", 1000);
+    const write = buildTools(["write_notes"], { runId: "r-ok", agentName: "a" }).find((t) => t.name === "write_note")!;
+    const out = String(await write.invoke({ title: "Fresh", body: "hello world" }));
+    expect(out).toMatch(/^created note fresh \(checked: 11 characters on disk\)/);
+  });
+});
