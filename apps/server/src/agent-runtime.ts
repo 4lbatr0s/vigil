@@ -107,6 +107,8 @@ export const runAgent: AgentRunner = async ({ agent, task, runId, makeModel, dep
     const child = effectiveAgent(stored);
     if (hasWrite(child) && (agent.strict || child.strict)) return fail("strict agents cannot delegate writes");
     const scope = hasWrite(child) ? childWriteScope(agent.writeTags, child.writeTags) : child.writeTags;
+    // A child that pauses for approval resumes later from its stored setup, which has no scope from this caller.
+    if (hasWrite(child) && (agent.writeTags?.length ?? 0) > 0 && (child.approveTools?.length ?? 0) > 0) return fail(`agent ${name} may pause for approval, so it cannot run under your write scope`);
     if (scope === null) return fail(`agent ${name} may write only notes outside your write scope`);
     if (hasRunning(name)) return fail(`agent ${name} already has a run in progress`);
     const budget = Math.min(child.tokenBudget, agent.tokenBudget - used);

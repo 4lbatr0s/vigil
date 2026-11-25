@@ -8,7 +8,7 @@ import { closeDb, getNote as indexGet, reindexNote } from "./index-db";
 import type { ModelFactory } from "./llm";
 import { setRunDeps, startRun, undoRun, waitForRuns } from "./runs";
 import { closeState, createRun, finishRun, getRun, listEvents, listRuns, putAgent } from "./state-db";
-import { createNote, getNote, updateNote } from "./vault";
+import { createNote, getNote, readNoteFile, updateNote } from "./vault";
 
 let root = "";
 const saved = { ...process.env };
@@ -159,6 +159,28 @@ describe("call_agent", () => {
     expect(listRuns("child")).toHaveLength(1);
     expect(run.tokensUsed).toBeGreaterThanOrEqual(59);
     expect(["succeeded", "budget-exceeded"]).toContain(run.status);
+  });
+
+  it("a child of a scoped parent writes only inside the parent's scope", async () => {
+    putAgent(agent("parent", { tools: ["call_agents"], callable: ["writer"], writeTags: ["journal"] }));
+    putAgent(agent("writer", { tools: ["write_notes"] }));
+    const { make } = byAgent({
+      parent: [call("call_agent", { name: "writer", message: "w" }), say("ok")],
+      writer: [writeCall("Loose", "no tag here"), say("done")],
+    });
+    await go("parent", make);
+    const child = listRuns("writer")[0]!;
+    expect(listEvents(child.id).find((e) => e.kind === "tool-result")?.text).toMatch(/^error: .*journal/);
+    expect(await readNoteFile("loose")).toBeNull();
+  });
+
+  it("a scoped parent cannot call a writing child that may pause for approval, because a paused child would resume without the scope", async () => {
+    putAgent(agent("parent", { tools: ["call_agents"], callable: ["pauser"], writeTags: ["journal"] }));
+    putAgent(agent("pauser", { tools: ["write_notes", "web_fetch"], approveTools: ["fetch_url"] }));
+    const { make } = byAgent({ parent: [call("call_agent", { name: "pauser", message: "w" }), say("ok")] });
+    const run = await go("parent", make);
+    expect(listEvents(run.id).find((e) => e.kind === "tool-result")?.text).toContain("may pause for approval");
+    expect(listRuns("pauser")).toHaveLength(0);
   });
 
   it("a strict parent or strict child that writes cannot delegate", async () => {
