@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { RunEvent } from "@vigil/shared";
-import { budgetShare, canUndo, childRunIdOf, lastSeq, mergeEvents, noteIdOf, noteIdsInMessage, preview } from "./run-log";
+import { budgetShare, canUndo, childRunIdOf, configOf, lastSeq, mergeEvents, noteIdOf, noteIdsInMessage, preview, stepStats } from "./run-log";
 
 const ev = (seq: number, kind: RunEvent["kind"] = "model", data: Record<string, unknown> = {}): RunEvent => ({ seq, at: "t", kind, text: `e${seq}`, data });
 
@@ -43,5 +43,19 @@ describe("run log helpers", () => {
     expect(preview("short")).toEqual({ short: "short", long: false });
     expect(preview("line one\nline two")).toEqual({ short: "line one", long: true });
     expect(preview("x".repeat(300)).short).toHaveLength(161);
+  });
+});
+
+describe("step stats and config", () => {
+  it("shows tokens and time for a model step, time for a tool step, nothing otherwise", () => {
+    expect(stepStats(ev(1, "model", { tokens: 1204, ms: 2140 }))).toBe("1,204 tokens · 2.1 s");
+    expect(stepStats(ev(2, "tool-result", { ms: 40 }))).toBe("40 ms");
+    expect(stepStats(ev(3, "tool-call", { ms: 40 }))).toBe("");
+    expect(stepStats(ev(4, "model"))).toBe("");
+  });
+
+  it("finds the config version on the prompt event", () => {
+    expect(configOf([ev(1, "prompt", { config: "ab12cd34" }), ev(2)])).toBe("ab12cd34");
+    expect(configOf([ev(1, "prompt"), ev(2)])).toBeNull();
   });
 });

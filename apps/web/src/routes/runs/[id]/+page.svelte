@@ -3,9 +3,10 @@
   import { onMount } from "svelte";
   import { page } from "$app/state";
   import type { Run, RunEvent } from "@vigil/shared";
-  import { ApiError, cancelRun, getRun, undoRun } from "$lib/api";
+  import { goto } from "$app/navigation";
+  import { ApiError, cancelRun, getRun, runAgent, undoRun } from "$lib/api";
   import { formatStamp } from "$lib/format";
-  import { budgetShare, canUndo, childRunIdOf, KIND_LABEL, lastSeq, mergeEvents, noteIdOf, noteIdsInMessage, preview } from "$lib/run-log";
+  import { budgetShare, canUndo, childRunIdOf, configOf, KIND_LABEL, lastSeq, mergeEvents, noteIdOf, noteIdsInMessage, preview, stepStats } from "$lib/run-log";
   import { refreshOnLive } from "$lib/live";
   import { statusDot } from "$lib/schedule";
   import StatusDot from "$lib/components/StatusDot.svelte";
@@ -18,6 +19,7 @@
   let undoError = $state("");
   let undoing = $state(false);
   let cancelling = $state(false);
+  let rerunning = $state(false);
   let open = $state<Record<number, boolean>>({});
 
   async function load(): Promise<void> {
@@ -65,6 +67,20 @@
     }
   }
 
+  async function rerun(): Promise<void> {
+    if (!run) return;
+    undoError = "";
+    rerunning = true;
+    try {
+      const next = await runAgent(run.agent);
+      await goto(`/runs/${encodeURIComponent(next.id)}`);
+    } catch (err) {
+      undoError = err instanceof ApiError ? err.detail : err instanceof Error ? err.message : "Could not start the run";
+    } finally {
+      rerunning = false;
+    }
+  }
+
   async function undo(): Promise<void> {
     undoError = "";
     undoing = true;
@@ -96,6 +112,7 @@
           {#if run.status === "running"}
             <Button variant="quiet" disabled={cancelling} onclick={() => void cancel()}>{cancelling ? "Cancelling…" : "Cancel run"}</Button>
           {:else}
+            <Button variant="quiet" disabled={rerunning} onclick={() => void rerun()}>{rerunning ? "Starting…" : "Run again"}</Button>
             <Button variant="primary" disabled={!canUndo(run) || undoing} onclick={() => void undo()}>{run.undone ? "Undone" : undoing ? "Undoing…" : "Undo this run"}</Button>
           {/if}
         </div>
@@ -112,6 +129,7 @@
         <dt>Started</dt><dd>{formatStamp(run.startedAt)}</dd>
         <dt>Finished</dt><dd>{run.finishedAt ? formatStamp(run.finishedAt) : "still running"}</dd>
         <dt>Trigger</dt><dd>{run.trigger}</dd>
+        {#if configOf(events)}<dt>Setup</dt><dd class="mono" title="A fingerprint of the agent's instructions, tools and limits when this run started">{configOf(events)}</dd>{/if}
         {#if run.parentRunId}<dt>Parent</dt><dd><a href={`/runs/${encodeURIComponent(run.parentRunId)}`}>parent run</a></dd>{/if}
         <dt>Tokens</dt>
         <dd>
@@ -138,6 +156,7 @@
               <span class="kind" class:stop={e.kind === "stop"}>{KIND_LABEL[e.kind]}</span>
               <span class="text">
                 {#if open[e.seq]}<span class="full">{e.text}</span>{:else}{p.short}{/if}
+                {#if stepStats(e)}<span class="stats">{stepStats(e)}</span>{/if}
                 {#if note}<a href={`/?note=${note}`}>open note</a>{/if}
                 {#if child}<a href={`/runs/${encodeURIComponent(child)}`}>open child run</a>{/if}
                 {#if p.long}
@@ -176,6 +195,7 @@
 
   .titlebar {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: var(--s-3);
     width: 100%;
@@ -277,6 +297,15 @@
   .text a {
     margin-left: var(--s-2);
     color: var(--text);
+  }
+
+  .stats {
+    margin-left: var(--s-2);
+    color: var(--text-2);
+  }
+
+  .mono {
+    font-family: var(--font-code);
   }
 
   .more {

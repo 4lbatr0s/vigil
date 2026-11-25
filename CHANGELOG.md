@@ -2,6 +2,7 @@
 
 ## Unreleased: UI v2 (ADR-0016), then design system v3 (ADR-0029)
 
+- Runs: the run page shows tokens and time for each model and tool step, the setup fingerprint of the agent, and a "Run again" button; the Cancel button and the title row wrap on a phone.
 - Agents: an optional token limit per day for each agent (Advanced on the agent page). When an agent has used it, a new run or chat message is refused with a clear message until tomorrow (UTC). The monthly caps are unchanged.
 - Agents: every run's log now records a short config version (eight characters from the instructions, tools, limits, hosts, model and strict switch), so you can tell which setup produced a run.
 - Agents: an agent can keep a short state note between runs (switch "Remember where it stopped" on its page). It saves the note with an `update_state` tool (at most 2,000 characters, stored in the state database, not in your notes) and reads it first on the next run. Good for cron agents that work through a backlog.
