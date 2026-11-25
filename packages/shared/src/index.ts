@@ -125,6 +125,8 @@ export const AgentSchema = z.object({
   keepState: z.boolean().optional(),
   /** Tools besides the writes that wait for the owner's approval before they run. */
   approveTools: z.array(z.enum(["fetch_url", "call_agent"])).optional(),
+  /** The agent may change only notes that carry one of these tags (a nested tag such as `journal/2026` counts for `journal`). A new note needs one in its body. Absent or empty means no limit. */
+  writeTags: z.array(z.string().trim().toLowerCase().regex(/^[a-z0-9][a-z0-9/_-]*$/, "Use a tag without the #")).max(20).optional(),
   /** The most tokens this agent's runs may use per day (UTC). Absent means no daily limit. */
   dailyTokenCap: z.number().int().positive().max(100_000_000).optional(),
 });

@@ -345,6 +345,11 @@
             <Switch label="Enabled" bind:checked={form.enabled} />
             <Switch label="Ask me before this agent writes" bind:checked={form.strict} onchange={onStrictChange} />
             <p class="muted">Writes wait in <a href="/approvals">Approvals</a> until you accept them.</p>
+            {#if form.tools.includes("write_notes")}
+              <Field label="Only write notes tagged" hint="Tags separated by commas, for example journal. Empty means any note.">
+                {#snippet children({ id, describedby })}<Input {id} aria-describedby={describedby} placeholder="Any note" bind:value={form.writeTags} />{/snippet}
+              </Field>
+            {/if}
             {#if form.tools.includes("web_fetch")}
               <Switch label="Ask me before it reads a web page" checked={form.approveTools.includes("fetch_url")} onchange={(on: boolean) => toggleApprove("fetch_url", on)} />
             {/if}

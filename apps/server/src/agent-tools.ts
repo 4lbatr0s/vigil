@@ -1,7 +1,7 @@
 import { tool } from "@langchain/core/tools";
 import type { StructuredToolInterface } from "@langchain/core/tools";
 import * as z from "zod";
-import type { ToolGrant } from "@vigil/shared";
+import { allTags, type ToolGrant } from "@vigil/shared";
 import { isAppError } from "./errors";
 import { htmlToText, safeFetch, SafeFetchError } from "./safe-fetch";
 import { withNoteLock } from "./lock";
@@ -33,9 +33,16 @@ export type ToolContext = {
   runChild?: (name: string, message: string) => Promise<ChildResult>;
   /** The agent keeps a state note between runs: gives it the `update_state` tool. */
   keepState?: boolean;
+  /** The agent may write only notes with one of these tags (the owner's write scope). Empty or absent means no limit. */
+  writeTags?: string[];
   /** Set by the call_agent tool so the runtime can link the child run in the log. */
   lastChildRunId?: string | null;
 };
+
+/** True when one of the note's tags is a scope tag or sits below one (`journal/2026` is in scope `journal`). */
+function inScope(scope: string[], tags: string[]): boolean {
+  return tags.some((t) => scope.some((s) => t === s || t.startsWith(`${s}/`)));
+}
 
 /** The most characters a state note holds. It goes into every run's prompt, so it stays short. */
 export const STATE_MAX_CHARS = 2000;
@@ -223,9 +230,16 @@ export function buildTools(grants: ToolGrant[], ctx: ToolContext): StructuredToo
       const id = validateId(slugify(title));
       return withNoteLock(async () => {
         const before = await readNoteFile(id);
-        const oldBody = before === null ? null : (await getNote(id)).body;
-        const body = makeBody(oldBody);
+        const old = before === null ? null : await getNote(id);
+        const body = makeBody(old === null ? null : old.body);
         if (typeof body !== "string") return body.error;
+        const scope = ctx.writeTags ?? [];
+        if (scope.length > 0 && !inScope(scope, old === null ? allTags([], body) : allTags(old.tags, old.body))) {
+          const list = scope.map((t) => `#${t}`).join(", ");
+          return old === null
+            ? `error: you may only write notes tagged ${list}. Nothing was written. Put one of these tags in the body of a new note.`
+            : `error: note ${id} is outside your write scope (${list}). Nothing was written.`;
+        }
         const fresh = await recordSnapshot(ctx.runId, id, before);
         try {
           const note = before === null

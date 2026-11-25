@@ -113,7 +113,7 @@ export const runAgent: AgentRunner = async ({ agent, task, runId, makeModel, dep
     return { text, tokensUsed: outcome.tokensUsed, childRunId };
   };
 
-  const ctx: ToolContext = { runId, agentName: agent.name, depth, allowedHosts: agent.allowedHosts, callable: agent.callable, keepState: agent.keepState, remainingBudget: () => agent.tokenBudget - used, runChild };
+  const ctx: ToolContext = { runId, agentName: agent.name, depth, allowedHosts: agent.allowedHosts, callable: agent.callable, keepState: agent.keepState, writeTags: agent.writeTags, remainingBudget: () => agent.tokenBudget - used, runChild };
   const tools = buildTools(agent.tools, ctx);
   const byName = new Map(tools.map((t) => [t.name, t]));
   // Set inside the graph nodes; the cast stops TypeScript narrowing it to `null` at the end.

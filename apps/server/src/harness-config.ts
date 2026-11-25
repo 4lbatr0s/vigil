@@ -18,6 +18,8 @@ export function harnessConfig(agent: Agent): Record<string, unknown> {
     allowedHosts: [...agent.allowedHosts].sort(),
     callable: [...agent.callable].sort(),
     keepState: agent.keepState === true,
+    // Added only when set, so the fingerprint of an agent without a scope stays what it was.
+    ...(agent.writeTags !== undefined && agent.writeTags.length > 0 ? { writeTags: [...agent.writeTags].sort() } : {}),
   };
 }
 

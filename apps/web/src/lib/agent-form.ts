@@ -63,6 +63,8 @@ export type AgentForm = {
   keepState: boolean;
   /** Ask before this agent reads a web page or calls another agent. */
   approveTools: ApproveTool[];
+  /** Tags the agent may write, typed as text (commas or spaces); empty means no limit. */
+  writeTags: string;
   tokenBudget: string;
   /** Tokens per day this agent may use; empty means no limit. */
   dailyTokenCap: string;
@@ -84,6 +86,7 @@ export function agentToForm(agent: Agent): AgentForm {
     strict: agent.strict,
     keepState: agent.keepState === true,
     approveTools: [...(agent.approveTools ?? [])],
+    writeTags: (agent.writeTags ?? []).join(", "),
     tokenBudget: String(agent.tokenBudget),
     dailyTokenCap: agent.dailyTokenCap === undefined ? "" : String(agent.dailyTokenCap),
     model: agent.model ?? "",
@@ -101,7 +104,8 @@ export function agentToForm(agent: Agent): AgentForm {
  * empty model is left out rather than sent as an empty string.
  */
 export function formToAgent(base: Agent, form: AgentForm): Agent {
-  const { model: _m, connection: _c, keepState: _k, dailyTokenCap: _d, approveTools: _a, ...rest } = base;
+  const { model: _m, connection: _c, keepState: _k, dailyTokenCap: _d, approveTools: _a, writeTags: _w, ...rest } = base;
+  const writeTags = [...new Set(form.writeTags.split(/[\s,]+/).map((t) => t.replace(/^#/, "").toLowerCase()).filter((t) => t !== ""))];
   const model = form.model.trim();
   const trigger = formToTrigger(form.trigger, base.trigger.kind === "cron" ? base.trigger.timezone : undefined);
   return {
@@ -120,6 +124,7 @@ export function formToAgent(base: Agent, form: AgentForm): Agent {
     ...(form.connection === "" ? {} : { connection: form.connection }),
     ...(form.keepState ? { keepState: true } : {}),
     ...(form.approveTools.length > 0 ? { approveTools: [...form.approveTools] } : {}),
+    ...(writeTags.length > 0 ? { writeTags } : {}),
     ...(form.dailyTokenCap.trim() === "" ? {} : { dailyTokenCap: Number(form.dailyTokenCap) }),
   };
 }

@@ -518,6 +518,41 @@ describe("append_note tool", () => {
   });
 });
 
+describe("write scope", () => {
+  const tools = (runId: string, writeTags: string[]) => {
+    createRun(runId, "a", 1000);
+    const built = buildTools(["write_notes"], { runId, agentName: "a", writeTags });
+    return { write: built.find((t) => t.name === "write_note")!, append: built.find((t) => t.name === "append_note")! };
+  };
+
+  it("refuses to change a note that has none of the scope tags", async () => {
+    await seedNote("Plan", "keep this");
+    const { write, append } = tools("r-ws1", ["journal"]);
+    expect(String(await write.invoke({ title: "Plan", body: "new" }))).toMatch(/^error: .*journal/);
+    expect(String(await append.invoke({ title: "Plan", text: "more" }))).toMatch(/^error: .*journal/);
+    expect((await getNote("plan")).body).toBe("keep this");
+  });
+
+  it("changes a note that carries a scope tag, or a nested one", async () => {
+    await seedNote("Day", "#journal/2026 start");
+    const { append } = tools("r-ws2", ["journal"]);
+    expect(String(await append.invoke({ title: "Day", text: "more" }))).toMatch(/^updated note day/);
+  });
+
+  it("creates a new note only when its body carries a scope tag", async () => {
+    const { write } = tools("r-ws3", ["journal"]);
+    expect(String(await write.invoke({ title: "Loose", body: "no tag" }))).toMatch(/^error: .*journal/);
+    expect(await readNoteFile("loose")).toBeNull();
+    expect(String(await write.invoke({ title: "Tagged", body: "#journal ok" }))).toMatch(/^created note tagged/);
+  });
+
+  it("does not limit an agent with no scope", async () => {
+    await seedNote("Plan", "x");
+    const { write } = tools("r-ws4", []);
+    expect(String(await write.invoke({ title: "Plan", body: "y" }))).toMatch(/^updated note plan/);
+  });
+});
+
 describe("tool input limits", () => {
   it("call_agent refuses a message longer than the approval screen can show in full", async () => {
     createRun("r-m", "a", 1000);

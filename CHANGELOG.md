@@ -2,6 +2,7 @@
 
 ## Unreleased: UI v2 (ADR-0016), then design system v3 (ADR-0029)
 
+- Agents: an optional write scope for each agent ("Only write notes tagged" on the agent page). The agent may change only notes that carry one of the tags (a nested tag such as `journal/2026` counts for `journal`), and a new note needs one of the tags in its body. Anything else is refused with a clear message and nothing is written. Reads are not limited.
 - Approvals: an approval for a web page or an agent call now shows the whole address or message (it used to be cut at 500 and 300 characters, so a long address could hide a tail), and `call_agent` messages are limited to 4,000 characters. Every save of an agent's state note is written to the run log.
 - MCP: you can create a named token for each connected tool (Settings, Other agents). A client token works only on the MCP address, the run log of a write names the client, you can revoke one at any time, and the token is shown once and stored only as a hash. See ADR-0033.
 - Runs: "Run again" opens a small dialog with the task of the earlier run, so you can change it before the run starts (empty means the agent's own task).

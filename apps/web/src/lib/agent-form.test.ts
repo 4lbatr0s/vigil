@@ -24,6 +24,13 @@ describe("agent form", () => {
     expect("keepState" in formToAgent(on, { ...agentToForm(on), keepState: false })).toBe(false);
   });
 
+  it("writeTags round-trips as typed text, drops # and blanks, and is left out when empty", () => {
+    const scoped = formToAgent(base, { ...agentToForm(base), writeTags: "#Journal, daily/log  journal" });
+    expect(scoped.writeTags).toEqual(["journal", "daily/log"]);
+    expect(agentToForm(scoped).writeTags).toBe("journal, daily/log");
+    expect("writeTags" in formToAgent(scoped, { ...agentToForm(scoped), writeTags: " , " })).toBe(false);
+  });
+
   it("dailyTokenCap round-trips and is left out when empty", () => {
     const withCap = formToAgent(base, { ...agentToForm(base), dailyTokenCap: "50000" });
     expect(withCap.dailyTokenCap).toBe(50000);
