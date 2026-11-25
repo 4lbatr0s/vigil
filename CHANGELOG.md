@@ -2,6 +2,7 @@
 
 ## Unreleased: UI v2 (ADR-0016), then design system v3 (ADR-0029)
 
+- Runs: "Run again" opens a small dialog with the task of the earlier run, so you can change it before the run starts (empty means the agent's own task).
 - Agents: the owner can require approval before an agent reads a web page (`fetch_url`) or asks another agent (`call_agent`), with a switch for each on the agent page. The Approvals page shows the address or the agent and its message. A run that waits for such a decision keeps asking for it even if the switch is turned off while it waits.
 - Agents: a new `append_note` tool (part of the write grant) adds text at the end of a note instead of replacing the whole body, so an agent that only adds something cannot overwrite what is there. Strict agents need approval for it like for `write_note`, and the Approvals page shows the old text plus the added text as a diff.
 - Agents: the agent page shows the note an agent saved for its next run, with a Clear note button; MCP clients now see the `format` option of `read_note` and `list_notes`.

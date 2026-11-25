@@ -1,12 +1,12 @@
 <script lang="ts">
-  import { Button, Page, Stack } from "$lib/ui";
+  import { Button, Dialog, Page, Stack, Textarea } from "$lib/ui";
   import { onMount } from "svelte";
   import { page } from "$app/state";
   import type { Run, RunEvent } from "@vigil/shared";
   import { goto } from "$app/navigation";
   import { ApiError, cancelRun, getRun, runAgent, undoRun } from "$lib/api";
   import { formatStamp } from "$lib/format";
-  import { budgetShare, canUndo, childRunIdOf, configOf, KIND_LABEL, lastSeq, mergeEvents, noteIdOf, noteIdsInMessage, preview, stepStats } from "$lib/run-log";
+  import { budgetShare, canUndo, childRunIdOf, configOf, KIND_LABEL, lastSeq, mergeEvents, noteIdOf, noteIdsInMessage, preview, stepStats, taskOf } from "$lib/run-log";
   import { refreshOnLive } from "$lib/live";
   import { statusDot } from "$lib/schedule";
   import StatusDot from "$lib/components/StatusDot.svelte";
@@ -20,6 +20,8 @@
   let undoing = $state(false);
   let cancelling = $state(false);
   let rerunning = $state(false);
+  let rerunOpen = $state(false);
+  let rerunTask = $state("");
   let open = $state<Record<number, boolean>>({});
 
   async function load(): Promise<void> {
@@ -67,12 +69,19 @@
     }
   }
 
+  function openRerun(): void {
+    rerunTask = taskOf(events);
+    rerunOpen = true;
+  }
+
   async function rerun(): Promise<void> {
     if (!run) return;
     undoError = "";
     rerunning = true;
     try {
-      const next = await runAgent(run.agent);
+      // An empty task means the agent's own default task. Otherwise the run gets the text as edited here.
+      const next = await runAgent(run.agent, rerunTask.trim() === "" ? undefined : rerunTask.trim());
+      rerunOpen = false;
       await goto(`/runs/${encodeURIComponent(next.id)}`);
     } catch (err) {
       undoError = err instanceof ApiError ? err.detail : err instanceof Error ? err.message : "Could not start the run";
@@ -112,7 +121,7 @@
           {#if run.status === "running"}
             <Button variant="quiet" disabled={cancelling} onclick={() => void cancel()}>{cancelling ? "Cancelling…" : "Cancel run"}</Button>
           {:else}
-            <Button variant="quiet" disabled={rerunning} onclick={() => void rerun()}>{rerunning ? "Starting…" : "Run again"}</Button>
+            <Button variant="quiet" disabled={rerunning} onclick={openRerun}>Run again</Button>
             <Button variant="primary" disabled={!canUndo(run) || undoing} onclick={() => void undo()}>{run.undone ? "Undone" : undoing ? "Undoing…" : "Undo this run"}</Button>
           {/if}
         </div>
@@ -173,6 +182,14 @@
     </Stack>
   {/if}
 </Page>
+
+<Dialog bind:open={rerunOpen} title="Run again" description="Change the task if you like. Leave it empty to use the agent's own task.">
+  <Textarea rows={5} bind:value={rerunTask} maxlength={4000} aria-label="Task" />
+  {#snippet actions()}
+    <Button variant="ghost" onclick={() => (rerunOpen = false)}>Cancel</Button>
+    <Button variant="primary" disabled={rerunning} onclick={() => void rerun()}>{rerunning ? "Starting…" : "Start run"}</Button>
+  {/snippet}
+</Dialog>
 
 <style>
   h1 {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { RunEvent } from "@vigil/shared";
-import { budgetShare, canUndo, childRunIdOf, configOf, lastSeq, mergeEvents, noteIdOf, noteIdsInMessage, preview, stepStats } from "./run-log";
+import { budgetShare, canUndo, childRunIdOf, configOf, taskOf, lastSeq, mergeEvents, noteIdOf, noteIdsInMessage, preview, stepStats } from "./run-log";
 
 const ev = (seq: number, kind: RunEvent["kind"] = "model", data: Record<string, unknown> = {}): RunEvent => ({ seq, at: "t", kind, text: `e${seq}`, data });
 
@@ -57,5 +57,18 @@ describe("step stats and config", () => {
   it("finds the config version on the prompt event", () => {
     expect(configOf([ev(1, "prompt", { config: "ab12cd34" }), ev(2)])).toBe("ab12cd34");
     expect(configOf([ev(1, "prompt"), ev(2)])).toBeNull();
+  });
+});
+
+describe("taskOf", () => {
+  const prompt = (text: string) => ({ ...ev(1, "prompt"), text });
+  it("returns the task after the last 'Task: ' line of the prompt", () => {
+    expect(taskOf([prompt("You are an agent.\n\nSAFETY.\nToday is 2026-11-25.\n\nTask: Summarize the week.")])).toBe("Summarize the week.");
+    expect(taskOf([prompt("sys\n\nSTATE NOTE START\nTask: not this\nSTATE NOTE END\n\nTask: Do the real thing\nand more")])).toBe("Do the real thing\nand more");
+  });
+  it("returns an empty string for a chat turn, a missing prompt or a prompt without a task", () => {
+    expect(taskOf([prompt("Message: hi there")])).toBe("");
+    expect(taskOf([])).toBe("");
+    expect(taskOf([prompt("no marker here")])).toBe("");
   });
 });

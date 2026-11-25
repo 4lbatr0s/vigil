@@ -76,3 +76,10 @@ export function configOf(events: Pick<RunEvent, "kind" | "data">[]): string | nu
   const v = events.find((e) => e.kind === "prompt")?.data["config"];
   return typeof v === "string" ? v : null;
 }
+
+/** The task the run was given, read from the prompt event (it is cut at 2,000 characters in the log). Empty when unknown. */
+export function taskOf(events: Pick<RunEvent, "kind" | "text">[]): string {
+  const text = events.find((e) => e.kind === "prompt")?.text ?? "";
+  const at = text.lastIndexOf("\n\nTask: ");
+  return at < 0 ? "" : text.slice(at + "\n\nTask: ".length).trim();
+}
