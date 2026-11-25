@@ -2,6 +2,7 @@
 
 ## Unreleased: UI v2 (ADR-0016), then design system v3 (ADR-0029)
 
+- AI runtime: `list_notes` and `read_note` take `format: "concise"` (fewer tokens); a missing note tells the agent to use `search_notes` or `list_notes`; when a long run's prompt gets big, the oldest tool results are replaced by a short marker (the newest four stay, and the run log and checkpoint keep the full text).
 - AI runtime: `write_note` refuses an empty body (it would erase the note) and reads the note back, so its answer says how many characters are on disk; the agents' safety text now tells them not to invent facts and to name conflicts between sources.
 - AI runtime: models behind an OpenAI-compatible connection that return `reasoning_content` (DeepSeek thinking mode, some routers) now get it back on later requests; before, DeepSeek answered 400 once an agent used a tool.
 - AI runtime: model calls retry on rate limits, server errors and dropped connections; Anthropic calls use prompt caching; chat summaries survive a restart; an agent that answers with nothing and uses no tool now fails with a clear message; the agent page, Chat and the pictures setting warn when your Ollama model cannot use tools or read pictures; `pnpm --filter @vigil/server eval` compares models on a fixed set of questions. See ADR-0031.

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { AIMessage, HumanMessage, SystemMessage, ToolMessage } from "@langchain/core/messages";
-import { repairDangling, trimHistory } from "./history";
+import { clearOldToolResults, repairDangling, trimHistory } from "./history";
 
 const turn = (n: number, pad = 100) => [new HumanMessage(`q${n} ${"x".repeat(pad)}`), new AIMessage(`a${n} ${"y".repeat(pad)}`)];
 
@@ -64,5 +64,29 @@ describe("repairDangling", () => {
     expect((fixed[2] as ToolMessage).tool_call_id).toBe("b");
     expect(String(fixed[2]?.content)).toContain("not run");
     expect((fixed[3] as ToolMessage).tool_call_id).toBe("a");
+  });
+});
+
+describe("clearOldToolResults", () => {
+  const withTools = (n: number, pad: number) =>
+    Array.from({ length: n }, (_, i) => [
+      new AIMessage({ content: "", tool_calls: [{ id: `t${i}`, name: "read_note", args: {} }] }),
+      new ToolMessage({ content: `result ${i} ${"z".repeat(pad)}`, tool_call_id: `t${i}`, name: "read_note" }),
+    ]).flat();
+
+  it("returns the same array when everything fits", () => {
+    const m = [new HumanMessage("go"), ...withTools(3, 10)];
+    expect(clearOldToolResults(m, 10_000)).toBe(m);
+  });
+
+  it("clears the oldest tool results first, keeps the newest ones, and keeps every message", () => {
+    const m = [new HumanMessage("go"), ...withTools(6, 2000)];
+    const out = clearOldToolResults(m, 6000, 2);
+    expect(out).toHaveLength(m.length);
+    const tools = out.filter((x): x is ToolMessage => ToolMessage.isInstance(x));
+    expect(String(tools[0]?.content)).toContain("cleared");
+    expect(tools[0]?.tool_call_id).toBe("t0");
+    expect(String(tools[5]?.content)).toContain("result 5");
+    expect(String(tools[4]?.content)).toContain("result 4");
   });
 });

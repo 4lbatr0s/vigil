@@ -7,7 +7,7 @@ import { redact, type ModelFactory } from "./llm";
 import { randomUUID } from "node:crypto";
 import { effectiveAgent } from "./permissions";
 import { getCheckpointer } from "./checkpoints";
-import { MIN_BUDGET_FOR_SUMMARY, RESUMMARIZE_AFTER_CHARS, SUMMARY_MAX_TOKENS, SUMMARY_PROMPT, droppedMessages, repairDangling, summaryNote, transcriptOf, trimHistory } from "./history";
+import { MIN_BUDGET_FOR_SUMMARY, RESUMMARIZE_AFTER_CHARS, SUMMARY_MAX_TOKENS, SUMMARY_PROMPT, clearOldToolResults, droppedMessages, repairDangling, summaryNote, transcriptOf, trimHistory } from "./history";
 import { addEvent, createApproval, createRun, finishRun, getAgent, getChatSummary, getRun, hasRunning, putChatSummary, setTokensUsed } from "./state-db";
 import { getNote as vaultGetNote, slugify, validateId } from "./vault";
 
@@ -143,7 +143,7 @@ export const runAgent: AgentRunner = async ({ agent, task, runId, makeModel, dep
       stop = "failed";
       return {};
     }
-    let sent = trimHistory(state.messages);
+    let sent = trimHistory(clearOldToolResults(state.messages));
     // A long chat loses its oldest turns from the prompt; a short summary of them goes in their place, made when
     // enough has slid out since the last one and the run can afford it.
     if (chat && sent.length < state.messages.length) {

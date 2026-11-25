@@ -408,3 +408,26 @@ describe("write_note check", () => {
     expect(out).toMatch(/^created note fresh \(checked: 11 characters on disk\)/);
   });
 });
+
+describe("tool replies", () => {
+  it("list_notes in concise format gives id and title only", async () => {
+    await seedNote("Alpha", "x");
+    createRun("r-c", "a", 1000);
+    const list = buildTools(["read_notes"], { runId: "r-c", agentName: "a" }).find((t) => t.name === "list_notes")!;
+    expect(String(await list.invoke({ format: "concise" }))).toBe("alpha | Alpha");
+    expect(String(await list.invoke({}))).toContain("| human");
+  });
+
+  it("read_note in concise format leaves out the header line", async () => {
+    await seedNote("Beta", "body text");
+    createRun("r-d", "a", 1000);
+    const read = buildTools(["read_notes"], { runId: "r-d", agentName: "a" }).find((t) => t.name === "read_note")!;
+    expect(String(await read.invoke({ id: "beta", format: "concise" }))).toBe("# Beta\n\nbody text");
+  });
+
+  it("a missing note says what to try next", async () => {
+    createRun("r-e", "a", 1000);
+    const read = buildTools(["read_notes"], { runId: "r-e", agentName: "a" }).find((t) => t.name === "read_note")!;
+    expect(String(await read.invoke({ id: "nope" }))).toMatch(/^error: .*search_notes or list_notes/);
+  });
+});

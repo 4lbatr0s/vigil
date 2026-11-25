@@ -65,6 +65,29 @@ export function repairDangling(messages: BaseMessage[]): BaseMessage[] {
   return changed ? out : messages;
 }
 
+export const CLEARED_RESULT = "[old tool result cleared to save space; call the tool again if you need it]";
+
+/**
+ * When the conversation is over `maxChars`, replaces the content of the oldest tool results with a short marker, oldest
+ * first, until it fits. The newest `keepRecent` tool results stay. Every message stays, so each tool call still has its
+ * answer. It returns the same array when nothing needs to go.
+ */
+export function clearOldToolResults(messages: BaseMessage[], maxChars: number = DEFAULT_HISTORY_CHARS, keepRecent = 4): BaseMessage[] {
+  let total = messages.reduce((n, m) => n + size(m), 0);
+  if (total <= maxChars) return messages;
+  const toolAt = messages.flatMap((m, i) => (ToolMessage.isInstance(m) ? [i] : []));
+  const clearable = new Set(toolAt.slice(0, Math.max(0, toolAt.length - keepRecent)));
+  const out = [...messages];
+  for (const i of clearable) {
+    if (total <= maxChars) break;
+    const m = messages[i];
+    if (!m || !ToolMessage.isInstance(m) || m.content === CLEARED_RESULT) continue;
+    total -= size(m) - CLEARED_RESULT.length;
+    out[i] = new ToolMessage({ content: CLEARED_RESULT, tool_call_id: m.tool_call_id, ...(m.name ? { name: m.name } : {}) });
+  }
+  return out;
+}
+
 /** What `trimHistory` left out: the messages between the system message and the first kept one, oldest first. */
 export function droppedMessages(all: BaseMessage[], sent: BaseMessage[]): BaseMessage[] {
   const body = all[0] instanceof SystemMessage ? all.slice(1) : all;
