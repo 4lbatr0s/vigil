@@ -73,3 +73,11 @@ Set `VIGIL_WEBHOOK_URL` (an `http` or `https` address, for example a chat or ntf
 ```
 
 `event` is `approval`, `failed` or `finished`. Chat turns, child runs, cancelled runs and manual runs that worked send nothing. Sending is best effort with a 5-second limit: a broken webhook never changes a run. Treat the address as a secret: it is not written to the log.
+
+## Save a run as JSON Lines
+
+```
+curl -s "${AUTH[@]}" "$VIGIL/api/runs/$RUN/trace" > run.jsonl
+```
+
+The first line is the run (`"type": "run"`, with `config`, the setup fingerprint). Each log entry follows as an `"type": "event"` line. Child runs started with `call_agent` come after, each with its own run line and events.

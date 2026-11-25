@@ -6,7 +6,7 @@ import path from "node:path";
 import { accessFromEnv } from "./access";
 import { createHandler } from "./http";
 import { closeDb } from "./index-db";
-import { closeState, createRun, recordSnapshot } from "./state-db";
+import { addEvent, closeState, createRun, recordSnapshot } from "./state-db";
 
 let root = "";
 let server: Server;
@@ -55,5 +55,21 @@ describe("GET /api/runs/:id/before/:noteId", () => {
   it("404 when the run never touched the note", async () => {
     createRun("run-3", "agent-a", 1000);
     expect((await get("/api/runs/run-3/before/nope")).status).toBe(404);
+  });
+});
+
+describe("GET /api/runs/:id/trace", () => {
+  it("downloads the run as JSON Lines", async () => {
+    createRun("run-t", "agent-a", 1000);
+    addEvent("run-t", "model", "hello", {});
+    const res = await fetch(`${base}/api/runs/run-t/trace`);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toBe("application/x-ndjson; charset=utf-8");
+    expect(res.headers.get("content-disposition")).toBe('attachment; filename="run-run-t.jsonl"');
+    const lines = (await res.text()).trimEnd().split("\n").map((l) => JSON.parse(l) as { type: string });
+    expect(lines.map((l) => l.type)).toEqual(["run", "event"]);
+  });
+  it("404 for a run that does not exist", async () => {
+    expect((await fetch(`${base}/api/runs/nope/trace`)).status).toBe(404);
   });
 });

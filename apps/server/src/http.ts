@@ -32,6 +32,7 @@ import { cronError, nextTickAfter } from "./cron";
 import { buildGraphData } from "./graph";
 import { attachStream } from "./events";
 import { bodyBeforeRun, cancelRun, resumeRun, startRun, undoRun } from "./runs";
+import { runTrace } from "./trace";
 import { getPermissions, putPermissions } from "./permissions";
 import { planRename, renameNote } from "./rename";
 import { refreshSchedule } from "./scheduler";
@@ -1237,6 +1238,24 @@ const routes: { method: string; pattern: RegExp; keys: string[]; handler: Handle
       const after = rawAfter === null ? 0 : Number(rawAfter);
       if (!Number.isInteger(after) || after < 0) throw new AppError("invalid-query", "after must be a whole number, 0 or more", 400);
       send(res, 200, { data: { run, events: listEvents(run.id, after) } });
+    },
+  },
+  {
+    // The whole run and its child runs as JSON Lines, to keep or to read in another tool (todo item 37).
+    method: "GET",
+    pattern: /^\/api\/runs\/([^/]+)\/trace$/,
+    keys: ["id"],
+    handler: (_req, res, params) => {
+      const id = params["id"] ?? "";
+      const trace = runTrace(id);
+      if (trace === null) throw new AppError("run-not-found", `Run not found: ${id}`, 404);
+      res.writeHead(200, {
+        "content-type": "application/x-ndjson; charset=utf-8",
+        "content-length": Buffer.byteLength(trace),
+        // Run ids are UUIDs; anything else is dropped so the header stays plain.
+        "content-disposition": `attachment; filename="run-${id.replace(/[^A-Za-z0-9-]/g, "")}.jsonl"`,
+      });
+      res.end(trace);
     },
   },
   {
