@@ -19,6 +19,7 @@ Start with `AGENTS.md` at the repo root if you are a coding agent. This page lis
 | `adr/0001` to `0009` | Accepted decisions (storage, product, BYOK, agent runtime, design, fetch model, access, SQLite, LangGraph). | Accepted |
 | `adr/0010` to `0014` | Scheduler, strict mode, graph, login, static SPA. | Proposed; accepted when their work package starts |
 | `adr/0015` | Product defaults (permissions page, templates off until turned on, retention, soft cap). | Accepted 2026-11-15 |
+| `scripting.md` | How to start agents, read answers, approve writes and get a webhook, with `curl`. | Live |
 | `conventions.md` | Code standards every worker follows. | Accepted |
 | `glossary.md` | The words this project uses and what they mean. | Live |
 
