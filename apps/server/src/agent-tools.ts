@@ -7,7 +7,7 @@ import { htmlToText, safeFetch, SafeFetchError } from "./safe-fetch";
 import { withNoteLock } from "./lock";
 import { getNote as indexedNote, listNotes, reindexNote, searchNotes } from "./index-db";
 import { semanticIds } from "./semantic";
-import { addressProblem, scrubUntrusted } from "./untrusted";
+import { addressProblem, cleanStateNote, scrubUntrusted } from "./untrusted";
 import { learnerReport } from "./learner";
 import { addEvent, dropSnapshot, putAgentState, recordSnapshot, recordTouch, setWrittenUpdatedAt } from "./state-db";
 import { createNote, getNote, readNoteFile, slugify, updateNote, validateId } from "./vault";
@@ -151,7 +151,7 @@ export function buildTools(grants: ToolGrant[], ctx: ToolContext): StructuredToo
       tool(
         async ({ text }) => {
           if (text.length > STATE_MAX_CHARS) return `error: the state note is too long (${text.length} characters, the most is ${STATE_MAX_CHARS}). Shorten it and call update_state again. The old note is kept.`;
-          putAgentState(ctx.agentName, text);
+          putAgentState(ctx.agentName, cleanStateNote(text));
           addEvent(ctx.runId, "note", "state note updated");
           return `state note saved (${text.length} characters)`;
         },
