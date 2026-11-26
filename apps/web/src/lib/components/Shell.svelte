@@ -11,6 +11,7 @@
   import Search from "@lucide/svelte/icons/search";
   import { pendingCount, trackPending } from "$lib/approvals-state";
   import CommandPalette from "$lib/components/CommandPalette.svelte";
+  import QuickCapture from "$lib/components/QuickCapture.svelte";
   import ShortcutsHelp from "$lib/components/ShortcutsHelp.svelte";
   import Keyboard from "@lucide/svelte/icons/keyboard";
   import { Badge, IconButton, Kbd } from "$lib/ui";
@@ -24,6 +25,7 @@
   let { children }: { children: Snippet } = $props();
   let paletteOpen = $state(false);
   let helpOpen = $state(false);
+  let captureOpen = $state(false);
   /** Narrow screens: the navigation is a drawer. */
   let navOpen = $state(false);
   /** Where a "no model connected" or usage notice belongs: the places that need a model, not every page. */
@@ -58,6 +60,9 @@
     if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
       event.preventDefault();
       paletteOpen = !paletteOpen;
+    } else if (event.key.toLowerCase() === "c" && !event.metaKey && !event.ctrlKey && !event.altKey && !typing(event.target) && !paletteOpen) {
+      event.preventDefault();
+      captureOpen = true;
     } else if (event.key === "?" && !event.metaKey && !event.ctrlKey && !event.altKey && !typing(event.target)) {
       event.preventDefault();
       helpOpen = true;
@@ -83,7 +88,8 @@
 
 <svelte:window onkeydown={onKeydown} />
 
-<CommandPalette bind:open={paletteOpen} />
+<CommandPalette bind:open={paletteOpen} oncapture={() => (captureOpen = true)} />
+<QuickCapture bind:open={captureOpen} />
 <ShortcutsHelp bind:open={helpOpen} />
 
 <div class="shell">

@@ -4,7 +4,7 @@
   import { buildCommands, type Command } from "$lib/commands";
   import { Dialog } from "$lib/ui";
 
-  let { open = $bindable(false) }: { open: boolean } = $props();
+  let { open = $bindable(false), oncapture }: { open: boolean; oncapture?: () => void } = $props();
 
   let query = $state("");
   let agents = $state<string[]>([]);
@@ -54,6 +54,11 @@
     if (command.action.type === "goto") {
       close();
       await goto(command.action.href);
+      return;
+    }
+    if (command.action.type === "capture") {
+      close();
+      oncapture?.();
       return;
     }
     const name = command.action.agent;

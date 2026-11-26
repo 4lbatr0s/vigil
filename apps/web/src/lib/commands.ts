@@ -2,7 +2,7 @@ import { rank } from "./fuzzy";
 import { NOTES_PATH, noteHref } from "./links";
 import { NOTE_TEMPLATES } from "./note-templates";
 
-export type Action = { type: "goto"; href: string } | { type: "run"; agent: string };
+export type Action = { type: "goto"; href: string } | { type: "run"; agent: string } | { type: "capture" };
 export type Command = { id: string; label: string; group: "Notes" | "Agents" | "Commands"; hint?: string; action: Action };
 
 export type PaletteState = {
@@ -12,6 +12,7 @@ export type PaletteState = {
 };
 
 const FIXED: Command[] = [
+  { id: "cmd:capture", label: "Capture a thought", group: "Commands", hint: "to your inbox", action: { type: "capture" } },
   { id: "cmd:new-note", label: "New note", group: "Commands", action: { type: "goto", href: `${NOTES_PATH}?new=1` } },
   { id: "cmd:daily", label: "Today's note", group: "Commands", hint: "daily note", action: { type: "goto", href: `${NOTES_PATH}?daily=1` } },
   { id: "cmd:study", label: "Study cards", group: "Commands", action: { type: "goto", href: "/study" } },
