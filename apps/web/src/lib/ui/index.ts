@@ -22,3 +22,4 @@ export { default as Switch } from "./Switch.svelte";
 export { default as Tabs } from "./Tabs.svelte";
 export { default as Textarea } from "./Textarea.svelte";
 export { default as Tooltip } from "./Tooltip.svelte";
+export { default as ViewSwitch } from "./ViewSwitch.svelte";

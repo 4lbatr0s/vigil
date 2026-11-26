@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dailyHref, noteHref, notesRedirect } from "./links";
+import { dailyHref, NOTE_VIEWS, noteHref, notesRedirect } from "./links";
 
 describe("links to Notes", () => {
   it("a note link goes to /notes with the id encoded, and an optional line", () => {
@@ -20,5 +20,10 @@ describe("links to Notes", () => {
     expect(at("/?template=lecture")).toBe("/notes?template=lecture");
     expect(at("/")).toBeNull();
     expect(at("/?utm=x")).toBeNull();
+  });
+
+  it("the view switch offers the list, the graph and boards, in that order", () => {
+    expect(NOTE_VIEWS.map((v) => v.href)).toEqual(["/notes", "/graph", "/canvas"]);
+    expect(NOTE_VIEWS.map((v) => v.label)).toEqual(["List", "Graph", "Boards"]);
   });
 });

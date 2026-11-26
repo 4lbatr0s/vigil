@@ -4,6 +4,13 @@
  */
 export const NOTES_PATH = "/notes";
 
+/** The three ways to see your notes, switched from the top of each (ViewSwitch). */
+export const NOTE_VIEWS = [
+  { href: NOTES_PATH, label: "List" },
+  { href: "/graph", label: "Graph" },
+  { href: "/canvas", label: "Boards" },
+];
+
 /** Query keys the Notes page reads. An old `/` link with one of them is a Notes link. */
 const NOTES_KEYS = ["note", "daily", "new", "template", "line"];
 

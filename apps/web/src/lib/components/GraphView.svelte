@@ -1,5 +1,5 @@
 <script lang="ts">
-import { noteHref } from "$lib/links";
+import { NOTE_VIEWS, noteHref } from "$lib/links";
   import { onMount } from "svelte";
   import { goto } from "$app/navigation";
   import { slugify } from "@vigil/shared";
@@ -9,7 +9,7 @@ import { noteHref } from "$lib/links";
   import { refreshOnLive } from "$lib/live";
   import { formatStamp } from "$lib/format";
   import { NO_FILTERS, agentsTouching, attention, filterGraph, groupByConnections, memoryLine, tagCounts, type GraphApi, type GraphFilters, type GraphNodeData } from "$lib/graph-model";
-  import { Badge, Button, Cluster, Input, Row, Select } from "$lib/ui";
+  import { Badge, Button, Cluster, Input, Row, Select, ViewSwitch } from "$lib/ui";
 
   type Lens = "tags" | "memory" | "agents";
 
@@ -131,6 +131,7 @@ import { noteHref } from "$lib/links";
 
 <div class="graph">
   <div class="bar">
+    <ViewSwitch label="Ways to see your notes" items={NOTE_VIEWS} current="/graph" />
     <span class="find"><Input type="search" bind:value={query} placeholder="Find a note" aria-label="Find a note" /></span>
     <Cluster gap={1}>
       <Button size="sm" pressed={lens === "tags"} onclick={() => (lens = "tags")}>Tags</Button>

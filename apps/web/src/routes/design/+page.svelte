@@ -4,7 +4,7 @@
   import Ellipsis from "@lucide/svelte/icons/ellipsis";
   import Trash2 from "@lucide/svelte/icons/trash-2";
   import NotebookText from "@lucide/svelte/icons/notebook-text";
-  import { Badge, Button, Checkbox, Cluster, Dialog, EmptyState, Field, IconButton, Input, Kbd, Menu, Row, Select, Stack, Switch, Tabs, Textarea } from "$lib/ui";
+  import { Badge, Button, Checkbox, Cluster, Dialog, EmptyState, Field, IconButton, Input, Kbd, Menu, Row, Select, Stack, Switch, Tabs, Textarea, ViewSwitch } from "$lib/ui";
 
   let theme = $state<"system" | "light" | "dark">("system");
   let density = $state<"comfortable" | "compact">("comfortable");
@@ -170,6 +170,11 @@
     <section>
       <h2>Tabs</h2>
       <Tabs tabs={[{ value: "notes", label: "Notes" }, { value: "cards", label: "Cards" }, { value: "recall", label: "Recall" }]} bind:value={tab} panel={panel} />
+    </section>
+
+    <section>
+      <h2>View switch</h2>
+      <ViewSwitch label="Ways to see your notes" current="/design" items={[{ href: "/design", label: "List" }, { href: "/graph", label: "Graph" }, { href: "/canvas", label: "Boards" }]} />
     </section>
 
     <section>

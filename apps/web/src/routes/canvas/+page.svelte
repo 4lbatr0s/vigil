@@ -1,6 +1,7 @@
 <script lang="ts">
   import Ellipsis from "@lucide/svelte/icons/ellipsis";
-  import { Button, Cluster, Dialog, EmptyState, IconButton, Input, Menu, Page, Row, Stack } from "$lib/ui";
+  import { Button, Cluster, Dialog, EmptyState, IconButton, Input, Menu, Page, Row, Stack, ViewSwitch } from "$lib/ui";
+  import { NOTE_VIEWS } from "$lib/links";
   import { onMount } from "svelte";
   import { goto } from "$app/navigation";
   import { ApiError, createCanvas, deleteCanvas, getCanvas, listCanvases, saveCanvas, type CanvasSummary } from "$lib/api";
@@ -78,14 +79,15 @@
   }
 </script>
 
-<svelte:head><title>Canvas · Vigil</title></svelte:head>
+<svelte:head><title>Boards · Vigil</title></svelte:head>
 
-<Page title="Canvas">
+<Page title="Boards">
+  {#snippet actions()}<ViewSwitch label="Ways to see your notes" items={NOTE_VIEWS} current="/canvas" />{/snippet}
   <Stack gap={6}>
-    <p class="muted">A free board for your notes: place note cards and your own text anywhere, group them, and draw arrows between them. Boards are saved in your vault as <code>.canvas</code> files, the open format Obsidian uses.</p>
+    <p class="muted">Place notes and your own text anywhere, and draw arrows between them.</p>
     <form onsubmit={create}>
-      <Input bind:value={title} placeholder="Name a new board, for example Exam plan" aria-label="Name of the new canvas" maxlength={100} />
-      <Button variant="primary" type="submit" disabled={busy || title.trim() === ""}>New canvas</Button>
+      <Input bind:value={title} placeholder="Name a new board, for example Exam plan" aria-label="Name of the new board" maxlength={100} />
+      <Button variant="primary" type="submit" disabled={busy || title.trim() === ""}>New board</Button>
     </form>
     <Cluster gap={2}>
       <span class="muted">Or start from</span>

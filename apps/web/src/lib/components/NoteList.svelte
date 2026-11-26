@@ -1,5 +1,5 @@
 <script lang="ts">
-import { dailyHref } from "$lib/links";
+import { dailyHref, NOTE_VIEWS, NOTES_PATH } from "$lib/links";
   import { onDestroy } from "svelte";
   import { slugify, type Note, type NoteSummary } from "@vigil/shared";
   import Pin from "@lucide/svelte/icons/pin";
@@ -12,7 +12,7 @@ import { dailyHref } from "$lib/links";
   import { parseDay } from "$lib/daily";
   import { hasTag, relativeTime, tagTree, viewNotes, type SortKey } from "$lib/note-list";
   import { ROW_HEIGHT, VIRTUALIZE_ABOVE, visibleWindow } from "$lib/window";
-  import { Button, Dialog, EmptyState, Field, IconButton, Input, Menu, Row } from "$lib/ui";
+  import { Button, Dialog, EmptyState, Field, IconButton, Input, Menu, Row, ViewSwitch } from "$lib/ui";
 
   let {
     notes = [],
@@ -159,6 +159,7 @@ import { dailyHref } from "$lib/links";
 
 <aside class="sidebar" style:--item-height="{ROW_HEIGHT}px">
   <header class="head">
+    <ViewSwitch label="Ways to see your notes" items={NOTE_VIEWS} current={NOTES_PATH} />
     <div class="find">
       <Input
         id="note-filter"
