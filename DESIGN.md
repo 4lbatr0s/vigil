@@ -156,8 +156,12 @@ Gentle, small radii: 6 px controls, 10 px surfaces, 14 px floating layers, pill 
 ### Menus, dialogs, tooltips
 - Built on Bits UI for focus and keyboard. Menus hold secondary and destructive actions (destructive last, after a separator). Dialog titles are short noun phrases; the primary button is a verb ("Delete note").
 
+### View switch
+- `ViewSwitch`: two to four links that look like tabs, for views on their own pages (List, Graph, Boards). The current view is a raised paper chip on a sunk track. Use `Tabs` when the views share one page.
+
 ### Navigation
 - Text rows with an 18 px Lucide icon; active is a soft fill. Counts use `Badge`; the approvals count is amber.
+- Four places by what the learner does (Today, Notes, Study, Ask), then Helpers and Settings at the bottom. A page without its own link lights up the place it belongs to.
 
 ## Do's and Don'ts
 

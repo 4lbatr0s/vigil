@@ -2,6 +2,13 @@
 
 ## Unreleased: UI v2 (ADR-0016), then design system v3 (ADR-0029)
 
+- UI redesign, 2026-11-26 (ADR-0035): warm paper and a serif for your own words and titles; Today is the home page (capture, inbox, today's note, one "Practice N cards", what needs you); the navigation is Today, Notes, Study and Ask, with Helpers and Settings at the bottom; Notes moved to `/notes` and old links still work.
+- Capture from any page: press C or use "Capture a thought" in the palette.
+- Inbox on Today: each captured line can become a note, be added to a note or be deleted (N, A, D), with Undo for a delete.
+- Notes: a switch between the list, the graph and boards (the canvas index is now "Boards"); focus mode (⌘⇧F) hides everything but the note; "Linked from" is open under the note in plain words.
+- Templates: "New source note" (Source and Page lines) replaces the reading note; the Cornell and source notes have a Questions section whose `Question :: Answer` lines are study cards.
+- Plain words: "agent" is "helper" everywhere you read it, "System prompt" is "Instructions", spending limits replace token budgets; a helper's page shows the basics first and the rest under "More"; Settings has four groups (Writing, Study, Helpers, Advanced).
+- First run: a new vault shows three steps on Today (write a note, make a card, link two notes) that tick themselves off.
 - Experimental: `VIGIL_ANTHROPIC_CONTEXT_EDITING=1` lets Anthropic's API clear old tool results instead of Vigil, and `VIGIL_HISTORY_CHARS` sets the history limit, so the two can be compared with the evals. Off by default.
 - Agents: the note an agent keeps between runs now keeps its last 10 versions, Clear note included. "Earlier versions" on the agent page shows them, and "Use this version" brings one back.
 - Agents: when a run's history gets long, the agent is told that older tool results will soon be shortened, so it can write down the facts it still needs first.
