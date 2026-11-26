@@ -2,6 +2,7 @@
 
 ## Unreleased: UI v2 (ADR-0016), then design system v3 (ADR-0029)
 
+- Agents: asking another agent that needs your approval before some tool (for example "Ask me before it reads a web page") is now refused at once with a clear message. Before, the called agent started and then failed with an unreadable error at that tool.
 - Tests: `node scripts/kill-recover.mjs` kills the built server with SIGKILL in the middle of a run and checks that the run continues once after the restart and that its note write happened once.
 - Agents: a wrong tag in "Only write notes tagged" now says which characters a tag may hold (it used to say "Use a tag without the #" for any wrong tag).
 - Runs: a run that a server restart cut off now continues where it stopped, once, instead of ending as `interrupted` (runs started by you, a schedule or a note change; not chat, MCP or child runs). A tool call that was running at the restart is never run again: the agent is told it may have happened and to check. See ADR-0034.

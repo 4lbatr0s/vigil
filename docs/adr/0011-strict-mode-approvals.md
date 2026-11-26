@@ -13,7 +13,7 @@ ADR-0004 promises an optional per-agent strict mode: writes wait for the owner. 
 - **Token accounting on resume** starts from the stored `tokens_used`, not zero.
 - **Approvals table** (`state.db`, migration 5): id, run id, tool call id, tool, args (JSON; note text only, never a key), status (`pending`, `approved`, `rejected`), timestamps.
 - **No timeout in v1.** A pending approval waits until decided. Revisit with notifications post-v1.
-- **Delegation:** `call_agent` is refused when the parent or the child is strict and the child can write (a paused child inside a parent's tool node cannot wait for a human).
+- **Delegation:** `call_agent` is refused when the parent or the child is strict and the child can write (a paused child inside a parent's tool node cannot wait for a human). The same holds for a child that would ask before any tool through `approveTools` (`fetch_url`, for example): the call is refused before a child run exists (2026-11-26; before that the child ran and ended `failed` at its first guarded call).
 - **Defaults and owner control:** nothing is forced by the API. New agents (and template-created agents) take `strict` from the instance setting `newAgentsStrict` (default on); the owner can turn approvals off per agent. When an agent can both read notes and fetch the web and approvals are off, the UI warns (ADR-0006, ADR-0015).
 
 - **Waiting runs own their agent.** `hasRunning` counts `waiting-approval`, so a second run (a heartbeat, a cron tick, Run now) cannot start while a write waits: two runs could propose writes to the same notes.

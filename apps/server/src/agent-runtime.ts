@@ -96,6 +96,11 @@ const GUARDED_TOOLS = [...WRITE_TOOLS, "fetch_url", "call_agent"];
 
 type PendingCall = { id: string; name: string; args: Record<string, unknown> };
 
+/** The tools that wait for the owner's yes before they run for this agent: its writes when strict, plus `approveTools`, among the tools it has. */
+export function askFirstTools(agent: Agent, available: ReadonlySet<string>): string[] {
+  return [...(agent.strict ? WRITE_TOOLS : []), ...(agent.approveTools ?? [])].filter((t) => available.has(t));
+}
+
 /** Tool messages for calls that did not run, so no tool call is left without an answer. */
 const notRun = (calls: { id?: string | undefined; name: string }[], why: string): ToolMessage[] =>
   calls.map((c, i) => new ToolMessage({ content: `error: not run, ${why}`, tool_call_id: c.id || `unnamed-${i}`, name: c.name }));
@@ -113,9 +118,11 @@ export const runAgent: AgentRunner = async ({ agent, task, runId, makeModel, dep
     if (!stored) return fail(`no agent called ${name}`);
     const child = effectiveAgent(stored);
     if (hasWrite(child) && (agent.strict || child.strict)) return fail("strict agents cannot delegate writes");
+    // A child runs inside this run's tools step, so an approval it asks for cannot pause it: it would only fail.
+    const childTools = new Set(buildTools(child.tools, { runId: "", agentName: child.name, depth: 1 }).map((t) => t.name));
+    const asks = askFirstTools(child, childTools);
+    if (asks.length > 0) return fail(`agent ${name} asks for approval before ${asks.join(", ")}, which a called agent cannot do. Ask the owner to run it alone.`);
     const scope = hasWrite(child) ? childWriteScope(agent.writeTags, child.writeTags) : child.writeTags;
-    // A child that pauses for approval resumes later from its stored setup, which has no scope from this caller.
-    if (hasWrite(child) && (agent.writeTags?.length ?? 0) > 0 && (child.approveTools?.length ?? 0) > 0) return fail(`agent ${name} may pause for approval, so it cannot run under your write scope`);
     if (scope === null) return fail(`agent ${name} may write only notes outside your write scope`);
     if (hasRunning(name)) return fail(`agent ${name} already has a run in progress`);
     const budget = Math.min(child.tokenBudget, agent.tokenBudget - used);
@@ -145,7 +152,7 @@ export const runAgent: AgentRunner = async ({ agent, task, runId, makeModel, dep
   // Writes need approval for a strict agent, and `approveTools` adds fetch_url and call_agent whatever `strict` says.
   // A resumed run exists only because some call waited for a decision, so every tool that can need one still does:
   // switching approvals off while it waits can never turn a rejected call into an executed one.
-  const askFirst = new Set<string>((resume !== undefined ? GUARDED_TOOLS : [...(agent.strict ? WRITE_TOOLS : []), ...(agent.approveTools ?? [])]).filter((t) => byName.has(t)));
+  const askFirst = new Set<string>(resume !== undefined ? GUARDED_TOOLS.filter((t) => byName.has(t)) : askFirstTools(agent, new Set(byName.keys())));
   const strictActive = askFirst.size > 0;
   const needsApproval = (callName: string): boolean => askFirst.has(callName);
 

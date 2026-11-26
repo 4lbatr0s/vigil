@@ -174,13 +174,23 @@ describe("call_agent", () => {
     expect(await readNoteFile("loose")).toBeNull();
   });
 
-  it("a scoped parent cannot call a writing child that may pause for approval, because a paused child would resume without the scope", async () => {
-    putAgent(agent("parent", { tools: ["call_agents"], callable: ["pauser"], writeTags: ["journal"] }));
-    putAgent(agent("pauser", { tools: ["write_notes", "web_fetch"], approveTools: ["fetch_url"] }));
-    const { make } = byAgent({ parent: [call("call_agent", { name: "pauser", message: "w" }), say("ok")] });
-    const run = await go("parent", make);
-    expect(listEvents(run.id).find((e) => e.kind === "tool-result")?.text).toContain("may pause for approval");
-    expect(listRuns("pauser")).toHaveLength(0);
+  it("refuses a child that would ask for approval, from any caller, because a called agent cannot pause", async () => {
+    putAgent(agent("asker", { tools: ["read_notes", "web_fetch"], approveTools: ["fetch_url"] }));
+    for (const [name, over] of [["plain", {}], ["scoped", { writeTags: ["journal"] }]] satisfies [string, Partial<Agent>][]) {
+      putAgent(agent(name, { tools: ["call_agents"], callable: ["asker"], ...over }));
+      const { make } = byAgent({ [name]: [call("call_agent", { name: "asker", message: "w" }), say("ok")], asker: [call("fetch_url", { url: "https://example.com/" }), say("done")] });
+      const run = await go(name, make);
+      expect(listEvents(run.id).find((e) => e.kind === "tool-result")?.text).toContain("agent asker asks for approval before fetch_url, which a called agent cannot do");
+    }
+    expect(listRuns("asker")).toHaveLength(0);
+  });
+
+  it("runs a child whose approval list names only tools it does not have", async () => {
+    putAgent(agent("parent", { tools: ["call_agents"], callable: ["reader"] }));
+    putAgent(agent("reader", { approveTools: ["fetch_url"] }));
+    const { make } = byAgent({ parent: [call("call_agent", { name: "reader", message: "r" }), say("ok")], reader: [say("read it")] });
+    await go("parent", make);
+    expect(listRuns("reader")[0]?.status).toBe("succeeded");
   });
 
   it("a strict parent or strict child that writes cannot delegate", async () => {

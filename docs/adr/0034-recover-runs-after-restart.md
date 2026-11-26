@@ -13,7 +13,7 @@ LangGraph can continue a graph from its last checkpoint, but it re-runs the node
 - At start, before the rest are marked `interrupted`, the server continues each such run that was left `running`, **once**. The run keeps its id, its token count and its snapshots, so undo covers the work from before and after the restart.
 - **No tool runs again by itself.** The server reads the messages of the last checkpoint, deletes that checkpoint, and gives every tool call that has no answer this answer: "error: the server restarted while this call was running; it may or may not have happened. Read the note before writing again." Then it starts the graph fresh with those messages. The model decides what to do next.
 - These runs are marked `interrupted` instead, as before:
-  - child runs (`call_agent`): a child continued from its stored setup would lose its caller's write scope; the parent's open `call_agent` call gets the restart answer.
+  - child runs (`call_agent`): a child runs inside its parent's tools step and has no life of its own after a restart; the parent's open `call_agent` call gets the restart answer.
   - chat and MCP runs: the caller's connection is gone.
   - runs that have approval rows: a crash while those rows were being written can leave them half done.
   - runs whose agent was deleted or switched off.
