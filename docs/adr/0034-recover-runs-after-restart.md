@@ -26,3 +26,4 @@ LangGraph can continue a graph from its last checkpoint, but it re-runs the node
 - Every step of a recoverable run writes a checkpoint to `data/checkpoints.db`. The checkpoint holds the run's whole message list, so the write grows with the run (strict runs already paid this). A run has at most about 25 steps and its tool results are capped, and the rows are deleted when the run ends.
 - A write that finished just before the crash is not known for sure. The model is told it may have happened and to check. It may still write again; undo then restores both writes together.
 - The restart answer is a synthetic tool message, like the ones `repairDangling` makes. Whether DeepSeek accepts it is unchecked (todo item 26).
+- `scripts/kill-recover.mjs` checks the whole path against the bundled server with a real SIGKILL (not part of the gate).
