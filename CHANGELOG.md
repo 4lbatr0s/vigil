@@ -2,6 +2,7 @@
 
 ## Unreleased: UI v2 (ADR-0016), then design system v3 (ADR-0029)
 
+- Evals: `--save DIR` keeps each eval result in DIR and names every case that passed in the last saved run of the same suite and model and fails now (that fails the run), so a nightly run shows regressions.
 - Agents: asking another agent that needs your approval before some tool (for example "Ask me before it reads a web page") is now refused at once with a clear message. Before, the called agent started and then failed with an unreadable error at that tool.
 - Tests: `node scripts/kill-recover.mjs` kills the built server with SIGKILL in the middle of a run and checks that the run continues once after the restart and that its note write happened once.
 - Agents: a wrong tag in "Only write notes tagged" now says which characters a tag may hold (it used to say "Use a tag without the #" for any wrong tag).

@@ -31,7 +31,7 @@ Only you can do these (a decision, an account, a real device, or publishing). Ti
 ## Agent work of 2026-11-25: your part
 - [ ] **Push or merge:** the branch `fix/p0-agent-runtime` holds the P0 fixes, the notifications, the daily cap, the state note, the run page changes and the agent evals, and it is ahead of the pushed copy. Say "push" when you want it pushed, and decide when it goes into `main` (`main` is 17 commits ahead of `origin/main` and was not touched).
 - [ ] **Pull a model:** the local Ollama has no model (`curl localhost:11434/api/tags` shows an empty list). Pull one (for example `ollama pull qwen3:4b`) so the evals and the live checks can run.
-- [ ] **Run the agent evals** (see "Run the evals" above) and tell the agent the summary. This unlocks agent items 30 and 31.
+- [ ] **Run the agent evals** (see "Run the evals" above) and tell the agent the summary. This unlocks agent items 30 and 31. Add `--save ~/vigil-evals` to keep each result; later runs then name the cases that newly fail. A nightly crontab line is in the header of `apps/server/src/evals/run.ts`.
 - [ ] **DeepSeek check:** add a DeepSeek connection (Settings, Models), Test it, and run an agent with a tool and thinking on. Item 17's fix is tested against a fake endpoint only. Tell the agent if you see an HTTP 400.
 - [ ] **Look at the new screens:** the run page (step times, "Setup" fingerprint, Run again) and the agent page ("Remember where it stopped", "Token limit per day"). Say what feels wrong.
 - [ ] **Decide the caps:** the hard monthly cap (`VIGIL_MONTHLY_TOKEN_HARD_CAP`, ADR-0032) is off by default. Pick a number, or leave it off.
