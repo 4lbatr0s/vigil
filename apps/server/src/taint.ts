@@ -19,8 +19,8 @@ export const TAINTED_MAX_PATH = 100;
 
 /**
  * Whether untrusted web text is in the run, and the hosts the run read pages from. A page counts when a `fetch_url` call
- * returned one (an answer that is not `error: ...`). An answer from another agent (`call_agent`) counts too, with no host:
- * the child may have read a page and passed its text on.
+ * returned one (an answer that is not `error: ...`). Every answer from another agent (`call_agent`) counts too, with no
+ * host: the child may have read a page and passed its text on, and its text may even look like an error.
  */
 export function fetchedHosts(messages: BaseMessage[]): { tainted: boolean; hosts: Set<string> } {
   const callById = new Map<string, { name: string; url: unknown }>();
@@ -31,7 +31,10 @@ export function fetchedHosts(messages: BaseMessage[]): { tainted: boolean; hosts
   let tainted = false;
   for (const m of messages) {
     const call = ToolMessage.isInstance(m) ? callById.get(m.tool_call_id) : undefined;
-    if (!call || String(m.content).startsWith("error:")) continue;
+    if (!call) continue;
+    // A fetch_url answer that starts with "error:" comes from Vigil (a page always starts with its address). A call_agent
+    // answer is the child's own text, which a page can shape to look like an error, so every one counts.
+    if (call.name === "fetch_url" && String(m.content).startsWith("error:")) continue;
     tainted = true;
     const host = call.name === "fetch_url" ? hostOf(call.url) : null;
     if (host) hosts.add(host);

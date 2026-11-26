@@ -25,7 +25,7 @@ The web fetch tool ships only with all of these:
 Once a `fetch_url` call in an earlier round of a run returned a page, a later fetch in that run may go only to a host the run already read, and with no query string. Anything else is refused with an error that says why, and the run log records it. A fetch the owner approves (`approveTools: fetch_url`) is the owner's decision and is not refused. Reason: a page is untrusted text that can ask the agent to carry note text out in an address; this rule is enforced in code, not left to the model. Calls in the same round as the first fetch are not limited, because the model chose them before it saw any page.
 
 After an automated security review the same day:
-- An answer from another agent (`call_agent`) counts as web text too, with no host of its own: the child may have read a page and passed its text on. After one, the run may fetch only hosts it read itself.
+- Every answer from another agent (`call_agent`) counts as web text too, with no host of its own: the child may have read a page and passed its text on. Even an answer that starts with `error:` counts, because the child's text can be shaped by the page (second review). After one, the run may fetch only hosts it read itself.
 - After a page, a fetch path may be at most 100 characters long (each piece was already capped at 80).
 - Redirects need nothing more: every hop is checked against the allowlist, and the data the agent chose travels only in the first address, which goes to a host the run already read.
 - What is left: a planted page can still make the agent send short pieces of text in the path to a host the run already read. That host is on the owner's allowlist; approval per fetch (`approveTools: fetch_url`) closes this too.
