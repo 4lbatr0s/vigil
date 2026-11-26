@@ -104,6 +104,21 @@ describe("continuing a run after a restart (ADR-0034)", () => {
     await zombie;
   });
 
+  it("a plain run started by a person saves a checkpoint while it runs and deletes it when it ends", async () => {
+    await createNote({ title: "Log", body: "start" });
+    putAgent(logger());
+    setRunDeps({ makeModel: model().make });
+    let release: () => void = () => undefined;
+    const held = withNoteLock(() => new Promise<void>((r) => (release = r)));
+    const run = startRun("logger");
+    await until(() => hasCheckpoint(run.id));
+    release();
+    await held;
+    await waitForRuns();
+    expect(getRun(run.id)?.status).toBe("succeeded");
+    expect(await hasCheckpoint(run.id)).toBe(false);
+  });
+
   it("continues a run only once", async () => {
     putAgent(logger());
     createRun("again", "logger", 1000);

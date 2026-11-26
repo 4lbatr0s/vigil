@@ -14,7 +14,12 @@ const port = Number(process.env.PORT ?? 3001);
 async function main(): Promise<void> {
   // Fail fast on bad access settings (a non-local bind without a token) before touching any data.
   for (const line of accessWarnings(accessFromEnv())) console.warn(line);
-  // Runs a restart cut off continue once where they can (ADR-0034); the rest are marked interrupted below.
+  if (isEmpty()) {
+    const count = await rebuildAll();
+    console.log(`vigil-server indexed ${count} note(s) from the vault`);
+  }
+  // Runs a restart cut off continue once where they can, after the rebuild so their tools never see an empty index
+  // (ADR-0034); the rest are marked interrupted below.
   const recovered = await recoverRuns();
   if (recovered.length > 0) console.log(`vigil-server continued ${recovered.length} run(s) that a restart cut off`);
   const interrupted = markInterruptedRuns(recovered);
@@ -22,10 +27,6 @@ async function main(): Promise<void> {
   // Runs paused for approval stay paused; one whose writes were all decided just before a crash continues.
   const resumed = resumeDecidedRuns();
   if (resumed > 0) console.log(`vigil-server resumed ${resumed} run(s) whose approvals were already decided`);
-  if (isEmpty()) {
-    const count = await rebuildAll();
-    console.log(`vigil-server indexed ${count} note(s) from the vault`);
-  }
   startSemanticIndex();
   const running = start({ port });
   const { server } = running;
