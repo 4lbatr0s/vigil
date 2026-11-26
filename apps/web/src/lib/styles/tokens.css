@@ -7,16 +7,16 @@
   color-scheme: light dark;
 
   /* Ground and surfaces: warm paper in light, warm charcoal in dark (ADR-0035). Depth comes from small steps in
-     lightness, not from borders. The warmth is low chroma on purpose: paper, not cream. */
-  --paper: light-dark(oklch(97.8% 0.013 84), oklch(20.5% 0.012 62));
-  --paper-sunk: light-dark(oklch(95.2% 0.017 80), oklch(17.5% 0.011 60));
-  --paper-float: light-dark(oklch(99.3% 0.007 86), oklch(25% 0.013 62));
+     lightness, not from borders. Chroma raised on the owner's request (2026-11-26): warm paper, still short of saturated cream. */
+  --paper: light-dark(oklch(97% 0.026 78), oklch(21.5% 0.02 55));
+  --paper-sunk: light-dark(oklch(94% 0.032 74), oklch(18% 0.018 52));
+  --paper-float: light-dark(oklch(98.8% 0.014 82), oklch(26% 0.021 55));
 
   /* Ink, in three steps: warm near-black, not cold grey. Hierarchy is made with these, not with containers.
      Every step is at least 4.5:1 on all three surfaces in both themes (checked 2026-11-26). */
-  --text: light-dark(oklch(25% 0.018 58), oklch(93% 0.013 82));
-  --text-2: light-dark(oklch(44% 0.022 60), oklch(77% 0.016 76));
-  --text-3: light-dark(oklch(52.5% 0.02 64), oklch(66% 0.016 72));
+  --text: light-dark(oklch(26% 0.028 52), oklch(93% 0.022 80));
+  --text-2: light-dark(oklch(43% 0.032 55), oklch(78% 0.026 72));
+  --text-3: light-dark(oklch(51% 0.03 60), oklch(67% 0.026 68));
 
   /* Fills for state: hover, selected, pressed. Mixes of the ink, so they work on any surface. */
   --fill-hover: color-mix(in oklch, var(--text) 5%, transparent);
@@ -35,7 +35,7 @@
   --danger-fill: color-mix(in oklch, var(--danger) 12%, transparent);
 
   /* Primary action: the ink itself. */
-  --on-ink: light-dark(oklch(97.8% 0.013 84), oklch(20.5% 0.012 62));
+  --on-ink: light-dark(oklch(97% 0.026 78), oklch(21.5% 0.02 55));
   --focus: light-dark(oklch(55% 0.16 255), oklch(75% 0.12 255));
   --select-wash: color-mix(in oklch, var(--focus) 28%, transparent);
 

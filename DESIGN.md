@@ -2,10 +2,10 @@
 name: Vigil
 description: A warm, quiet paper-like notes app where the writing is the interface and agents stay in the margin.
 colors:
-  paper: "oklch(97.8% 0.013 84)"
-  paper-dark: "oklch(20.5% 0.012 62)"
-  text: "oklch(25% 0.018 58)"
-  text-dark: "oklch(93% 0.013 82)"
+  paper: "oklch(97% 0.026 78)"
+  paper-dark: "oklch(21.5% 0.02 55)"
+  text: "oklch(26% 0.028 52)"
+  text-dark: "oklch(93% 0.022 80)"
   agent: "oklch(52% 0.12 70)"
   agent-dark: "oklch(78% 0.14 78)"
   danger: "oklch(50% 0.17 27)"
@@ -77,7 +77,7 @@ The values above are a summary. `apps/web/src/lib/styles/tokens.css` is the sour
 
 Vigil is a sheet of paper with a margin. The learner's writing is the whole interface; the agents work in the margin and only reach into the page when they have something to ask. Nothing is boxed to look important. Hierarchy comes from type size, weight and three steps of ink, and from space.
 
-The mood is calm and warm, closer to a good paper notebook than a dashboard (ADR-0035). Light is warm paper, not saturated cream; dark is warm charcoal. The learner's words and titles are set in a serif, the interface in the system sans, and buttons are ink-coloured. The look stays plain so the learner's own words carry it.
+The mood is calm and warm, closer to a good paper notebook than a dashboard (ADR-0035). Light is warm paper, a little short of saturated cream; dark is warm charcoal. The learner's words and titles are set in a serif, the interface in the system sans, and buttons are ink-coloured. The look stays plain so the learner's own words carry it.
 
 **Key Characteristics:**
 - One surface plus whitespace; borders appear only on text fields, the focus ring and the single line between the note list and the page.
