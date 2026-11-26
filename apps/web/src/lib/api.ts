@@ -187,6 +187,9 @@ export const getAgent = (name: string) => request<Agent>(`/api/agents/${seg(name
 export const putAgent = (agent: Agent) => request<Agent>(`/api/agents/${seg(agent.name)}`, json("PUT", agent));
 export const getAgentState = (name: string) => request<{ text: string; updatedAt: string } | null>(`/api/agents/${seg(name)}/state`);
 export const clearAgentState = (name: string) => request<{ cleared: boolean }>(`/api/agents/${seg(name)}/state`, { method: "DELETE" });
+export type AgentStateVersion = { id: number; text: string; savedAt: string };
+export const getAgentStateHistory = (name: string) => request<AgentStateVersion[]>(`/api/agents/${seg(name)}/state/history`);
+export const restoreAgentState = (name: string, id: number) => request<{ text: string; updatedAt: string } | null>(`/api/agents/${seg(name)}/state/restore`, json("POST", { id }));
 export const getSchedule = (name: string) => request<Schedule>(`/api/agents/${seg(name)}/schedule`);
 export const runAgent = (name: string, task?: string) => request<Run>(`/api/agents/${seg(name)}/run`, json("POST", task === undefined ? {} : { task }));
 export const startAgentDesign = (goal: string, tools: ToolGrant[]) => request<Run>("/api/agents/design", json("POST", { goal, tools }));

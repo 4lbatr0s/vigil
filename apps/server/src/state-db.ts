@@ -251,6 +251,16 @@ export const MIGRATIONS: readonly string[] = [
   -- migration 18: an MCP client's write scope, a JSON array of tags (ADR-0033 amendment). NULL means any note.
   ALTER TABLE mcp_clients ADD COLUMN write_tags TEXT;
   `,
+  `
+  -- migration 19: earlier versions of an agent's state note (todo item 50), so a bad save or a Clear can be undone
+  CREATE TABLE agent_state_history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    agent TEXT NOT NULL,
+    text TEXT NOT NULL,
+    saved_at TEXT NOT NULL
+  );
+  CREATE INDEX agent_state_history_agent ON agent_state_history (agent, id);
+  `,
 ];
 
 let current: { key: string; db: Database.Database } | null = null;
@@ -764,14 +774,48 @@ export function getAgentState(agent: string): AgentState | null {
   return row ?? null;
 }
 
+/** How many earlier versions of a state note are kept. */
+export const STATE_HISTORY_KEEP = 10;
+
+/** Puts the current note into the history (when there is one) and keeps only the newest `STATE_HISTORY_KEEP`. */
+function keepOldState(db: Database.Database, agent: string): void {
+  const old = db.prepare("SELECT text, updated_at AS updatedAt FROM agent_state WHERE agent = ?").get(agent) as AgentState | undefined;
+  if (!old) return;
+  db.prepare("INSERT INTO agent_state_history (agent, text, saved_at) VALUES (?, ?, ?)").run(agent, old.text, old.updatedAt);
+  db.prepare("DELETE FROM agent_state_history WHERE agent = ? AND id NOT IN (SELECT id FROM agent_state_history WHERE agent = ? ORDER BY id DESC LIMIT ?)").run(agent, agent, STATE_HISTORY_KEEP);
+}
+
 export function putAgentState(agent: string, text: string): void {
-  open()
-    .prepare("INSERT INTO agent_state (agent, text, updated_at) VALUES (?, ?, ?) ON CONFLICT(agent) DO UPDATE SET text = excluded.text, updated_at = excluded.updated_at")
-    .run(agent, text, new Date().toISOString());
+  const db = open();
+  db.transaction(() => {
+    const current = db.prepare("SELECT text FROM agent_state WHERE agent = ?").get(agent) as { text: string } | undefined;
+    if (current?.text === text) return;
+    keepOldState(db, agent);
+    db.prepare("INSERT INTO agent_state (agent, text, updated_at) VALUES (?, ?, ?) ON CONFLICT(agent) DO UPDATE SET text = excluded.text, updated_at = excluded.updated_at").run(agent, text, new Date().toISOString());
+  })();
 }
 
 export function deleteAgentState(agent: string): boolean {
-  return open().prepare("DELETE FROM agent_state WHERE agent = ?").run(agent).changes > 0;
+  const db = open();
+  return db.transaction(() => {
+    keepOldState(db, agent);
+    return db.prepare("DELETE FROM agent_state WHERE agent = ?").run(agent).changes > 0;
+  })();
+}
+
+export type AgentStateVersion = { id: number; text: string; savedAt: string };
+
+/** Earlier versions of an agent's state note, newest first. */
+export function listAgentStateHistory(agent: string): AgentStateVersion[] {
+  return open().prepare("SELECT id, text, saved_at AS savedAt FROM agent_state_history WHERE agent = ? ORDER BY id DESC").all(agent) as AgentStateVersion[];
+}
+
+/** Makes an earlier version the current note again (the note it replaces goes into the history). False when there is no such version. */
+export function restoreAgentState(agent: string, id: number): boolean {
+  const row = open().prepare("SELECT text FROM agent_state_history WHERE agent = ? AND id = ?").get(agent, id) as { text: string } | undefined;
+  if (!row) return false;
+  putAgentState(agent, row.text);
+  return true;
 }
 
 export function deleteChatThread(id: string): void {

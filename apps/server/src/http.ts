@@ -50,7 +50,7 @@ import { ResultBodySchema, enroll, recordResult } from "./recall";
 import { GoalBodySchema, goalStatuses, validGoalDay } from "./goals";
 import { StudySettingsSchema, answerCard, deckStats, dueCards, saveStudySettings, studyForecast, stuckCards, studyHistory, studySettings, studyStats, undoAnswer } from "./study";
 import { cardsForNote } from "./index-db";
-import { addPin, approvalsForRun, clearHeartbeat, touchMcpClient, decideApproval, deleteAgentState, getAgentState, getApproval, listApprovals, listChatThreads, getAgent, getHeartbeat, getRun, getSchedule, listAgents, listEvents, listPins, listRuns, putAgent, listMisconceptions, listRecall, putSchedule, removeGoal, removePin, removeRecall, setGoal } from "./state-db";
+import { addPin, approvalsForRun, clearHeartbeat, touchMcpClient, decideApproval, deleteAgentState, getAgentState, listAgentStateHistory, restoreAgentState, getApproval, listApprovals, listChatThreads, getAgent, getHeartbeat, getRun, getSchedule, listAgents, listEvents, listPins, listRuns, putAgent, listMisconceptions, listRecall, putSchedule, removeGoal, removePin, removeRecall, setGoal } from "./state-db";
 import { createNote, deleteNote, getNote as vaultGetNote, slugify, updateNote, validateId } from "./vault";
 
 const MAX_BODY_BYTES = 2 * 1024 * 1024;
@@ -783,6 +783,30 @@ const routes: { method: string; pattern: RegExp; keys: string[]; handler: Handle
     handler: (_req, res, params) => {
       const name = params["name"] ?? "";
       if (!getAgent(name)) throw new AppError("agent-not-found", `Agent not found: ${name}`, 404);
+      send(res, 200, { data: getAgentState(name) });
+    },
+  },
+  {
+    // Earlier versions of the state note, newest first (todo item 50).
+    method: "GET",
+    pattern: /^\/api\/agents\/([^/]+)\/state\/history$/,
+    keys: ["name"],
+    handler: (_req, res, params) => {
+      const name = params["name"] ?? "";
+      if (!getAgent(name)) throw new AppError("agent-not-found", `Agent not found: ${name}`, 404);
+      send(res, 200, { data: listAgentStateHistory(name) });
+    },
+  },
+  {
+    method: "POST",
+    pattern: /^\/api\/agents\/([^/]+)\/state\/restore$/,
+    keys: ["name"],
+    handler: async (req, res, params) => {
+      const name = params["name"] ?? "";
+      if (!getAgent(name)) throw new AppError("agent-not-found", `Agent not found: ${name}`, 404);
+      const parsed = z.object({ id: z.number().int() }).safeParse(await readJsonBody(req));
+      if (!parsed.success) throw new AppError("invalid-body", "Body must be { id: number }", 400);
+      if (!restoreAgentState(name, parsed.data.id)) throw new AppError("state-version-not-found", "That version of the note is not kept", 404);
       send(res, 200, { data: getAgentState(name) });
     },
   },

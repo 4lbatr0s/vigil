@@ -2,6 +2,7 @@
 
 ## Unreleased: UI v2 (ADR-0016), then design system v3 (ADR-0029)
 
+- Agents: the note an agent keeps between runs now keeps its last 10 versions, Clear note included. "Earlier versions" on the agent page shows them, and "Use this version" brings one back.
 - Agents: when a run's history gets long, the agent is told that older tool results will soon be shortened, so it can write down the facts it still needs first.
 - Evals: "Download as eval case" on a run page saves the run as a draft eval case (its task, the notes it read, what it did). Edit what is expected, keep it in a folder, and run the folder with `eval --agent --cases DIR`.
 - MCP: every tool now says whether it only reads or may replace a note (`readOnlyHint`, `destructiveHint`), so a connected tool such as Claude Desktop can ask you before a write.

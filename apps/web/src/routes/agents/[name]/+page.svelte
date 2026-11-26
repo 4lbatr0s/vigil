@@ -3,7 +3,7 @@
   import { goto } from "$app/navigation";
   import { page } from "$app/state";
   import { AgentNameSchema, type Agent, type PermissionSettings, type Run, type ToolGrant } from "@vigil/shared";
-  import { ApiError, clearAgentState, createChat, getAgentState, getModelCaps, getAgent, getAgentSkill, listAgents, listConnections, probeConnection, type Connection, getPermissions, getSchedule, listRuns, putAgent, runAgent, type Schedule } from "$lib/api";
+  import { ApiError, clearAgentState, createChat, getAgentState, getAgentStateHistory, restoreAgentState, type AgentStateVersion, getModelCaps, getAgent, getAgentSkill, listAgents, listConnections, probeConnection, type Connection, getPermissions, getSchedule, listRuns, putAgent, runAgent, type Schedule } from "$lib/api";
   import { duplicateAgent } from "$lib/agent-design";
   import { TOOL_LABELS, addHost, agentToForm, describeGrants, exposure, formToAgent, noHostsWarning, riskyCombination, triggerProblem, type AgentForm } from "$lib/agent-form";
   import { describeCheck, formatStamp } from "$lib/format";
@@ -32,6 +32,8 @@
   let connections = $state<Connection[]>([]);
   let models = $state<string[]>([]);
   let stateNote = $state<{ text: string; updatedAt: string } | null>(null);
+  /** Earlier versions of the note, newest first (todo item 50). */
+  let stateHistory = $state<AgentStateVersion[]>([]);
   const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
   const TOOLS: ToolGrant[] = ["read_notes", "write_notes", "web_fetch", "call_agents"];
   const problem = $derived(agent && form ? triggerProblem(form, agent) : null);
@@ -92,6 +94,7 @@
       form = agentToForm(agent);
       schedule = await getSchedule(name);
       stateNote = await getAgentState(name).catch(() => null);
+      stateHistory = await getAgentStateHistory(name).catch(() => []);
       connections = await listConnections().catch(() => [] as Connection[]);
       void loadModels();
     } catch (err) {
@@ -108,8 +111,18 @@
     try {
       await clearAgentState(name);
       stateNote = null;
+      stateHistory = await getAgentStateHistory(name);
     } catch (err) {
       saveError = err instanceof ApiError ? err.detail : "Could not clear the note";
+    }
+  }
+
+  async function useVersion(id: number): Promise<void> {
+    try {
+      stateNote = await restoreAgentState(name, id);
+      stateHistory = await getAgentStateHistory(name);
+    } catch (err) {
+      saveError = err instanceof ApiError ? err.detail : "Could not bring back that version";
     }
   }
 
@@ -368,6 +381,22 @@
                 <span class="muted">Saved {formatStamp(stateNote.updatedAt)}.</span>
                 <Button variant="ghost" size="sm" onclick={() => void clearNote()}>Clear note</Button>
               </Cluster>
+            {/if}
+            {#if stateHistory.length > 0}
+              <details class="advanced">
+                <summary>Earlier versions ({stateHistory.length})</summary>
+                <Stack gap={3}>
+                  {#each stateHistory as v (v.id)}
+                    <Stack gap={1}>
+                      <p class="note-text">{v.text}</p>
+                      <Cluster gap={2}>
+                        <span class="muted">Saved {formatStamp(v.savedAt)}.</span>
+                        <Button variant="ghost" size="sm" onclick={() => void useVersion(v.id)}>Use this version</Button>
+                      </Cluster>
+                    </Stack>
+                  {/each}
+                </Stack>
+              </details>
             {/if}
           </Stack>
 
