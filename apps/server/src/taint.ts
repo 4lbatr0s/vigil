@@ -14,35 +14,51 @@ const hostOf = (url: unknown): string | null => {
   }
 };
 
-/** Hosts whose `fetch_url` call in an earlier round returned a page (an answer that is not `error: ...`). */
-export function fetchedHosts(messages: BaseMessage[]): Set<string> {
-  const urlById = new Map<string, unknown>();
+/** After a page, the longest path a fetch may have. Each piece is already capped at 80 characters (`addressProblem`). */
+export const TAINTED_MAX_PATH = 100;
+
+/**
+ * Whether untrusted web text is in the run, and the hosts the run read pages from. A page counts when a `fetch_url` call
+ * returned one (an answer that is not `error: ...`). An answer from another agent (`call_agent`) counts too, with no host:
+ * the child may have read a page and passed its text on.
+ */
+export function fetchedHosts(messages: BaseMessage[]): { tainted: boolean; hosts: Set<string> } {
+  const callById = new Map<string, { name: string; url: unknown }>();
   for (const m of messages) {
-    if (AIMessage.isInstance(m)) for (const c of m.tool_calls ?? []) if (c.name === "fetch_url" && c.id) urlById.set(c.id, c.args["url"]);
+    if (AIMessage.isInstance(m)) for (const c of m.tool_calls ?? []) if (c.id && (c.name === "fetch_url" || c.name === "call_agent")) callById.set(c.id, { name: c.name, url: c.args["url"] });
   }
   const hosts = new Set<string>();
+  let tainted = false;
   for (const m of messages) {
-    if (!ToolMessage.isInstance(m) || !urlById.has(m.tool_call_id)) continue;
-    if (String(m.content).startsWith("error:")) continue;
-    const host = hostOf(urlById.get(m.tool_call_id));
+    const call = ToolMessage.isInstance(m) ? callById.get(m.tool_call_id) : undefined;
+    if (!call || String(m.content).startsWith("error:")) continue;
+    tainted = true;
+    const host = call.name === "fetch_url" ? hostOf(call.url) : null;
     if (host) hosts.add(host);
   }
-  return hosts;
+  return { tainted, hosts };
 }
 
 /** Why this fetch is refused after a page is in the run, or null when it may go ahead. */
 export function taintProblem(url: unknown, messages: BaseMessage[]): string | null {
-  const seen = fetchedHosts(messages);
-  if (seen.size === 0) return null;
+  const { tainted, hosts: seen } = fetchedHosts(messages);
+  if (!tainted) return null;
   const host = hostOf(url);
   if (host === null) return null;
   let query = "";
+  let pathLength = 0;
   try {
-    query = new URL(String(url)).search;
+    const parsed = new URL(String(url));
+    query = parsed.search;
+    pathLength = parsed.pathname.length;
   } catch {
-    query = "";
+    query = ""; // not a URL: fetch_url refuses it with its own message
   }
-  if (!seen.has(host)) return `error: this run already read a web page, so it may fetch only from ${[...seen].join(", ")} now. ${host} is a new host. Finish with what you have, or ask the owner to run you again.`;
+  if (!seen.has(host)) {
+    const allowed = seen.size > 0 ? `it may fetch only from ${[...seen].join(", ")} now` : "it may not fetch from a new host now";
+    return `error: this run already read web text (a page or another agent's answer), so ${allowed}. ${host} is a new host. Finish with what you have, or ask the owner to run you again.`;
+  }
   if (query !== "") return "error: this run already read a web page, so a fetch may not carry a query string (?...) now. Use an address without one.";
+  if (pathLength > TAINTED_MAX_PATH) return `error: this run already read a web page, so a fetch address may have a path of at most ${TAINTED_MAX_PATH} characters now.`;
   return null;
 }
