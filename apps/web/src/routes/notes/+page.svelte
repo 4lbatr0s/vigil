@@ -30,6 +30,7 @@ import { noteHref, NOTES_PATH } from "$lib/links";
   import ChangeReview from "$lib/components/ChangeReview.svelte";
   import ProvenanceBar from "$lib/components/ProvenanceBar.svelte";
   import { runsForNote, undoableRun } from "$lib/note-activity";
+  import { focusMode } from "$lib/focus-mode";
 
   let notes = $state<NoteSummary[]>([]);
   let selectedId = $state<string | null>(null);
@@ -103,7 +104,6 @@ import { noteHref, NOTES_PATH } from "$lib/links";
   }
   // The title field: edited in place, saved on Enter or when it loses focus (Escape puts the old title back).
   let titleValue = $state("");
-  let titleFocused = $state(false);
   $effect(() => {
     titleValue = draft?.title ?? "";
   });
@@ -380,7 +380,7 @@ import { noteHref, NOTES_PATH } from "$lib/links";
 
 <svelte:window onkeydown={onKeydown} />
 
-<div class="app" class:with-panel={connectionsOpen && draft !== null}>
+<div class="app" class:with-panel={connectionsOpen && draft !== null} class:focus={$focusMode && draft !== null}>
   {#if listOpen}
     <button type="button" class="scrim" aria-label="Close the notes list" onclick={() => (listOpen = false)}></button>
   {/if}
@@ -422,6 +422,7 @@ import { noteHref, NOTES_PATH } from "$lib/links";
             { label: "Recall check", onselect: () => void goto(`/recall?note=${encodeURIComponent(selectedId ?? "")}`) },
             { label: "Put on a canvas", onselect: () => void openAsCanvas() },
             { label: "Turn headings into a map", onselect: () => void openAsMap() },
+            { label: "Focus mode", onselect: () => focusMode.set(true) },
             { kind: "separator" },
             { label: "Rename", onselect: () => (renameOpen = true) },
             { label: "Delete", danger: true, onselect: () => (deleteOpen = true) },
@@ -453,10 +454,8 @@ import { noteHref, NOTES_PATH } from "$lib/links";
               class="title"
               type="text"
               aria-label="Note title"
-              aria-describedby={titleFocused ? "title-hint" : undefined}
               bind:value={titleValue}
-              onfocus={() => (titleFocused = true)}
-              onblur={() => ((titleFocused = false), void commitTitle())}
+              onblur={() => void commitTitle()}
               onkeydown={(e) => {
                 if (e.key === "Enter") e.currentTarget.blur();
                 else if (e.key === "Escape") {
@@ -465,21 +464,17 @@ import { noteHref, NOTES_PATH } from "$lib/links";
                 }
               }}
             />
-            {#if titleFocused}
-              <p class="title-hint" id="title-hint">The file name stays the same. Use Rename to change it.</p>
-            {/if}
           <!-- The editor is the heavy part: load it after the shell and list. -->
           {#await import("$lib/components/NoteEditor.svelte") then { default: NoteEditor }}
             {#key reloadKey}<NoteEditor value={draft.body} noteId={selectedId ?? ""} onDocChange={onDocChange} onOpenWikilink={(t) => void openWikilink(t)} getTitles={() => notes.map((n) => n.title)} getTitle={() => draft?.title} onProblem={(m) => (status = m)} onAsk={(sel) => ((askSelection = sel), (askOpen = true))} {jumpLine} />{/key}
           {/await}
+            <Backlinks noteId={selectedId ?? ""} signature={notes.map((n) => n.updatedAt).join("|")} />
+            <RelatedNotes noteId={selectedId ?? ""} signature={notes.map((n) => n.updatedAt).join("|")} />
           </div>
         </section>
       </div>
 
       <NoteActivity runs={noteRuns} />
-      <Backlinks noteId={selectedId ?? ""} signature={notes.map((n) => n.updatedAt).join("|")} />
-      <RelatedNotes noteId={selectedId ?? ""} signature={notes.map((n) => n.updatedAt).join("|")} />
-
       <footer class="status">
         <span class="path">{words} {words === 1 ? "word" : "words"}{#if cardStats && cardStats.total > 0}{" · "}<a class="cards-link" href={`/study?note=${encodeURIComponent(selectedId ?? "")}`}>{cardStats.total} {cardStats.total === 1 ? "card" : "cards"}{cardStats.due + cardStats.new > 0 ? `, ${cardStats.due + cardStats.new} to study` : ""}</a>{/if}</span>
         <span class="state">{status}</span>
@@ -554,6 +549,19 @@ import { noteHref, NOTES_PATH } from "$lib/links";
     display: none;
   }
 
+  /* Focus mode: the list, the toolbar and the side panel step away; the note keeps its column. */
+  .app.focus,
+  .app.focus.with-panel {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .app.focus .listpane,
+  .app.focus .head,
+  .app.focus .panelpane,
+  .app.focus .scrim {
+    display: none;
+  }
+
   .main {
     display: flex;
     flex-direction: column;
@@ -625,12 +633,6 @@ import { noteHref, NOTES_PATH } from "$lib/links";
     width: 100%;
     max-width: var(--measure);
     margin: 0 auto;
-  }
-
-  .title-hint {
-    margin: 0 0 var(--s-2);
-    color: var(--text-3);
-    font: var(--weight-regular) var(--type-meta-size) / var(--type-meta-lh) var(--font-ui);
   }
 
   .panes {

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { focusMode } from "$lib/focus-mode";
     import { goto } from "$app/navigation";
   import { listAgents, runAgent, searchNotes } from "$lib/api";
   import { buildCommands, type Command } from "$lib/commands";
@@ -59,6 +60,11 @@
     if (command.action.type === "capture") {
       close();
       oncapture?.();
+      return;
+    }
+    if (command.action.type === "focus") {
+      close();
+      focusMode.update((on) => !on);
       return;
     }
     const name = command.action.agent;

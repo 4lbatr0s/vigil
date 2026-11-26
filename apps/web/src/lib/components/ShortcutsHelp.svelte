@@ -11,6 +11,7 @@
       rows: [
         [`${mod} K`, "Search notes and run commands"],
         ["C", "Capture a thought to your inbox"],
+        ["⌘⇧F", "Focus mode: only the note"],
         ["?", "Show this list"],
         ["Esc", "Close a panel or menu"],
       ],

@@ -147,10 +147,6 @@
     font: var(--weight-regular) var(--type-ui-size) / var(--type-ui-lh) var(--font-ui);
   }
 
-  code {
-    font: var(--weight-regular) var(--type-ui-size) / var(--type-ui-lh) var(--font-code);
-  }
-
   form {
     display: flex;
     gap: var(--s-2);

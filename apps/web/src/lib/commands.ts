@@ -2,7 +2,7 @@ import { rank } from "./fuzzy";
 import { NOTES_PATH, noteHref } from "./links";
 import { NOTE_TEMPLATES } from "./note-templates";
 
-export type Action = { type: "goto"; href: string } | { type: "run"; agent: string } | { type: "capture" };
+export type Action = { type: "goto"; href: string } | { type: "run"; agent: string } | { type: "capture" } | { type: "focus" };
 export type Command = { id: string; label: string; group: "Notes" | "Agents" | "Commands"; hint?: string; action: Action };
 
 export type PaletteState = {
@@ -13,6 +13,7 @@ export type PaletteState = {
 
 const FIXED: Command[] = [
   { id: "cmd:capture", label: "Capture a thought", group: "Commands", hint: "to your inbox", action: { type: "capture" } },
+  { id: "cmd:focus", label: "Focus mode", group: "Commands", hint: "only the note", action: { type: "focus" } },
   { id: "cmd:new-note", label: "New note", group: "Commands", action: { type: "goto", href: `${NOTES_PATH}?new=1` } },
   { id: "cmd:daily", label: "Today's note", group: "Commands", hint: "daily note", action: { type: "goto", href: `${NOTES_PATH}?daily=1` } },
   { id: "cmd:study", label: "Study cards", group: "Commands", action: { type: "goto", href: "/study" } },
@@ -21,7 +22,7 @@ const FIXED: Command[] = [
   ...NOTE_TEMPLATES.map((t): Command => ({ id: `cmd:template:${t.id}`, label: t.label, group: "Commands", hint: "template", action: { type: "goto", href: `${NOTES_PATH}?template=${t.id}` } })),
   { id: "cmd:ask", label: "Ask your notes", group: "Commands", hint: "answers with sources", action: { type: "goto", href: "/ask" } },
   { id: "cmd:gap", label: "Gap check", group: "Commands", hint: "compare a text with your notes", action: { type: "goto", href: "/gap" } },
-  { id: "cmd:canvas", label: "Open Canvas", group: "Commands", hint: "boards", action: { type: "goto", href: "/canvas" } },
+  { id: "cmd:canvas", label: "Open Boards", group: "Commands", hint: "canvas", action: { type: "goto", href: "/canvas" } },
   { id: "cmd:chat", label: "New chat", group: "Commands", action: { type: "goto", href: "/chat?new=1" } },
   { id: "cmd:graph", label: "Open Graph", group: "Commands", action: { type: "goto", href: "/graph" } },
   { id: "cmd:agents", label: "Open Helpers", hint: "agents", group: "Commands", action: { type: "goto", href: "/agents" } },

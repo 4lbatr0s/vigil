@@ -14,13 +14,14 @@
   import QuickCapture from "$lib/components/QuickCapture.svelte";
   import ShortcutsHelp from "$lib/components/ShortcutsHelp.svelte";
   import Keyboard from "@lucide/svelte/icons/keyboard";
-  import { Badge, IconButton, Kbd } from "$lib/ui";
+  import { Badge, Button, IconButton, Kbd } from "$lib/ui";
   import Banner from "$lib/components/Banner.svelte";
   import { onMount } from "svelte";
   import { startLive } from "$lib/live";
   import { trackUnseen, unseenCount } from "$lib/today";
   import { refreshStudyDue, studyDue } from "$lib/study-state";
   import { NOTES_PATH } from "$lib/links";
+  import { focusMode, isFocusShortcut } from "$lib/focus-mode";
 
   let { children }: { children: Snippet } = $props();
   let paletteOpen = $state(false);
@@ -57,7 +58,12 @@
   }
 
   function onKeydown(event: KeyboardEvent): void {
-    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+    if (isFocusShortcut(event)) {
+      event.preventDefault();
+      focusMode.update((on) => !on);
+    } else if (event.key === "Escape" && $focusMode && !event.defaultPrevented && !paletteOpen && !helpOpen && !captureOpen) {
+      focusMode.set(false);
+    } else if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
       event.preventDefault();
       paletteOpen = !paletteOpen;
     } else if (event.key.toLowerCase() === "c" && !event.metaKey && !event.ctrlKey && !event.altKey && !typing(event.target) && !paletteOpen) {
@@ -92,7 +98,10 @@
 <QuickCapture bind:open={captureOpen} />
 <ShortcutsHelp bind:open={helpOpen} />
 
-<div class="shell">
+<div class="shell" class:focus={$focusMode}>
+  {#if $focusMode}
+    <span class="leave-focus"><Button variant="ghost" size="sm" onclick={() => focusMode.set(false)}>Leave focus</Button></span>
+  {/if}
   {#if navOpen}
     <button type="button" class="scrim" aria-label="Close menu" onclick={() => (navOpen = false)}></button>
   {/if}
@@ -137,6 +146,30 @@
 </div>
 
 <style>
+  /* Focus mode: the navigation and the top bar step away; only a quiet way out stays. */
+  .shell.focus {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .shell.focus .rail,
+  .shell.focus .strip {
+    display: none;
+  }
+
+  .leave-focus {
+    position: fixed;
+    top: var(--s-2);
+    right: var(--s-3);
+    z-index: 20;
+    opacity: 0.6;
+    transition: opacity var(--dur-fast) var(--ease-out);
+  }
+
+  .leave-focus:hover,
+  .leave-focus:focus-within {
+    opacity: 1;
+  }
+
   .shell {
     display: grid;
     grid-template-columns: var(--rail-width) 1fr;

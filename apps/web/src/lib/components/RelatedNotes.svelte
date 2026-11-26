@@ -36,7 +36,7 @@ import { noteHref } from "$lib/links";
 
 <style>
   .related {
-    padding: var(--s-1) var(--s-6);
+    margin-top: var(--s-4);
     color: var(--text-2);
     font: var(--weight-regular) var(--type-meta-size) / var(--type-meta-lh) var(--font-ui);
   }
@@ -64,10 +64,5 @@ import { noteHref } from "$lib/links";
     color: var(--text);
     font: var(--weight-medium) var(--type-ui-size) / var(--type-ui-lh) var(--font-ui);
     text-underline-offset: 2px;
-  }
-  @media (max-width: 639px) {
-    .related {
-      padding-inline: var(--s-4);
-    }
   }
 </style>
