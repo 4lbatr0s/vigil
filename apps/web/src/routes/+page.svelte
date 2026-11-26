@@ -4,10 +4,11 @@
    * the learner's yes, and what helpers did since the last visit. A section with nothing in it is not shown.
    */
   import ChevronRight from "@lucide/svelte/icons/chevron-right";
+  import Check from "@lucide/svelte/icons/check";
   import { Badge, Button, Dialog, Input, Page, Row, Stack } from "$lib/ui";
   import { onMount } from "svelte";
   import type { Run } from "@vigil/shared";
-  import { ApiError, captureLine, getDecks, type DeckStats, getStuckCards, createFromTemplate, getGoals, getRecall, getStudyStats, listAgents, listApprovals, listNotes, listRuns, putAgent, runAgent, undoRun, type ApprovalItem, type Goal, type RecallItem, type StuckCard, type StudyStats } from "$lib/api";
+  import { ApiError, captureLine, getDecks, type DeckStats, getStuckCards, createFromTemplate, getGoals, getGraph, getRecall, getStudyStats, listAgents, listApprovals, listNotes, listRuns, putAgent, runAgent, undoRun, type ApprovalItem, type Goal, type RecallItem, type StuckCard, type StudyStats } from "$lib/api";
   import StatusDot from "$lib/components/StatusDot.svelte";
   import InboxSort from "$lib/components/InboxSort.svelte";
   import { refreshOnLive } from "$lib/live";
@@ -18,7 +19,7 @@
   import { relativeTime } from "$lib/note-list";
   import { canUndo } from "$lib/run-log";
   import { statusDot } from "$lib/schedule";
-  import { dateLine, lastVisit, markSeen, refreshUnseen, sinceVisit } from "$lib/today";
+  import { dateLine, firstSteps, firstStepsHidden, hideFirstSteps, lastVisit, type FirstStep, markSeen, refreshUnseen, sinceVisit } from "$lib/today";
 
   /** Focus the capture line on desktop only: on a phone it would open the keyboard on every visit. */
   const finePointer = typeof matchMedia !== "undefined" && matchMedia("(pointer: fine)").matches;
@@ -42,6 +43,19 @@
       (f) => f.key !== "cards" && f.key !== "approvals",
     ),
   );
+  /** First-run steps; null until loaded, and never loaded once hidden. */
+  let steps = $state<FirstStep[] | null>(null);
+  let stepsHidden = $state(firstStepsHidden());
+  const STEP_TEXT: Record<FirstStep["key"], { title: string; how: string }> = {
+    write: { title: "Write your first note", how: "Start today's note below and write one line." },
+    card: { title: "Make your first study card", how: "In any note, write a question, two colons and the answer, for example: What is enthalpy? :: The heat content at constant pressure." },
+    link: { title: "Link two notes", how: "In a note, type [[ and pick another note. Links are how ideas find each other." },
+  };
+  function hideSteps(): void {
+    hideFirstSteps();
+    stepsHidden = true;
+  }
+
   let since = $state<string | null>(null);
   let loading = $state(true);
   let loadError = $state("");
@@ -76,6 +90,14 @@
         .filter((n) => n.author === "human" && n.id !== "inbox" && Date.parse(n.updatedAt) >= cutoff && !withCards.has(n.id) && !n.tags.includes("source") && (n.snippet ?? "").length > 60)
         .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
         .map((n) => ({ id: n.id, title: n.title }));
+      if (!stepsHidden) {
+        const linked = await getGraph()
+          .then((g) => g.edges.some((e) => e.kind === "link" && !e.dangling))
+          .catch(() => false);
+        steps = firstSteps({ notes, cards: st.total, linked });
+        // All three done: the block has done its job and is not loaded again.
+        if (steps.every((x) => x.done)) hideSteps();
+      }
       loadError = "";
     } catch (err) {
       loadError = err instanceof Error ? err.message : "Could not load";
@@ -169,6 +191,26 @@
     <p class="muted">Loading…</p>
   {:else}
     <Stack gap={8}>
+      {#if steps && !stepsHidden}
+        <section aria-labelledby="start">
+          <div class="head-row">
+            <h2 id="start">Start here</h2>
+            <Button variant="ghost" size="sm" onclick={hideSteps}>Hide</Button>
+          </div>
+          <ol class="steps">
+            {#each steps as step (step.key)}
+              <li class:done={step.done}>
+                <span class="tick" aria-hidden="true">{#if step.done}<Check size={14} strokeWidth={2} />{/if}</span>
+                <span class="step">
+                  <span class="step-title">{STEP_TEXT[step.key].title}{step.done ? ". Done." : ""}</span>
+                  {#if !step.done}<span class="how">{STEP_TEXT[step.key].how}</span>{/if}
+                </span>
+              </li>
+            {/each}
+          </ol>
+        </section>
+      {/if}
+
       <InboxSort notes={[...titles].map(([id, title]) => ({ id, title }))} version={inboxVersion}>
         {#snippet actions()}<Button variant="ghost" size="sm" disabled={filing} onclick={() => void sortInbox()}>Let a helper sort it</Button>{/snippet}
       </InboxSort>
@@ -264,6 +306,70 @@
   h2 {
     margin-bottom: var(--s-2);
     font: var(--weight-strong) var(--type-heading-size) / var(--type-heading-lh) var(--font-prose);
+  }
+
+  .head-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--s-3);
+  }
+
+  .head-row h2 {
+    margin: 0;
+  }
+
+  .steps {
+    display: grid;
+    gap: var(--s-4);
+    margin: var(--s-3) 0 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .steps li {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--s-3);
+  }
+
+  .tick {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    margin-top: 2px;
+    border-radius: var(--r-pill);
+    box-shadow: inset 0 0 0 1.5px var(--line);
+    color: var(--on-ink);
+  }
+
+  .done .tick {
+    background: var(--text);
+    box-shadow: none;
+  }
+
+  .step {
+    display: flex;
+    flex-direction: column;
+    gap: var(--s-1);
+    min-width: 0;
+  }
+
+  .step-title {
+    color: var(--text);
+    font: var(--weight-medium) var(--type-ui-size) / var(--type-ui-lh) var(--font-ui);
+  }
+
+  .done .step-title {
+    color: var(--text-3);
+  }
+
+  .how {
+    color: var(--text-2);
+    font: var(--weight-regular) var(--type-ui-size) / var(--type-ui-lh) var(--font-ui);
   }
 
   .date {
