@@ -38,13 +38,16 @@
 
   header {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     justify-content: space-between;
-    gap: var(--s-4);
+    gap: var(--s-2) var(--s-4);
     margin-bottom: var(--s-6);
   }
 
+  /* The title never squeezes to make room: the actions wrap under it instead. */
   h1 {
+    flex: 1 0 auto;
     margin: 0;
     font: var(--weight-strong) var(--type-title-size) / var(--type-title-lh) var(--font-prose);
     letter-spacing: var(--type-title-tracking);
