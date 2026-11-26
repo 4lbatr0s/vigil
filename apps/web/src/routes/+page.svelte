@@ -7,19 +7,19 @@
   import { Badge, Button, Dialog, Input, Page, Row, Stack } from "$lib/ui";
   import { onMount } from "svelte";
   import type { Run } from "@vigil/shared";
-  import { ApiError, captureLine, getDecks, type DeckStats, getStuckCards, createFromTemplate, getGoals, getNote, getRecall, getStudyStats, listAgents, listApprovals, listNotes, listRuns, putAgent, runAgent, undoRun, type ApprovalItem, type Goal, type RecallItem, type StuckCard, type StudyStats } from "$lib/api";
+  import { ApiError, captureLine, getDecks, type DeckStats, getStuckCards, createFromTemplate, getGoals, getRecall, getStudyStats, listAgents, listApprovals, listNotes, listRuns, putAgent, runAgent, undoRun, type ApprovalItem, type Goal, type RecallItem, type StuckCard, type StudyStats } from "$lib/api";
   import StatusDot from "$lib/components/StatusDot.svelte";
+  import InboxSort from "$lib/components/InboxSort.svelte";
   import { refreshOnLive } from "$lib/live";
   import { startHere } from "$lib/focus";
   import { dailyNote } from "$lib/daily";
   import { goalLine, nextGoal } from "$lib/goals";
-  import { dailyHref, noteHref } from "$lib/links";
+  import { dailyHref } from "$lib/links";
   import { relativeTime } from "$lib/note-list";
   import { canUndo } from "$lib/run-log";
   import { statusDot } from "$lib/schedule";
-  import { dateLine, inboxItems, lastVisit, markSeen, refreshUnseen, sinceVisit } from "$lib/today";
+  import { dateLine, lastVisit, markSeen, refreshUnseen, sinceVisit } from "$lib/today";
 
-  const INBOX_ID = "inbox";
   /** Focus the capture line on desktop only: on a phone it would open the keyboard on every visit. */
   const finePointer = typeof matchMedia !== "undefined" && matchMedia("(pointer: fine)").matches;
   const today = dailyNote();
@@ -32,7 +32,7 @@
   let recallDue = $state<RecallItem[]>([]);
   let stuck = $state<StuckCard[]>([]);
   let uncarded = $state<{ id: string; title: string }[]>([]);
-  let inboxCount = $state(0);
+  let inboxVersion = $state(0);
   let todaySnippet = $state<string | null>(null);
   const exam = $derived(nextGoal(goals));
   const toPractice = $derived(study ? study.due + study.newOffered : 0);
@@ -57,12 +57,6 @@
   const hour = new Date().getHours();
   const greeting = hour < 5 ? "Still up?" : hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
 
-  async function loadInbox(): Promise<void> {
-    inboxCount = await getNote(INBOX_ID)
-      .then((n) => inboxItems(n.body))
-      .catch(() => 0);
-  }
-
   async function load(): Promise<void> {
     try {
       const [r, a, notes, st] = await Promise.all([listRuns({ limit: 100 }), listApprovals("pending"), listNotes(), getStudyStats()]);
@@ -79,10 +73,9 @@
       const withCards = new Set((await getDecks().catch(() => [] as DeckStats[])).filter((d) => d.cards > 0).map((d) => d.noteId));
       const cutoff = Date.now() - 3 * 86_400_000;
       uncarded = notes
-        .filter((n) => n.author === "human" && Date.parse(n.updatedAt) >= cutoff && !withCards.has(n.id) && !n.tags.includes("source") && (n.snippet ?? "").length > 60)
+        .filter((n) => n.author === "human" && n.id !== "inbox" && Date.parse(n.updatedAt) >= cutoff && !withCards.has(n.id) && !n.tags.includes("source") && (n.snippet ?? "").length > 60)
         .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
         .map((n) => ({ id: n.id, title: n.title }));
-      await loadInbox();
       loadError = "";
     } catch (err) {
       loadError = err instanceof Error ? err.message : "Could not load";
@@ -106,7 +99,7 @@
       await captureLine(text);
       captured = "";
       captureNote = "Added to your inbox.";
-      await loadInbox();
+      inboxVersion += 1;
     } catch (err) {
       captureNote = err instanceof ApiError ? err.detail : err instanceof Error ? err.message : "Could not add it";
     } finally {
@@ -167,8 +160,7 @@
     <Button type="submit" disabled={capturing || captured.trim() === ""}>Add</Button>
   </form>
   <p class="hint" aria-live="polite">
-    {#if captureNote}{captureNote}{:else if inboxCount > 0}<a href={noteHref(INBOX_ID)}>{inboxCount} in your inbox</a>{:else}Enter adds it to your inbox. Sort it later.{/if}
-    {#if inboxCount > 0}<Button variant="ghost" size="sm" disabled={filing} onclick={() => void sortInbox()}>Sort my inbox</Button>{/if}
+    {#if captureNote}{captureNote}{:else}Enter adds it to your inbox. Sort it later.{/if}
   </p>
 
   {#if loadError}
@@ -177,6 +169,10 @@
     <p class="muted">Loading…</p>
   {:else}
     <Stack gap={8}>
+      <InboxSort notes={[...titles].map(([id, title]) => ({ id, title }))} version={inboxVersion}>
+        {#snippet actions()}<Button variant="ghost" size="sm" disabled={filing} onclick={() => void sortInbox()}>Let a helper sort it</Button>{/snippet}
+      </InboxSort>
+
       <section aria-labelledby="daily">
         <h2 id="daily">Today's note</h2>
         {#if todaySnippet}
@@ -316,10 +312,6 @@
     margin: var(--s-1) 0 var(--s-8);
     color: var(--text-3);
     font: var(--weight-regular) var(--type-ui-size) / var(--type-ui-lh) var(--font-ui);
-  }
-
-  .hint a {
-    color: var(--text-2);
   }
 
   .daily {
