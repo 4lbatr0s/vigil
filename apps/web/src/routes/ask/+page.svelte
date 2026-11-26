@@ -59,7 +59,7 @@
       return;
     }
     if (run.status !== "succeeded") {
-      fail(run.error ?? `The agent stopped: ${run.status}`);
+      fail(run.error ?? `The helper stopped: ${run.status}`);
       return;
     }
     answer = ((await getRunResult(runId)).text ?? "").trim();

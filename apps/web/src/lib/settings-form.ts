@@ -46,13 +46,13 @@ export type Banner = { text: string; href: string };
 /** One plain banner for every page, or null. Model trouble outranks usage. */
 export function bannerFor(llm: LlmStatus | null, usage: Usage | null): Banner | null {
   if (llm && (llm.connection === null || llm.model === null || (llm.provider !== "ollama" && !llm.hasKey && !isLocalAddress(llm.baseUrl)))) {
-    return { text: "No AI model is connected yet, so agents cannot run. Connect one in Settings.", href: "/settings#models" };
+    return { text: "No AI model is connected yet, so helpers cannot run. Connect one in Settings.", href: "/settings#models" };
   }
   if (usage && usage.level === "over") {
-    return { text: `This month's agent usage passed your cap (${usage.tokens.toLocaleString("en")} of ${usage.cap?.toLocaleString("en")} tokens). Agents still run.`, href: "/settings" };
+    return { text: `This month's helper usage passed your cap (${usage.tokens.toLocaleString("en")} of ${usage.cap?.toLocaleString("en")} tokens). Helpers still run.`, href: "/settings" };
   }
   if (usage && usage.level === "warn") {
-    return { text: `This month's agent usage is above 80% of your cap (${usage.tokens.toLocaleString("en")} of ${usage.cap?.toLocaleString("en")} tokens).`, href: "/settings" };
+    return { text: `This month's helper usage is above 80% of your cap (${usage.tokens.toLocaleString("en")} of ${usage.cap?.toLocaleString("en")} tokens).`, href: "/settings" };
   }
   return null;
 }

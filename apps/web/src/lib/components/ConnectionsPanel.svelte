@@ -90,7 +90,7 @@ import { noteHref } from "$lib/links";
     tabs={[
       { value: "graph", label: "Graph" },
       { value: "links", label: "Links" },
-      { value: "agents", label: "Agents" },
+      { value: "agents", label: "Helpers" },
     ]}
   >
     {#snippet panel(which)}
@@ -162,7 +162,7 @@ import { noteHref } from "$lib/links";
         {#if graph === null}
           <p class="muted">Loading…</p>
         {:else if agentEdges.length === 0}
-          <p class="muted">No agent has read or written this note in the last 90 days.</p>
+          <p class="muted">No helper has read or written this note in the last 90 days.</p>
         {:else}
           <div class="rows">
             {#each agentEdges as e, i (i)}

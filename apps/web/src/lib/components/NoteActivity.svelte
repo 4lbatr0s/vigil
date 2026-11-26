@@ -7,7 +7,7 @@
 
 {#if runs.length > 0}
   <details class="activity">
-    <summary>Agent activity <span class="count">{runs.length}</span></summary>
+    <summary>Helper activity <span class="count">{runs.length}</span></summary>
     <ul>
       {#each runs.slice(0, 20) as r (r.id)}
         <li>

@@ -43,7 +43,7 @@
   {/each}
   {#if onask}
     <span class="sep" aria-hidden="true"></span>
-    <button type="button" aria-label="Ask an agent" title={`Ask an agent (${mod}J)`} onclick={onask}>
+    <button type="button" aria-label="Ask a helper" title={`Ask a helper (${mod}J)`} onclick={onask}>
       <Bot size={16} strokeWidth={1.5} />
     </button>
   {/if}

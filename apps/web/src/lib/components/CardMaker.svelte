@@ -122,7 +122,7 @@
   {#if step === "checking" || step === "running"}
     <p class="muted" role="status">{step === "checking" ? "Getting ready…" : "Reading your note and writing cards. This can take a minute."}</p>
   {:else if step === "needs-agent"}
-    <p>The Card maker is an agent that reads this note and suggests cards. It can only read: you decide which cards to keep, and nothing is added until you press Save.</p>
+    <p>The Card maker is a helper that reads this note and suggests cards. It can only read: you decide which cards to keep, and nothing is added until you press Save.</p>
   {:else if step === "empty"}
     <p>No cards came back. The note may be too short, or the model could not follow the format. Try again, or write a card yourself as <code>Question :: Answer</code>.</p>
   {:else if step === "review"}

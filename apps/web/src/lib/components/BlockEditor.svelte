@@ -478,7 +478,7 @@
           </button>
         {/each}
         {#if onAsk}
-          <button type="button" aria-label="Ask an agent" title="Ask an agent (Ctrl/Cmd+J)" onmousedown={(ev) => ev.preventDefault()} onclick={() => editor && onAsk(selectedText(editor))}><Icon name="bot" size={15} /></button>
+          <button type="button" aria-label="Ask a helper" title="Ask a helper (Ctrl/Cmd+J)" onmousedown={(ev) => ev.preventDefault()} onclick={() => editor && onAsk(selectedText(editor))}><Icon name="bot" size={15} /></button>
         {/if}
       {/if}
     </div>

@@ -108,21 +108,21 @@
       if (tryIt) await runAgent(agent.name);
       await goto(`/agents/${agent.name}`);
     } catch (err) {
-      message = err instanceof ApiError ? err.detail : err instanceof Error ? err.message : "Could not create the agent";
+      message = err instanceof ApiError ? err.detail : err instanceof Error ? err.message : "Could not create the helper";
     } finally {
       busy = false;
     }
   }
 </script>
 
-<svelte:head><title>New agent · Vigil</title></svelte:head>
+<svelte:head><title>New helper · Vigil</title></svelte:head>
 
-<Page title="Create an agent" width="prose">
+<Page title="Create a helper" width="prose">
   <Stack gap={6}>
-    <Button variant="ghost" size="sm" href="/agents">Agents</Button>
+    <Button variant="ghost" size="sm" href="/agents">Helpers</Button>
 
     {#if !hasConnection}
-      <p class="warn" role="note">No model is connected yet, so the draft cannot be made. <a href="/settings#models">Connect one</a>, or write the agent yourself.</p>
+      <p class="warn" role="note">No model is connected yet, so the draft cannot be made. <a href="/settings#models">Connect one</a>, or write the helper yourself.</p>
     {/if}
 
     {#if step === "describe" || step === "drafting"}
@@ -190,7 +190,7 @@
         </Stack>
       </form>
     {:else if step === "review"}
-      <p class="muted">Check the draft and change anything. The agent is created switched off; you turn it on from its page.</p>
+      <p class="muted">Check the draft and change anything. The helper is created switched off; you turn it on from its page.</p>
       <Stack gap={4}>
         <Field label="Name">
           {#snippet children({ id })}<Input {id} bind:value={design.name} maxlength={40} placeholder="friday-recap" />{/snippet}
@@ -210,7 +210,7 @@
         </ul>
         {#if message}<p class="error" role="alert">{message}</p>{/if}
         <Cluster gap={2}>
-          <Button variant="primary" disabled={busy || design.systemPrompt.trim().length < 20} onclick={() => void create()}>Create agent</Button>
+          <Button variant="primary" disabled={busy || design.systemPrompt.trim().length < 20} onclick={() => void create()}>Create helper</Button>
           <Button disabled={busy || design.systemPrompt.trim().length < 20 || !hasConnection} onclick={() => void create(true)}>Create and try it once</Button>
           <Button variant="ghost" onclick={() => (step = "describe")}>Back</Button>
         </Cluster>

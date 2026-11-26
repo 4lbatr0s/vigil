@@ -101,8 +101,8 @@
       aria-expanded="true"
       aria-controls="palette-list"
       aria-activedescendant={commands[active] ? `opt-${active}` : undefined}
-      aria-label="Search notes, agents and commands"
-      placeholder="Search notes, agents, commands"
+      aria-label="Search notes, helpers and commands"
+      placeholder="Search notes, helpers, commands"
       autocomplete="off"
       spellcheck="false"
     />

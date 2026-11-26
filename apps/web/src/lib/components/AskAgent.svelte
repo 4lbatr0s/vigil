@@ -29,7 +29,7 @@
         agents = (await listAgents()).filter((a) => a.enabled && a.tools.includes("read_notes"));
         if (!agents.some((a) => a.name === agent)) agent = agents[0]?.name ?? "";
       } catch (err) {
-        error = err instanceof Error ? err.message : "Could not load the agents";
+        error = err instanceof Error ? err.message : "Could not load the helpers";
       }
       loaded = true;
     })();
@@ -60,15 +60,15 @@
 
 </script>
 
-<Dialog bind:open title="Ask an agent">
+<Dialog bind:open title="Ask a helper">
   <form id="ask-form" onsubmit={submit}>
     <Stack gap={4}>
       {#if !loaded}
-        <p class="muted">Loading agents…</p>
+        <p class="muted">Loading helpers…</p>
       {:else if agents.length === 0}
-        <p class="muted">No enabled agent can read notes yet. <a href="/agents">Add or turn on an agent</a>.</p>
+        <p class="muted">No enabled helper can read notes yet. <a href="/agents">Add or turn on a helper</a>.</p>
       {:else}
-        <Field label="Agent">
+        <Field label="Helper">
           {#snippet children({ id })}
             <Select {id} bind:value={agent}>{#each agents as a (a.name)}<option value={a.name}>{a.name}</option>{/each}</Select>
           {/snippet}

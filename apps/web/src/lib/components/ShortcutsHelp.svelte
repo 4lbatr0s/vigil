@@ -28,7 +28,7 @@
         ["Tab / Shift Tab", "Indent a list item, outdent it"],
         ["/", "Insert a block or a study card"],
         ["[[", "Link to another note"],
-        [`${mod} J`, "Ask an agent about the selection"],
+        [`${mod} J`, "Ask a helper about the selection"],
         [`${mod} S`, "Save now"],
       ],
     },

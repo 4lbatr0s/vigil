@@ -218,7 +218,7 @@ import { dailyHref, NOTE_VIEWS, NOTES_PATH } from "$lib/links";
         <Row title={note.title} meta={relativeTime(note.updatedAt)} snippet={note.snippet ?? ""} selected={note.id === selectedId} onclick={() => onselect(note.id)}>
           {#snippet lead()}
             {#if note.author === "agent"}
-              <span class="agent-dot" role="img" aria-label={`written by ${note.agentName ?? "an agent"}`}></span>
+              <span class="agent-dot" role="img" aria-label={`written by ${note.agentName ?? "a helper"}`}></span>
             {/if}
           {/snippet}
         </Row>

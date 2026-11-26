@@ -74,10 +74,10 @@
 
 {#if settings}
   <section aria-labelledby="mcp-settings">
-    <h2 id="mcp-settings">Other agents (MCP)</h2>
+    <h2 id="mcp-settings">Other AI tools (MCP)</h2>
     <p class="muted">Let another AI tool, such as Claude Code or Claude Desktop, search and read your notes through the MCP standard. Off until you switch it on. It reaches your notes only through this address, with the same access token as the rest of Vigil or with a client token from the list below.</p>
     <Stack gap={3}>
-      <Switch label="Allow other agents to read my notes" checked={settings.enabled} onchange={(on) => void save({ enabled: on, write: settings!.write })} />
+      <Switch label="Allow other AI tools to read my notes" checked={settings.enabled} onchange={(on) => void save({ enabled: on, write: settings!.write })} />
       <Switch label="Also let them write notes (each write is a run you can undo)" checked={settings.write} onchange={(on) => void save({ enabled: settings!.enabled, write: on })} />
       {#if settings.enabled}
         <p class="muted">Address: <code>{url}</code></p>

@@ -86,7 +86,7 @@
 
   async function load(): Promise<void> {
     if (!AgentNameSchema.safeParse(name).success) {
-      loadError = "That is not a valid agent name.";
+      loadError = "That is not a valid helper name.";
       return;
     }
     try {
@@ -98,7 +98,7 @@
       connections = await listConnections().catch(() => [] as Connection[]);
       void loadModels();
     } catch (err) {
-      loadError = err instanceof Error ? err.message : "Could not load the agent";
+      loadError = err instanceof Error ? err.message : "Could not load the helper";
     }
   }
 
@@ -265,7 +265,7 @@
   {:else}
     <Stack gap={8}>
       <header class="head">
-        <Button variant="ghost" size="sm" href="/agents">Agents</Button>
+        <Button variant="ghost" size="sm" href="/agents">Helpers</Button>
         <div class="titlebar">
           <h1>{agent.name}</h1>
           <StatusDot state={statusDot(agent, runs[0])} />
@@ -273,14 +273,14 @@
           <Button disabled={running} onclick={() => void runNow()}>{running ? "Running…" : "Run now"}</Button>
           <Button onclick={() => void startChatWith()}>Chat</Button>
           <Menu
-            label="More actions for this agent"
+            label="More actions for this helper"
             items={[
               { label: "Duplicate", onselect: () => void duplicate() },
               { label: skillCopied ? "Copied as SKILL.md" : "Copy as SKILL.md", onselect: () => void copySkill() },
             ]}
           >
             {#snippet trigger({ props })}
-              <IconButton label="More actions for this agent" {...props}><Ellipsis size={16} strokeWidth={1.5} /></IconButton>
+              <IconButton label="More actions for this helper" {...props}><Ellipsis size={16} strokeWidth={1.5} /></IconButton>
             {/snippet}
           </Menu>
         </div>
@@ -292,7 +292,7 @@
 
       {#if !agent.enabled}
         <section class="notice" aria-labelledby="turn-on-title">
-          <h2 id="turn-on-title">This agent is off.</h2>
+          <h2 id="turn-on-title">This helper is off.</h2>
           <p class="muted">It will not run on its own until you turn it on. {describeTriggerSentence(agent.trigger)}</p>
           <ul class="grants">
             {#each grants as g (g.tool)}
@@ -334,7 +334,7 @@
       </section>
 
       {#if reach}
-        <section aria-label="What this agent can reach">
+        <section aria-label="What this helper can reach">
           <h2>What it can reach</h2>
           <ul class="reach">
             {#each reach.lines as l (l.label)}
@@ -347,7 +347,7 @@
 
       {#if risky}
         <p class="warn" role="note">
-          This agent can read your notes and fetch web pages without asking you first. A web page could try to make it send your notes out. Turn on approvals, or limit the allowed sites.
+          This helper can read your notes and fetch web pages without asking you first. A web page could try to make it send your notes out. Turn on approvals, or limit the allowed sites.
         </p>
       {/if}
 
@@ -356,7 +356,7 @@
         <Stack gap={6}>
           <Stack gap={3}>
             <Switch label="Enabled" bind:checked={form.enabled} />
-            <Switch label="Ask me before this agent writes" bind:checked={form.strict} onchange={onStrictChange} />
+            <Switch label="Ask me before this helper writes" bind:checked={form.strict} onchange={onStrictChange} />
             <p class="muted">Writes wait in <a href="/approvals">Approvals</a> until you accept them.</p>
           </Stack>
 
@@ -441,12 +441,12 @@
                 <Switch label="Ask me before it reads a web page" checked={form.approveTools.includes("fetch_url")} onchange={(on: boolean) => toggleApprove("fetch_url", on)} />
               {/if}
               {#if form.tools.includes("call_agents")}
-                <Switch label="Ask me before it asks another agent" checked={form.approveTools.includes("call_agent")} onchange={(on: boolean) => toggleApprove("call_agent", on)} />
+                <Switch label="Ask me before it asks another helper" checked={form.approveTools.includes("call_agent")} onchange={(on: boolean) => toggleApprove("call_agent", on)} />
               {/if}
               <Switch label="Remember where it stopped" bind:checked={form.keepState} />
               <p class="muted">It keeps a short note for its next run and reads it first. The note is not one of your notes.</p>
               {#if stateNote}
-                <p class="note-text" aria-label="The agent's saved note">{stateNote.text}</p>
+                <p class="note-text" aria-label="The helper's saved note">{stateNote.text}</p>
                 <Cluster gap={2}>
                   <span class="muted">Saved {formatStamp(stateNote.updatedAt)}.</span>
                   <Button variant="ghost" size="sm" onclick={() => void clearNote()}>Clear note</Button>
@@ -475,7 +475,7 @@
                 {#snippet children({ id })}<span class="w-narrow"><Input {id} inputmode="numeric" placeholder="No limit" bind:value={form.dailyTokenCap} /></span>{/snippet}
               </Field>
               {#if missingConnection}
-                <p class="warn" role="alert">This agent uses the connection "{missingConnection}", which no longer exists, so its runs will fail. Pick another connection below.</p>
+                <p class="warn" role="alert">This helper uses the connection "{missingConnection}", which no longer exists, so its runs will fail. Pick another connection below.</p>
               {/if}
               {#if connections.length > 0}
                 <Field label="Model connection">
@@ -556,7 +556,7 @@
   {/if}
 </Page>
 
-<Dialog bind:open={confirmOff} title="Turn off approvals?" description="This agent reads notes and the web. A web page could trick it into writing something or sending your note text to a site you allowed. With approvals on, you check every write first.">
+<Dialog bind:open={confirmOff} title="Turn off approvals?" description="This helper reads notes and the web. A web page could trick it into writing something or sending your note text to a site you allowed. With approvals on, you check every write first.">
   {#snippet actions()}
     <Button variant="primary" onclick={() => (confirmOff = false)}>Keep approvals on</Button>
     <Button variant="danger" onclick={() => { if (form) form.strict = false; confirmOff = false; }}>Turn off</Button>

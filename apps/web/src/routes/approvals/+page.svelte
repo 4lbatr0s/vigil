@@ -79,7 +79,7 @@
     {#if !loaded}
       <p class="muted">Loading…</p>
     {:else if items.length === 0}
-      <EmptyState title="Nothing is waiting for you. Agents in approval mode show up here before they write." />
+      <EmptyState title="Nothing is waiting for you. Helpers in approval mode show up here before they write." />
     {:else}
       <div class="list" role="list" aria-label="Writes waiting for approval">
         {#each items as item (item.id)}
@@ -104,7 +104,7 @@
               <section class="review" aria-label={`Review ${isNote ? item.title : item.target}`}>
                 {#if isNote}
                   {#if stale[item.id] || item.stale}
-                    <p class="warn" role="status">This note changed after the agent proposed this write.</p>
+                    <p class="warn" role="status">This note changed after the helper proposed this write.</p>
                   {/if}
                   <p class="muted">+{stats.added} −{stats.removed}</p>
                   <pre class="diff" aria-label="Changes">{#each lines as l, i (i)}<span class={l.kind}>{l.kind === "add" ? "+ " : l.kind === "del" ? "- " : "  "}{l.text}

@@ -75,7 +75,7 @@
 
 <section aria-labelledby="models-h" id="models">
   <h2 id="models-h">AI models</h2>
-  <p class="muted">Connect a model on this computer or one of your own accounts. Agents use the default unless you pick another on their page. Keys are stored encrypted here and never shown again.</p>
+  <p class="muted">Connect a model on this computer or one of your own accounts. Helpers use the default unless you pick another on their page. Keys are stored encrypted here and never shown again.</p>
 
   {#if connections === null}
     <p class="muted">Loading…</p>
@@ -116,7 +116,7 @@
   {#if error}<p class="error" role="alert">{error}</p>{/if}
 </section>
 
-<Dialog bind:open={removeOpen} title="Remove this connection?" description="Agents using it stop until you pick another.">
+<Dialog bind:open={removeOpen} title="Remove this connection?" description="Helpers using it stop until you pick another.">
   {#snippet actions()}
     <Button variant="ghost" onclick={() => (removeOpen = false)}>Keep it</Button>
     <Button variant="danger" onclick={() => { const c = connections?.find((x) => x.id === confirmRemove); removeOpen = false; if (c) void remove(c); }}>Remove connection</Button>

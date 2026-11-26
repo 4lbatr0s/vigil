@@ -69,7 +69,7 @@
   </section>
 {/if}
 
-<Dialog bind:open={asking} title="Remove unused pictures?" description={`This deletes ${unused?.count ?? 0} ${unused?.count === 1 ? "file" : "files"} from your vault for good. An older version of a note that used one (for example after undoing an agent) would show a missing picture.`}>
+<Dialog bind:open={asking} title="Remove unused pictures?" description={`This deletes ${unused?.count ?? 0} ${unused?.count === 1 ? "file" : "files"} from your vault for good. An older version of a note that used one (for example after undoing a helper) would show a missing picture.`}>
   {#snippet actions()}
     <Button variant="ghost" onclick={() => (asking = false)}>Keep them</Button>
     <Button variant="danger" disabled={busy} onclick={() => void tidy()}>Delete them</Button>

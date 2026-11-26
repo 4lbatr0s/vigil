@@ -54,7 +54,7 @@
       return;
     }
     if (run.status !== "succeeded") {
-      fail(run.error ?? `The agent stopped: ${run.status}`);
+      fail(run.error ?? `The helper stopped: ${run.status}`);
       return;
     }
     answer = ((await getRunResult(runId)).text ?? "").trim();
@@ -67,7 +67,7 @@
 
 <Page title="Gap check" width="prose">
   <Stack gap={6}>
-    <p class="muted">Paste an article, a chapter or a lecture transcript. An agent compares it with your notes and lists what you already have, what is missing and what disagrees. It reads only that text and your notes.</p>
+    <p class="muted">Paste an article, a chapter or a lecture transcript. A helper compares it with your notes and lists what you already have, what is missing and what disagrees. It reads only that text and your notes.</p>
 
     <form onsubmit={ask}>
       <Textarea rows={8} bind:value={question} aria-label="Text to compare with your notes" placeholder="Paste text here…" maxlength={12000} />

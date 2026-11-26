@@ -43,7 +43,7 @@ describe("bannerFor", () => {
   });
   it("shows usage warnings, model trouble first", () => {
     expect(bannerFor(llm(), usage("warn"))?.text).toMatch(/80%/);
-    expect(bannerFor(llm(), usage("over"))?.text).toMatch(/Agents still run/);
+    expect(bannerFor(llm(), usage("over"))?.text).toMatch(/Helpers still run/);
     expect(bannerFor(llm({ model: null }), usage("over"))?.text).toMatch(/No AI model/);
   });
 });

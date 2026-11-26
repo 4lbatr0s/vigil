@@ -149,7 +149,7 @@ export const TOOL_LABELS: Record<ToolGrant, { label: string; detail: string }> =
   read_notes: { label: "Read my notes", detail: "It can list, search and read every note." },
   write_notes: { label: "Write notes", detail: "It can create and replace notes. Each write is saved first so you can undo it." },
   web_fetch: { label: "Fetch web pages", detail: "Only from sites you list below. Pages it reads are treated as untrusted text." },
-  call_agents: { label: "Ask other agents", detail: "It can start other agents you allow, one level deep." },
+  call_agents: { label: "Ask other helpers", detail: "It can start other helpers you allow, one level deep." },
 };
 
 export type GrantLine = { tool: ToolGrant; text: string; blocked: boolean };
@@ -160,7 +160,7 @@ export function describeGrants(agent: Agent, settings: PermissionSettings): Gran
     read_notes: "Can read your notes.",
     write_notes: "Can write notes: every write is saved first so you can undo.",
     web_fetch: agent.allowedHosts.length > 0 ? `Can fetch web pages from: ${agent.allowedHosts.join(", ")}.` : "Can fetch web pages, but no sites are allowed yet.",
-    call_agents: agent.callable.length > 0 ? `Can start these agents: ${agent.callable.join(", ")}.` : "Can start other agents, but none are chosen yet.",
+    call_agents: agent.callable.length > 0 ? `Can start these helpers: ${agent.callable.join(", ")}.` : "Can start other helpers, but none are chosen yet.",
   };
   return agent.tools.map((tool) => ({ tool, text: text[tool], blocked: !settings.tools[tool] }));
 }
@@ -183,7 +183,7 @@ export function exposure(agent: Pick<Agent, "tools" | "allowedHosts" | "strict">
   const hosts = agent.allowedHosts.length;
   const lines: Exposure[] = [
     { label: "Sees your notes", on: reads, text: reads ? "It can read every note." : "It cannot read your notes." },
-    { label: "Reads outside text", on: web && hosts > 0, text: web && hosts > 0 ? `It reads pages from ${hosts === 1 ? "1 site" : `${hosts} sites`}. A page can contain tricks aimed at the agent.` : "It reads nothing from the web." },
+    { label: "Reads outside text", on: web && hosts > 0, text: web && hosts > 0 ? `It reads pages from ${hosts === 1 ? "1 site" : `${hosts} sites`}. A page can contain tricks aimed at the helper.` : "It reads nothing from the web." },
     { label: "Can send data out", on: web && hosts > 0, text: web && hosts > 0 ? "Each page it asks for is a request to that site." : "It sends nothing out." },
   ];
   return { lines, all: lines.every((l) => l.on) };
@@ -201,5 +201,5 @@ export function addHost(list: string[], input: string): HostAdd {
 
 /** Warning for an agent that has the web tool but no host it may reach. */
 export function noHostsWarning(agent: Pick<Agent, "tools">, hosts: string[]): string | null {
-  return agent.tools.includes("web_fetch") && hosts.length === 0 ? "This agent can't reach any site until you add a host." : null;
+  return agent.tools.includes("web_fetch") && hosts.length === 0 ? "This helper can't reach any site until you add a host." : null;
 }

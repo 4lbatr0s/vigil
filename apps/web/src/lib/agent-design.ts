@@ -20,11 +20,11 @@ export type DesignResult = { ok: true; design: Design } | { ok: false; message: 
 /** A usable draft from the designer's reply, or why not. The name is made valid and short; text is trimmed to the limits. */
 export function parseDesign(text: string): DesignResult {
   const json = extractJson(text);
-  if (typeof json !== "object" || json === null) return { ok: false, message: "The draft could not be read. Try again, or write the agent yourself." };
+  if (typeof json !== "object" || json === null) return { ok: false, message: "The draft could not be read. Try again, or write the helper yourself." };
   const o = json as Record<string, unknown>;
   const str = (k: string): string => (typeof o[k] === "string" ? (o[k] as string).trim() : "");
   const systemPrompt = str("systemPrompt");
-  if (systemPrompt.length < 20) return { ok: false, message: "The draft had no instructions for the agent. Try again, or write the agent yourself." };
+  if (systemPrompt.length < 20) return { ok: false, message: "The draft had no instructions for the helper. Try again, or write the helper yourself." };
   const name = slugify(str("name")).slice(0, 40).replace(/-+$/g, "") || "new-agent";
   return { ok: true, design: { name, description: str("description").slice(0, 280), systemPrompt: systemPrompt.slice(0, 6000), defaultTask: str("defaultTask").slice(0, 300) || "Do your job now." } };
 }

@@ -234,7 +234,7 @@ import { noteHref } from "$lib/links";
       <h2>Chats</h2>
       <IconButton label="New chat" disabled={agents.length === 0} onclick={() => (picking = true)}><Plus size={16} strokeWidth={1.5} /></IconButton>
     </div>
-    {#if agents.length === 0}<p class="muted pad">Chat needs an agent. <a href="/agents/new">Create one</a>.</p>{/if}
+    {#if agents.length === 0}<p class="muted pad">Chat needs a helper. <a href="/agents/new">Create one</a>.</p>{/if}
     <div class="thread-list">
       {#each threads as t (t.id)}
         <Row title={t.title} meta={agoText(t.updatedAt)} snippet={t.agent} selected={t.id === id} href={`/chat/${t.id}`} />
@@ -246,8 +246,8 @@ import { noteHref } from "$lib/links";
     {#if !id}
       <div class="blank">
         {#if agents.length === 0}
-          <EmptyState title="Chat talks to an agent. Create one first.">
-            {#snippet action()}<Button variant="primary" href="/agents/new">Create an agent</Button>{/snippet}
+          <EmptyState title="Chat talks to a helper. Create one first.">
+            {#snippet action()}<Button variant="primary" href="/agents/new">Create a helper</Button>{/snippet}
           </EmptyState>
         {:else}
           <EmptyState title="Pick a chat on the left, or start a new one.">
@@ -309,7 +309,7 @@ import { noteHref } from "$lib/links";
 
 <Dialog bind:open={picking} title="New chat">
   <form id="pick-form" onsubmit={(e) => (e.preventDefault(), void startChat())}>
-    <Field label="Which agent?">
+    <Field label="Which helper?">
       {#snippet children({ id })}
         <Select {id} bind:value={pickAgent}>{#each agents as a (a)}<option value={a}>{a}</option>{/each}</Select>
       {/snippet}
@@ -321,7 +321,7 @@ import { noteHref } from "$lib/links";
   {/snippet}
 </Dialog>
 
-<Dialog bind:open={confirmDelete} title="Delete this chat?" description="The conversation is removed. Notes an agent wrote in it stay.">
+<Dialog bind:open={confirmDelete} title="Delete this chat?" description="The conversation is removed. Notes a helper wrote in it stay.">
   {#snippet actions()}
     <Button variant="ghost" onclick={() => (confirmDelete = false)}>Keep it</Button>
     <Button variant="danger" onclick={() => void remove()}>Delete chat</Button>

@@ -133,7 +133,7 @@ describe("allowed hosts", () => {
     expect(addHost(["a.com"], "A.com")).toEqual({ ok: false, message: "a.com is already on the list." });
   });
   it("warns when the web tool has no hosts, and only then", () => {
-    expect(noHostsWarning({ tools: ["web_fetch"] }, [])).toBe("This agent can't reach any site until you add a host.");
+    expect(noHostsWarning({ tools: ["web_fetch"] }, [])).toBe("This helper can't reach any site until you add a host.");
     expect(noHostsWarning({ tools: ["web_fetch"] }, ["a.com"])).toBeNull();
     expect(noHostsWarning({ tools: ["read_notes"] }, [])).toBeNull();
   });

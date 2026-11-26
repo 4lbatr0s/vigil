@@ -148,7 +148,7 @@ import { noteHref, NOTES_PATH } from "$lib/links";
         <Textarea rows={10} bind:value={recall} aria-label="What you remember" placeholder="Write what comes to mind…" maxlength={6000} />
         <Cluster gap={3}>
           <Button variant="primary" type="submit" disabled={busy || recall.trim().length === 0}>Check against my note</Button>
-          <span class="muted">An agent compares it with the note only. It will not rewrite what you wrote.</span>
+          <span class="muted">A helper compares it with the note only. It will not rewrite what you wrote.</span>
         </Cluster>
       </form>
     {:else if step === "running"}

@@ -43,7 +43,7 @@
 {#if status}
   <section aria-labelledby="meaning-settings">
     <h2 id="meaning-settings">Search by meaning</h2>
-    <p class="muted">Find notes that mean the same thing even when they share no word, in Ask, in Related notes and for your agents. It needs a small embedding model on your default connection, for example <code>nomic-embed-text</code> on Ollama (run <code>ollama pull nomic-embed-text</code>). Your notes go only to that connection. Off until you name a model.</p>
+    <p class="muted">Find notes that mean the same thing even when they share no word, in Ask, in Related notes and for your helpers. It needs a small embedding model on your default connection, for example <code>nomic-embed-text</code> on Ollama (run <code>ollama pull nomic-embed-text</code>). Your notes go only to that connection. Off until you name a model.</p>
     <form
       class="form"
       onsubmit={(e) => {

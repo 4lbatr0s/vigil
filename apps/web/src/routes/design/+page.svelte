@@ -43,7 +43,7 @@
     ["--text-3", "Text 3"],
     ["--fill-selected", "Selected"],
     ["--line", "Line"],
-    ["--agent", "Agent"],
+    ["--agent", "Helper"],
     ["--good", "Good"],
     ["--danger", "Danger"],
     ["--focus", "Focus"],
@@ -179,8 +179,8 @@
 
     <section>
       <h2>Empty state</h2>
-      <EmptyState title="No agents yet.">
-        {#snippet action()}<Button variant="primary">Create an agent</Button>{/snippet}
+      <EmptyState title="No helpers yet.">
+        {#snippet action()}<Button variant="primary">Create a helper</Button>{/snippet}
       </EmptyState>
     </section>
 
@@ -194,7 +194,7 @@
 {#snippet empty()}{/snippet}
 {#snippet panel(value: string)}<p class="note">Content for {value}.</p>{/snippet}
 
-<Dialog bind:open={dialogOpen} title="Delete this note?" description="It moves out of your vault. Agents can no longer read it.">
+<Dialog bind:open={dialogOpen} title="Delete this note?" description="It moves out of your vault. Helpers can no longer read it.">
   {#snippet actions()}
     <Button variant="ghost" onclick={() => (dialogOpen = false)}>Keep it</Button>
     <Button variant="danger" onclick={() => (dialogOpen = false)}>{#snippet icon()}<Trash2 size={16} />{/snippet}Delete note</Button>

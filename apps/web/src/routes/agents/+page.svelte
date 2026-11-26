@@ -45,7 +45,7 @@
         const entries = await Promise.all(agents.map(async (a) => [a.name, (await getSchedule(a.name)).nextRunAt] as const));
         nextRuns = Object.fromEntries(entries);
       } catch (err) {
-        error = err instanceof Error ? err.message : "Could not load agents";
+        error = err instanceof Error ? err.message : "Could not load helpers";
       } finally {
         loaded = true;
       }
@@ -78,7 +78,7 @@
       const agent = await createFromTemplate(id);
       await goto(`/agents/${agent.name}`);
     } catch (err) {
-      error = err instanceof Error ? err.message : "Could not add the agent";
+      error = err instanceof Error ? err.message : "Could not add the helper";
       adding = null;
     }
   }
@@ -100,9 +100,9 @@
     {#if !loaded}
       <p class="muted">Loading…</p>
     {:else if agents.length === 0}
-      <EmptyState title="No agents yet. Create one, or add a ready-made agent below." />
+      <EmptyState title="No helpers yet. Create one, or add a ready-made helper below." />
     {:else}
-      <div class="list" role="list" aria-label="Agents">
+      <div class="list" role="list" aria-label="Helpers">
         {#each agents as agent (agent.name)}
           {@const lastRun = last.get(agent.name)}
           <div role="listitem">
@@ -122,10 +122,10 @@
     {#if loaded}
       <section aria-labelledby="gallery-title">
         <Cluster align="between">
-          <h2 id="gallery-title">Ready-made agents</h2>
+          <h2 id="gallery-title">Ready-made helpers</h2>
           <Button variant="ghost" onclick={() => (skillOpen = true)}>Import a skill</Button>
         </Cluster>
-        <div class="find"><Input type="search" bind:value={find} placeholder="Find one: recall, digest, writes notes" aria-label="Find a ready-made agent" /></div>
+        <div class="find"><Input type="search" bind:value={find} placeholder="Find one: recall, digest, writes notes" aria-label="Find a ready-made helper" /></div>
         {#each shownGroups as g (g.id)}
           <h3>{g.title}{#if g.blurb}<span class="blurb">{g.blurb}</span>{/if}</h3>
           <ul class="templates">
@@ -154,7 +154,7 @@
   </Stack>
 </Page>
 
-<Dialog bind:open={skillOpen} title="Import a skill" description="Paste a SKILL.md from another tool. Only its words come in: the agent has no tools, is switched off and asks before it writes.">
+<Dialog bind:open={skillOpen} title="Import a skill" description="Paste a SKILL.md from another tool. Only its words come in: the helper has no tools, is switched off and asks before it writes.">
   <Field label="SKILL.md text" error={importError || undefined}>
     {#snippet children({ id, describedby, invalid })}
       <Textarea {id} aria-describedby={describedby} {invalid} rows={8} bind:value={skillText} placeholder={"---\nname: my-skill\ndescription: What it is for\n---\n\nInstructions…"} />

@@ -45,7 +45,7 @@
 </script>
 
 {#if agentName || pending.length > 0}
-  <div class="bar" role="region" aria-label="Agent activity on this note">
+  <div class="bar" role="region" aria-label="Helper activity on this note">
     {#if agentName}
       <span class="line">
         <span class="dot" aria-hidden="true"></span>
@@ -58,7 +58,7 @@
     {#each pending as p (p.id)}
       <span class="line">
         <span class="dot" aria-hidden="true"></span>
-        <span class="text"><strong>{p.agent ?? "An agent"}</strong> wants to change this note{p.stale ? " (it has changed since)" : ""}.</span>
+        <span class="text"><strong>{p.agent ?? "A helper"}</strong> wants to change this note{p.stale ? " (it has changed since)" : ""}.</span>
         <Button variant="ghost" size="sm" href="/approvals">Review</Button>
       </span>
     {/each}

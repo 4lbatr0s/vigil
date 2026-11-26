@@ -136,7 +136,7 @@ import { NOTE_VIEWS, noteHref } from "$lib/links";
     <Cluster gap={1}>
       <Button size="sm" pressed={lens === "tags"} onclick={() => (lens = "tags")}>Tags</Button>
       <Button size="sm" pressed={lens === "memory"} onclick={() => (lens = "memory")}>Memory</Button>
-      <Button size="sm" pressed={lens === "agents"} onclick={() => (lens = "agents")}>Agents</Button>
+      <Button size="sm" pressed={lens === "agents"} onclick={() => (lens = "agents")}>Helpers</Button>
     </Cluster>
     <span class="tag-select">
       <Select aria-label="Show one tag" value={filters.tag ?? ""} onchange={(e) => (filters = { ...filters, tag: e.currentTarget.value === "" ? null : e.currentTarget.value })}>
@@ -185,7 +185,7 @@ import { NOTE_VIEWS, noteHref } from "$lib/links";
     {:else if lens === "memory"}
       <p class="legend muted">green = well remembered · red = fading · grey = no card answered yet</p>
     {:else if lens === "agents"}
-      <p class="legend muted">amber = read or written by an agent in the last 90 days · lines show which agent</p>
+      <p class="legend muted">amber = read or written by a helper in the last 90 days · lines show which helper</p>
     {:else}
       <p class="legend muted">colour = first tag · bigger = more links · glow = changed in the last 14 days</p>
     {/if}
@@ -201,7 +201,7 @@ import { NOTE_VIEWS, noteHref } from "$lib/links";
       {:else}
         {#if selectedNode.memory}<p class="muted">{memoryLine(selectedNode.memory)}</p>{/if}
         <div class="acts">
-          <Button variant="primary" onclick={() => openNode(selectedNode.id)}>{selectedNode.kind === "agent" ? "Open agent" : "Open note"}</Button>
+          <Button variant="primary" onclick={() => openNode(selectedNode.id)}>{selectedNode.kind === "agent" ? "Open helper" : "Open note"}</Button>
           {#if selectedNode.kind === "note" && selectedNode.memory}
             {#if selectedNode.memory.cards > 0}<Button href={`/study?note=${encodeURIComponent(selectedNode.id)}`}>Study this note</Button>{/if}
             <Button href={`/recall?note=${encodeURIComponent(selectedNode.id)}`}>Recall check</Button>
@@ -214,7 +214,7 @@ import { NOTE_VIEWS, noteHref } from "$lib/links";
         <ul>{#each backlinkIds as id (id)}<li><a href={noteHref(id)}>{titleOf(id)}</a></li>{/each}</ul>
       {/if}
       {#if touches.length > 0}
-        <h3>Agents</h3>
+        <h3>Helpers</h3>
         <ul>
           {#each touches as t, i (i)}
             <li>

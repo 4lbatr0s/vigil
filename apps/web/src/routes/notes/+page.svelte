@@ -434,7 +434,7 @@ import { noteHref, NOTES_PATH } from "$lib/links";
         </Menu>
       </header>
 
-      <ProvenanceBar agentName={current?.author === "agent" ? current.agentName : undefined} writtenAt={current?.updatedAt} run={writerRun} pending={pendingHere} onundone={() => void onUndone()} onreview={() => (review = writerRun && selectedId ? { runId: writerRun.id, noteId: selectedId, agent: current?.agentName ?? "The agent" } : null)} />
+      <ProvenanceBar agentName={current?.author === "agent" ? current.agentName : undefined} writtenAt={current?.updatedAt} run={writerRun} pending={pendingHere} onundone={() => void onUndone()} onreview={() => (review = writerRun && selectedId ? { runId: writerRun.id, noteId: selectedId, agent: current?.agentName ?? "The helper" } : null)} />
       {#if review && review.noteId === selectedId}
         <ChangeReview runId={review.runId} noteId={review.noteId} agentName={review.agent} onclose={() => (review = null)} onchanged={() => void onUndone()} />
       {/if}

@@ -139,12 +139,12 @@ import { noteHref } from "$lib/links";
         <dt>Started</dt><dd>{formatStamp(run.startedAt)}</dd>
         <dt>Finished</dt><dd>{run.finishedAt ? formatStamp(run.finishedAt) : "still running"}</dd>
         <dt>Trigger</dt><dd>{run.trigger}</dd>
-        {#if configOf(events)}<dt>Setup</dt><dd class="mono" title="A fingerprint of the agent's instructions, tools and limits when this run started">{configOf(events)}</dd>{/if}
+        {#if configOf(events)}<dt>Setup</dt><dd class="mono" title="A fingerprint of the helper's instructions, tools and limits when this run started">{configOf(events)}</dd>{/if}
         {#if run.parentRunId}<dt>Parent</dt><dd><a href={`/runs/${encodeURIComponent(run.parentRunId)}`}>parent run</a></dd>{/if}
         <dt>Tokens</dt>
         <dd>
           {run.tokensUsed} of {run.tokenBudget}
-          <span class="bar" role="img" aria-label={`${Math.round(budgetShare(run) * 100)}% of the token budget used`}>
+          <span class="bar" role="img" aria-label={`${Math.round(budgetShare(run) * 100)}% of the spending limit used`}>
             <span class="fill" style:width={`${budgetShare(run) * 100}%`}></span>
           </span>
         </dd>
@@ -186,7 +186,7 @@ import { noteHref } from "$lib/links";
   {/if}
 </Page>
 
-<Dialog bind:open={rerunOpen} title="Run again" description="Change the task if you like. Leave it empty to use the agent's own task.">
+<Dialog bind:open={rerunOpen} title="Run again" description="Change the task if you like. Leave it empty to use the helper's own task.">
   <Textarea rows={5} bind:value={rerunTask} maxlength={4000} aria-label="Task" />
   {#snippet actions()}
     <Button variant="ghost" onclick={() => (rerunOpen = false)}>Cancel</Button>

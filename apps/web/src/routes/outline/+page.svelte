@@ -90,7 +90,7 @@ import { noteHref } from "$lib/links";
         <Textarea rows={12} bind:value={source} aria-label="Text to outline" placeholder="Paste text here…" maxlength={20000} />
         <Cluster gap={3}>
           <Button variant="primary" type="submit" disabled={busy || source.trim().length < 20}>Make an outline</Button>
-          <span class="muted">An agent reads only this text. It will not answer the questions for you.</span>
+          <span class="muted">A helper reads only this text. It will not answer the questions for you.</span>
         </Cluster>
       </form>
     {:else if step === "running"}
