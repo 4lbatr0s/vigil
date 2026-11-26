@@ -40,7 +40,7 @@ export type ToolContext = {
 };
 
 /** True when one of the note's tags is a scope tag or sits below one (`journal/2026` is in scope `journal`). */
-function inScope(scope: string[], tags: string[]): boolean {
+export function inScope(scope: string[], tags: string[]): boolean {
   return tags.some((t) => scope.some((s) => t === s || t.startsWith(`${s}/`)));
 }
 

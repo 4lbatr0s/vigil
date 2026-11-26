@@ -1,8 +1,8 @@
 import { AIMessage, HumanMessage, SystemMessage, ToolMessage, type AIMessageChunk, type BaseMessage } from "@langchain/core/messages";
 import { Command, END, GraphRecursionError, MessagesValue, START, StateGraph, StateSchema, interrupt, isInterrupted } from "@langchain/langgraph";
 import * as z from "zod";
-import type { Agent, RunStatus } from "@vigil/shared";
-import { buildTools, truncate, type ChildResult, type ToolContext } from "./agent-tools";
+import { allTags, type Agent, type RunStatus } from "@vigil/shared";
+import { buildTools, inScope, truncate, type ChildResult, type ToolContext } from "./agent-tools";
 import { redact, type ModelFactory } from "./llm";
 import { randomUUID } from "node:crypto";
 import { effectiveAgent } from "./permissions";
@@ -323,7 +323,7 @@ export const runAgent: AgentRunner = async ({ agent, task, runId, makeModel, dep
 
   // The approve node has no side effects: a resumed graph restarts it from the top. It only collects
   // the writes that need approval, asks once with all of them, and stores the owner's decisions.
-  const approveNode = (state: { messages: BaseMessage[] }) => {
+  const approveNode = async (state: { messages: BaseMessage[] }) => {
     const last = state.messages.at(-1);
     const calls = AIMessage.isInstance(last) ? (last.tool_calls ?? []) : [];
     const pending: PendingCall[] = calls
@@ -331,8 +331,37 @@ export const runAgent: AgentRunner = async ({ agent, task, runId, makeModel, dep
       .map((c) => ({ id: c.id ?? "", name: c.name, args: c.args as Record<string, unknown> }))
       .filter((c) => c.id !== "");
     if (pending.length === 0) return { decisions: {} };
+    // Item 38: when every call that needs approval is an append inside the scope, none of them waits. One that is not
+    // makes the whole round wait, so nothing is written while the round waits. Reading notes here is no side effect.
+    const skipped = await scopedAppends(pending);
+    if (skipped !== null) {
+      for (const s of skipped) addEvent(runId, "note", `added without asking to note ${s.id} (tagged #${s.tag}; the owner allows appends inside the write scope)`);
+      return { decisions: Object.fromEntries(skipped.map((s) => [s.callId, "approve" as const])) };
+    }
     const decisions = interrupt({ calls: pending }) as Record<string, "approve" | "reject">;
     return { decisions };
+  };
+
+  /** The calls if every one is an `append_note` to an existing note inside the scope and the owner allows it; else null. */
+  const scopedAppends = async (pending: PendingCall[]): Promise<{ callId: string; id: string; tag: string }[] | null> => {
+    const scope = agent.writeTags ?? [];
+    if (resume !== undefined || agent.autoApproveAppends !== true || !agent.strict || scope.length === 0) return null;
+    const out: { callId: string; id: string; tag: string }[] = [];
+    for (const c of pending) {
+      if (c.name !== "append_note" || typeof c.args["title"] !== "string") return null;
+      let note: { tags: string[]; body: string } | null;
+      try {
+        note = await vaultGetNote(validateId(slugify(c.args["title"])));
+      } catch {
+        note = null; // a new note, or a title that is not a valid id: it waits for the owner
+      }
+      if (!note) return null;
+      const tags = allTags(note.tags, note.body);
+      const tag = scope.find((s) => inScope([s], tags));
+      if (tag === undefined) return null;
+      out.push({ callId: c.id, id: validateId(slugify(c.args["title"])), tag });
+    }
+    return out;
   };
 
   const route = (state: { messages: BaseMessage[] }): "approve" | "tools" | typeof END => {

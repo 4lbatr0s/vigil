@@ -130,6 +130,8 @@ export const AgentSchema = z.object({
   approveTools: z.array(z.enum(["fetch_url", "call_agent"])).optional(),
   /** The agent may change only notes that carry one of these tags (a nested tag such as `journal/2026` counts for `journal`). A new note needs one in its body. Absent or empty means no limit. */
   writeTags: WriteTagsSchema.optional(),
+  /** Strict agents with `writeTags` only: an append to an existing note inside the scope skips approval (ADR-0011 amendment, item 38). */
+  autoApproveAppends: z.boolean().optional(),
   /** The most tokens this agent's runs may use per day (UTC). Absent means no daily limit. */
   dailyTokenCap: z.number().int().positive().max(100_000_000).optional(),
 });

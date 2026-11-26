@@ -17,6 +17,16 @@ describe("agent form", () => {
     expect(formToAgent(base, agentToForm(base))).toEqual(base);
   });
 
+  it("autoApproveAppends is saved only when switched on", () => {
+    const on = formToAgent(base, { ...agentToForm(base), strict: true, writeTags: "journal", autoApproveAppends: true });
+    expect(on.autoApproveAppends).toBe(true);
+    expect(agentToForm(on).autoApproveAppends).toBe(true);
+    expect("autoApproveAppends" in formToAgent(on, { ...agentToForm(on), autoApproveAppends: false })).toBe(false);
+    // It counts only for a strict agent with a write scope, so it is dropped otherwise.
+    expect("autoApproveAppends" in formToAgent(on, { ...agentToForm(on), strict: false })).toBe(false);
+    expect("autoApproveAppends" in formToAgent(on, { ...agentToForm(on), writeTags: "" })).toBe(false);
+  });
+
   it("keepState is saved only when switched on", () => {
     const on = formToAgent(base, { ...agentToForm(base), keepState: true });
     expect(on.keepState).toBe(true);

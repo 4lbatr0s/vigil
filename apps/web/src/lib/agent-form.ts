@@ -61,6 +61,8 @@ export type AgentForm = {
   strict: boolean;
   /** The agent keeps a short state note between runs. */
   keepState: boolean;
+  /** Strict agents with a write scope: appends to its own tagged notes skip approval (item 38). */
+  autoApproveAppends: boolean;
   /** Ask before this agent reads a web page or calls another agent. */
   approveTools: ApproveTool[];
   /** Tags the agent may write, typed as text (commas or spaces); empty means no limit. */
@@ -85,6 +87,7 @@ export function agentToForm(agent: Agent): AgentForm {
     enabled: agent.enabled,
     strict: agent.strict,
     keepState: agent.keepState === true,
+    autoApproveAppends: agent.autoApproveAppends === true,
     approveTools: [...(agent.approveTools ?? [])],
     writeTags: (agent.writeTags ?? []).join(", "),
     tokenBudget: String(agent.tokenBudget),
@@ -109,7 +112,7 @@ export function parseTagList(text: string): string[] {
  * empty model is left out rather than sent as an empty string.
  */
 export function formToAgent(base: Agent, form: AgentForm): Agent {
-  const { model: _m, connection: _c, keepState: _k, dailyTokenCap: _d, approveTools: _a, writeTags: _w, ...rest } = base;
+  const { model: _m, connection: _c, keepState: _k, dailyTokenCap: _d, approveTools: _a, writeTags: _w, autoApproveAppends: _aa, ...rest } = base;
   const writeTags = parseTagList(form.writeTags);
   const model = form.model.trim();
   const trigger = formToTrigger(form.trigger, base.trigger.kind === "cron" ? base.trigger.timezone : undefined);
@@ -128,6 +131,8 @@ export function formToAgent(base: Agent, form: AgentForm): Agent {
     ...(model === "" ? {} : { model }),
     ...(form.connection === "" ? {} : { connection: form.connection }),
     ...(form.keepState ? { keepState: true } : {}),
+    // Counts only for a strict agent with a write scope (ADR-0011), so it is saved only then.
+    ...(form.autoApproveAppends && form.strict && writeTags.length > 0 ? { autoApproveAppends: true } : {}),
     ...(form.approveTools.length > 0 ? { approveTools: [...form.approveTools] } : {}),
     ...(writeTags.length > 0 ? { writeTags } : {}),
     ...(form.dailyTokenCap.trim() === "" ? {} : { dailyTokenCap: Number(form.dailyTokenCap) }),

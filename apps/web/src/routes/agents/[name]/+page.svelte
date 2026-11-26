@@ -349,6 +349,10 @@
               <Field label="Only write notes tagged" hint="Tags separated by commas, for example journal. Empty means any note.">
                 {#snippet children({ id, describedby })}<Input {id} aria-describedby={describedby} placeholder="Any note" bind:value={form.writeTags} />{/snippet}
               </Field>
+              {#if form.strict && form.writeTags.trim() !== ""}
+                <Switch label="Let it add to these notes without asking" bind:checked={form.autoApproveAppends} />
+                <p class="muted">Only adds to notes that already carry a tag. Text planted in a note or web page could then reach them without your review.</p>
+              {/if}
             {/if}
             {#if form.tools.includes("web_fetch")}
               <Switch label="Ask me before it reads a web page" checked={form.approveTools.includes("fetch_url")} onchange={(on: boolean) => toggleApprove("fetch_url", on)} />
