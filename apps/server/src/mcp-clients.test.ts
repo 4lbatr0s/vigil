@@ -94,4 +94,27 @@ describe("MCP client tokens", () => {
     const b = createMcpClient("b");
     expect(a.token).not.toBe(b.token);
   });
+
+  it("a client with a write scope writes only notes inside it; the owner's token has no scope", async () => {
+    await j("PUT", "/api/mcp/settings", GLOBAL, { enabled: true, write: true });
+    const made = await j("POST", "/api/mcp/clients", GLOBAL, { name: "journal-tool", writeTags: ["journal"] });
+    expect(made.status).toBe(201);
+    expect(made.body.data.writeTags).toEqual(["journal"]);
+    expect((await j("GET", "/api/mcp/clients", GLOBAL)).body.data[0].writeTags).toEqual(["journal"]);
+    const token = made.body.data.token as string;
+    const outside = await rpc(token, "tools/call", { name: "write_note", arguments: { title: "Loose", body: "no tag" } });
+    expect(outside.body.result.isError).toBe(true);
+    expect(outside.body.result.content[0].text).toMatch(/^error: .*#journal/);
+    expect(await readFile(path.join(root, "vault", "loose.md"), "utf8").catch(() => null)).toBeNull();
+    const inside = await rpc(token, "tools/call", { name: "write_note", arguments: { title: "Day", body: "went well #journal" } });
+    expect(inside.body.result.isError).toBe(false);
+    const owner = await writeCall(GLOBAL, "Owner note");
+    expect(owner.body.result.isError).toBe(false);
+  });
+
+  it("refuses a client write scope with a bad tag", async () => {
+    const bad = await j("POST", "/api/mcp/clients", GLOBAL, { name: "x", writeTags: ["bad!tag"] });
+    expect(bad.status).toBe(400);
+    expect(listMcpClients()).toHaveLength(0);
+  });
 });

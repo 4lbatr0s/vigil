@@ -88,6 +88,9 @@ export function normalizeHost(input: string): string | null {
   return host.length <= 253 && HOST_PATTERN.test(host) ? host : null;
 }
 
+/** Tags that limit what an agent or an MCP client may write (ADR-0033 amendment, todo items 35 and 45). Empty means any note. */
+export const WriteTagsSchema = z.array(z.string().trim().toLowerCase().regex(/^[a-z0-9][a-z0-9/_-]*$/, "A tag uses only lowercase letters, digits, -, _ and /, and starts with a letter or digit")).max(20);
+
 export const AgentSchema = z.object({
   name: AgentNameSchema,
   description: z.string().max(280).default(""),
@@ -126,7 +129,7 @@ export const AgentSchema = z.object({
   /** Tools besides the writes that wait for the owner's approval before they run. */
   approveTools: z.array(z.enum(["fetch_url", "call_agent"])).optional(),
   /** The agent may change only notes that carry one of these tags (a nested tag such as `journal/2026` counts for `journal`). A new note needs one in its body. Absent or empty means no limit. */
-  writeTags: z.array(z.string().trim().toLowerCase().regex(/^[a-z0-9][a-z0-9/_-]*$/, "A tag uses only lowercase letters, digits, -, _ and /, and starts with a letter or digit")).max(20).optional(),
+  writeTags: WriteTagsSchema.optional(),
   /** The most tokens this agent's runs may use per day (UTC). Absent means no daily limit. */
   dailyTokenCap: z.number().int().positive().max(100_000_000).optional(),
 });

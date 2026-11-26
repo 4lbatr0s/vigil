@@ -71,12 +71,15 @@ function toolList(settings: McpSettings): unknown[] {
 
 const textResult = (text: string): Json => ({ content: [{ type: "text", text }], isError: text.startsWith("error:") });
 
-async function callTool(name: unknown, args: unknown, settings: McpSettings, now: number, client: string | null): Promise<Json> {
+/** The named client behind a request (ADR-0033), or null for the owner's token or session. */
+export type McpCaller = { name: string; writeTags: string[] };
+
+async function callTool(name: unknown, args: unknown, settings: McpSettings, now: number, client: McpCaller | null): Promise<Json> {
   const def = TOOL_DEFS.find((t) => t.name === name);
   if (!def || (def.write && !settings.write)) return textResult(`error: unknown tool ${JSON.stringify(name)}`);
   const input = typeof args === "object" && args !== null && !Array.isArray(args) ? (args as Json) : {};
   const runId = def.write ? randomUUID() : "mcp-read";
-  const tools = buildTools(def.write ? ["write_notes"] : ["read_notes"], { runId, agentName: "mcp" });
+  const tools = buildTools(def.write ? ["write_notes"] : ["read_notes"], { runId, agentName: "mcp", ...(client && client.writeTags.length > 0 ? { writeTags: client.writeTags } : {}) });
   const tool: StructuredToolInterface | undefined = tools.find((t) => t.name === def.name);
   if (!tool) return textResult("error: tool not available");
   if (!def.write) return textResult(truncate(String(await tool.invoke(input))));
@@ -88,7 +91,7 @@ async function callTool(name: unknown, args: unknown, settings: McpSettings, now
   writeTimes.push(now);
   // One run per write, so each is listed with the others and undone on its own.
   createRun(runId, "mcp", 0, "mcp");
-  if (client !== null) addEvent(runId, "note", `written by MCP client "${client}"`);
+  if (client !== null) addEvent(runId, "note", `written by MCP client "${client.name}"`);
   try {
     const text = String(await tool.invoke({ title: input["title"], body: input["body"] }));
     finishRun(runId, text.startsWith("error:") ? "failed" : "succeeded", 0, text.startsWith("error:") ? text : null);
@@ -100,7 +103,7 @@ async function callTool(name: unknown, args: unknown, settings: McpSettings, now
   }
 }
 
-async function handleOne(msg: unknown, settings: McpSettings, now: number, client: string | null): Promise<Json | null> {
+async function handleOne(msg: unknown, settings: McpSettings, now: number, client: McpCaller | null): Promise<Json | null> {
   if (typeof msg !== "object" || msg === null || Array.isArray(msg)) return rpcError(null, -32600, "Invalid request");
   const m = msg as Json;
   const hasId = "id" in m && m["id"] !== null && m["id"] !== undefined;
@@ -127,7 +130,7 @@ async function handleOne(msg: unknown, settings: McpSettings, now: number, clien
 }
 
 /** One JSON-RPC message or a batch. Only notifications in means `202` and no body. */
-export async function handleMcp(body: unknown, settings: McpSettings, now: number = Date.now(), client: string | null = null): Promise<Reply> {
+export async function handleMcp(body: unknown, settings: McpSettings, now: number = Date.now(), client: McpCaller | null = null): Promise<Reply> {
   if (!settings.enabled) return { status: 403, body: rpcError(null, -32000, "MCP is switched off. The owner turns it on in Settings.") };
   if (Array.isArray(body)) {
     if (body.length === 0 || body.length > 20) return { status: 400, body: rpcError(null, -32600, "A batch holds 1 to 20 messages") };

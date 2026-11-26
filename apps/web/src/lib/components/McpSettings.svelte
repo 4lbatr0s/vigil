@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { ApiError, createMcpClient, getMcpSettings, listMcpClients, putMcpSettings, revokeMcpClient, type McpClient, type McpSettings } from "$lib/api";
+  import { parseTagList } from "$lib/agent-form";
   import { claudeCodeCommand, vaultRules } from "$lib/vault-rules";
   import { formatStamp } from "$lib/format";
   import { Button, Cluster, Field, Input, Switch, Stack } from "$lib/ui";
@@ -8,6 +9,7 @@
   let settings = $state<McpSettings | null>(null);
   let clients = $state<McpClient[]>([]);
   let clientName = $state("");
+  let clientTags = $state("");
   /** The token of the client just created. It is shown once and dropped when the page is left. */
   let fresh = $state<{ name: string; token: string } | null>(null);
   let notice = $state("");
@@ -37,9 +39,10 @@
   async function addClient(): Promise<void> {
     error = "";
     try {
-      const made = await createMcpClient(clientName);
+      const made = await createMcpClient(clientName, parseTagList(clientTags));
       fresh = { name: made.name, token: made.token };
       clientName = "";
+      clientTags = "";
       clients = await listMcpClients();
     } catch (err) {
       error = err instanceof ApiError ? err.detail : err instanceof Error ? err.message : "Could not create the client";
@@ -86,6 +89,7 @@
           <Cluster gap={2}>
             <strong>{c.name}</strong>
             <span class="muted">{c.lastUsedAt ? `used ${formatStamp(c.lastUsedAt)}` : "never used"}</span>
+            {#if c.writeTags.length > 0}<span class="muted">writes only {c.writeTags.map((t) => `#${t}`).join(", ")}</span>{/if}
             <Button variant="ghost" size="sm" onclick={() => void removeClient(c)}>Revoke</Button>
           </Cluster>
         {/each}
@@ -96,12 +100,15 @@
             <div><Button size="sm" onclick={() => void copy("token", fresh!.token)}>{copied === "token" ? "Copied" : "Copy token"}</Button></div>
           </div>
         {/if}
-        <Cluster gap={2}>
+        <Stack gap={3}>
           <Field label="Client name">
             {#snippet children({ id })}<span class="w-narrow"><Input {id} bind:value={clientName} maxlength={60} placeholder="claude-desktop" /></span>{/snippet}
           </Field>
-          <Button disabled={clientName.trim() === ""} onclick={() => void addClient()}>Create client</Button>
-        </Cluster>
+          <Field label="Only write notes tagged" hint="Empty means any note. Set when the client is made.">
+            {#snippet children({ id, describedby })}<span class="w-narrow"><Input {id} aria-describedby={describedby} bind:value={clientTags} placeholder="Any note" /></span>{/snippet}
+          </Field>
+          <div><Button disabled={clientName.trim() === ""} onclick={() => void addClient()}>Create client</Button></div>
+        </Stack>
       </Stack>
       <details class="rules">
         <summary>Use it with Claude Code, Codex or another tool</summary>

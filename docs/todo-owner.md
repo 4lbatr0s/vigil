@@ -49,6 +49,6 @@ Details are in `~/shire-ops/HANDOFF.md`. You run every `sudo` command in iTerm a
 
 ## Added 2026-11-25 (second batch)
 - [ ] **Try "Check tools":** Settings, AI models, press **Check tools** on each connection (it spends a few tokens). Tell the agent what it says for your local model and for a hosted one.
-- [ ] **Try MCP client tokens:** in Settings, Other agents, create a client for Claude Code or Claude Desktop, use its token instead of the global one, write a note through it, and check that the run log names the client and that Revoke stops it. Not yet tried with a real MCP client.
+- [ ] **Try MCP client tokens** (now also with "Only write notes tagged": a write outside the tags must be refused): in Settings, Other agents, create a client for Claude Code or Claude Desktop, use its token instead of the global one, write a note through it, and check that the run log names the client and that Revoke stops it. Not yet tried with a real MCP client.
 - [ ] **Try approval for web pages:** on an agent with web access, switch on "Ask me before it reads a web page", run it, and check the Approvals page.
 - [ ] **Two small wording calls:** the Approvals page shows an address twice (row and review), and two switch labels say "it" where another says "this agent". Say if you want them changed.

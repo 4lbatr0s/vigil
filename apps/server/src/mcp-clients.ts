@@ -1,5 +1,6 @@
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import type { IncomingMessage } from "node:http";
+import { WriteTagsSchema } from "@vigil/shared";
 import { AppError } from "./errors";
 import { deleteMcpClientRow, insertMcpClient, listMcpClientRows, mcpClientByHash, type McpClientRow } from "./state-db";
 
@@ -14,12 +15,15 @@ export function bearerOf(req: IncomingMessage): string {
   return auth.startsWith("Bearer ") ? auth.slice(7) : "";
 }
 
-export function createMcpClient(rawName: string): McpClient & { token: string } {
+export function createMcpClient(rawName: string, rawTags: unknown = []): McpClient & { token: string } {
   const name = rawName.trim();
   if (name === "" || name.length > 60) throw new AppError("invalid-body", "The client name must be 1 to 60 characters", 400);
+  const tags = WriteTagsSchema.safeParse(rawTags);
+  if (!tags.success) throw new AppError("invalid-body", tags.error.issues[0]?.message ?? "Bad write tags", 400);
+  const writeTags = [...new Set(tags.data)];
   const token = `vgl_${randomBytes(32).toString("base64url")}`;
   try {
-    return { ...insertMcpClient({ id: randomUUID(), name, tokenHash: hashOf(token) }), token };
+    return { ...insertMcpClient({ id: randomUUID(), name, tokenHash: hashOf(token), writeTags }), token };
   } catch (err) {
     if (err instanceof Error && /UNIQUE/.test(err.message)) throw new AppError("mcp-client-exists", `A client named "${name}" already exists`, 409);
     throw err;

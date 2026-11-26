@@ -98,6 +98,11 @@ export function agentToForm(agent: Agent): AgentForm {
   };
 }
 
+/** Tags typed as text ("#Journal, daily/log journal"): split on commas and spaces, # dropped, lowercase, no repeats. */
+export function parseTagList(text: string): string[] {
+  return [...new Set(text.split(/[\s,]+/).map((t) => t.replace(/^#/, "").toLowerCase()).filter((t) => t !== ""))];
+}
+
 /**
  * The whole definition to PUT: the loaded agent with the form's edits laid over it. Fields the form
  * does not know (trigger, tools, hosts, callable, defaultTask) are carried over untouched, and an
@@ -105,7 +110,7 @@ export function agentToForm(agent: Agent): AgentForm {
  */
 export function formToAgent(base: Agent, form: AgentForm): Agent {
   const { model: _m, connection: _c, keepState: _k, dailyTokenCap: _d, approveTools: _a, writeTags: _w, ...rest } = base;
-  const writeTags = [...new Set(form.writeTags.split(/[\s,]+/).map((t) => t.replace(/^#/, "").toLowerCase()).filter((t) => t !== ""))];
+  const writeTags = parseTagList(form.writeTags);
   const model = form.model.trim();
   const trigger = formToTrigger(form.trigger, base.trigger.kind === "cron" ? base.trigger.timezone : undefined);
   return {

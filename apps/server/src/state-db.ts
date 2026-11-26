@@ -247,6 +247,10 @@ export const MIGRATIONS: readonly string[] = [
     last_used_at TEXT
   );
   `,
+  `
+  -- migration 18: an MCP client's write scope, a JSON array of tags (ADR-0033 amendment). NULL means any note.
+  ALTER TABLE mcp_clients ADD COLUMN write_tags TEXT;
+  `,
 ];
 
 let current: { key: string; db: Database.Database } | null = null;
@@ -1006,21 +1010,29 @@ export function deleteConnectionRow(id: string): boolean {
 
 // ---- MCP clients (ADR-0033) ----
 
-export type McpClientRow = { id: string; name: string; createdAt: string; lastUsedAt: string | null };
-const CLIENT_COLUMNS = "id, name, created_at AS createdAt, last_used_at AS lastUsedAt";
+export type McpClientRow = { id: string; name: string; createdAt: string; lastUsedAt: string | null; writeTags: string[] };
+const CLIENT_COLUMNS = "id, name, created_at AS createdAt, last_used_at AS lastUsedAt, write_tags AS writeTags";
+type RawClientRow = Omit<McpClientRow, "writeTags"> & { writeTags: string | null };
 
-export function insertMcpClient(row: { id: string; name: string; tokenHash: string }): McpClientRow {
+function clientRow(raw: RawClientRow): McpClientRow {
+  const parsed: unknown = raw.writeTags ? JSON.parse(raw.writeTags) : [];
+  return { ...raw, writeTags: Array.isArray(parsed) ? parsed.filter((t): t is string => typeof t === "string") : [] };
+}
+
+export function insertMcpClient(row: { id: string; name: string; tokenHash: string; writeTags?: string[] }): McpClientRow {
   const now = new Date().toISOString();
-  open().prepare("INSERT INTO mcp_clients (id, name, token_hash, created_at) VALUES (?, ?, ?, ?)").run(row.id, row.name, row.tokenHash, now);
-  return { id: row.id, name: row.name, createdAt: now, lastUsedAt: null };
+  const tags = row.writeTags ?? [];
+  open().prepare("INSERT INTO mcp_clients (id, name, token_hash, created_at, write_tags) VALUES (?, ?, ?, ?, ?)").run(row.id, row.name, row.tokenHash, now, tags.length > 0 ? JSON.stringify(tags) : null);
+  return { id: row.id, name: row.name, createdAt: now, lastUsedAt: null, writeTags: tags };
 }
 
 export function listMcpClientRows(): McpClientRow[] {
-  return open().prepare(`SELECT ${CLIENT_COLUMNS} FROM mcp_clients ORDER BY created_at, rowid`).all() as McpClientRow[];
+  return (open().prepare(`SELECT ${CLIENT_COLUMNS} FROM mcp_clients ORDER BY created_at, rowid`).all() as RawClientRow[]).map(clientRow);
 }
 
 export function mcpClientByHash(tokenHash: string): McpClientRow | null {
-  return (open().prepare(`SELECT ${CLIENT_COLUMNS} FROM mcp_clients WHERE token_hash = ?`).get(tokenHash) as McpClientRow | undefined) ?? null;
+  const raw = open().prepare(`SELECT ${CLIENT_COLUMNS} FROM mcp_clients WHERE token_hash = ?`).get(tokenHash) as RawClientRow | undefined;
+  return raw ? clientRow(raw) : null;
 }
 
 export function touchMcpClient(id: string): void {

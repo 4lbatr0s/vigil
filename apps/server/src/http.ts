@@ -437,7 +437,7 @@ const routes: { method: string; pattern: RegExp; keys: string[]; handler: Handle
       // A call made with a named client token is logged under that name (ADR-0033).
       const client = clientForToken(bearerOf(req));
       if (client) touchMcpClient(client.id);
-      const reply = await handleMcp(body, mcpSettings(), Date.now(), client?.name ?? null);
+      const reply = await handleMcp(body, mcpSettings(), Date.now(), client ? { name: client.name, writeTags: client.writeTags } : null);
       if (reply.body === undefined) {
         res.writeHead(reply.status).end();
         return;
@@ -463,9 +463,9 @@ const routes: { method: string; pattern: RegExp; keys: string[]; handler: Handle
     pattern: /^\/api\/mcp\/clients$/,
     keys: [],
     handler: async (req, res) => {
-      const parsed = z.object({ name: z.string() }).safeParse(await readJsonBody(req));
-      if (!parsed.success) throw new AppError("invalid-body", "Body must be { name: string }", 400);
-      send(res, 201, { data: createMcpClient(parsed.data.name) });
+      const parsed = z.object({ name: z.string(), writeTags: z.unknown().optional() }).safeParse(await readJsonBody(req));
+      if (!parsed.success) throw new AppError("invalid-body", "Body must be { name: string, writeTags?: string[] }", 400);
+      send(res, 201, { data: createMcpClient(parsed.data.name, parsed.data.writeTags ?? []) });
     },
   },
   {

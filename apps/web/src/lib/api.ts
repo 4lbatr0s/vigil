@@ -141,10 +141,10 @@ export const resolveMisconception = (id: string) => request<{ id: string }>(`/ap
 export const startGap = (source: string) => request<{ run: Run; passages: Passage[] }>("/api/gap", json("POST", { source }));
 export type McpSettings = { enabled: boolean; write: boolean };
 export const getMcpSettings = () => request<McpSettings>("/api/mcp/settings");
-export type McpClient = { id: string; name: string; createdAt: string; lastUsedAt: string | null };
+export type McpClient = { id: string; name: string; createdAt: string; lastUsedAt: string | null; writeTags: string[] };
 export const listMcpClients = () => request<McpClient[]>("/api/mcp/clients");
 /** The token is in this answer only; it is never sent again. */
-export const createMcpClient = (name: string) => request<McpClient & { token: string }>("/api/mcp/clients", json("POST", { name }));
+export const createMcpClient = (name: string, writeTags: string[] = []) => request<McpClient & { token: string }>("/api/mcp/clients", json("POST", { name, writeTags }));
 export const revokeMcpClient = (id: string) => request<{ revoked: boolean }>(`/api/mcp/clients/${seg(id)}`, { method: "DELETE" });
 export const putMcpSettings = (s: McpSettings) => request<McpSettings>("/api/mcp/settings", json("PUT", s));
 export type MeaningStatus = { model: string | null; notes: number; embedded: number; working: boolean; error: string | null };
