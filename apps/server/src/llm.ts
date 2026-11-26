@@ -4,6 +4,7 @@ import { ChatAnthropic } from "@langchain/anthropic";
 import { ChatOllama } from "@langchain/ollama";
 import { DEFAULT_URLS, envConnection, resolveConnection, type ResolvedConnection } from "./connections";
 import { knownSecrets } from "./secrets";
+import { historyChars } from "./history";
 import { withRetry } from "./llm-retry";
 import { reasoningChatOpenAI } from "./llm-reasoning";
 
@@ -14,6 +15,8 @@ import { reasoningChatOpenAI } from "./llm-reasoning";
 export type ChatModel = {
   invoke(messages: BaseMessage[]): Promise<AIMessage>;
   stream?(messages: BaseMessage[], options?: { signal?: AbortSignal }): Promise<AsyncIterable<AIMessageChunk>>;
+  /** The provider clears old tool results itself (Anthropic context editing), so the runtime does not (todo item 51). */
+  clearsOldToolResults?: true;
 };
 
 /** Context window asked of Ollama (tokens). */
@@ -34,11 +37,12 @@ export type ModelFactory = (
 ) => ChatModel;
 
 /** Builds the chat model for one resolved connection. The key stays inside the library object. */
-export function buildChatModel(conn: ResolvedConnection, tools: StructuredToolInterface[], model: string | undefined, maxTokens: number, retry: { onRetry?: (retry: number, err: unknown) => void; signal?: AbortSignal | undefined } = {}): ChatModel {
-  return withRetry(buildPlainChatModel(conn, tools, model, maxTokens), retry);
+export function buildChatModel(conn: ResolvedConnection, tools: StructuredToolInterface[], model: string | undefined, maxTokens: number, retry: { onRetry?: (retry: number, err: unknown) => void; signal?: AbortSignal | undefined } = {}, env: NodeJS.ProcessEnv = process.env): ChatModel {
+  const built = withRetry(buildPlainChatModel(conn, tools, model, maxTokens, env), retry);
+  return conn.kind === "anthropic" && anthropicContextEditing(env) ? { ...built, clearsOldToolResults: true } : built;
 }
 
-function buildPlainChatModel(conn: ResolvedConnection, tools: StructuredToolInterface[], model: string | undefined, maxTokens: number): ChatModel {
+function buildPlainChatModel(conn: ResolvedConnection, tools: StructuredToolInterface[], model: string | undefined, maxTokens: number, env: NodeJS.ProcessEnv = process.env): ChatModel {
   const name = model ?? conn.model;
   if (!name) throw new Error("No model configured: choose a model for the connection, or set the agent's model.");
   const bind = (chat: { bindTools(t: StructuredToolInterface[]): unknown }): ChatModel => (tools.length > 0 ? (chat.bindTools(tools) as unknown as ChatModel) : (chat as unknown as ChatModel));
@@ -54,7 +58,7 @@ function buildPlainChatModel(conn: ResolvedConnection, tools: StructuredToolInte
       }),
     );
   }
-  if (conn.kind === "anthropic") return anthropicRunnable(conn, tools, name, maxTokens) as unknown as ChatModel;
+  if (conn.kind === "anthropic") return anthropicRunnable(conn, tools, name, maxTokens, env) as unknown as ChatModel;
   return bind(
     // Sends `reasoning_content` back, which DeepSeek's thinking mode needs when tools are on (todo-agent 17).
     reasoningChatOpenAI({
@@ -76,18 +80,30 @@ function buildPlainChatModel(conn: ResolvedConnection, tools: StructuredToolInte
 export const ANTHROPIC_CALL_OPTIONS = { cache_control: { type: "ephemeral" as const } };
 
 /** An Anthropic chat model with the tools bound and prompt caching on. */
-export function anthropicRunnable(conn: ResolvedConnection, tools: StructuredToolInterface[], model: string, maxTokens: number) {
-  const chat = new ChatAnthropic(anthropicOptions(conn, model, maxTokens));
+export function anthropicRunnable(conn: ResolvedConnection, tools: StructuredToolInterface[], model: string, maxTokens: number, env: NodeJS.ProcessEnv = process.env) {
+  const chat = new ChatAnthropic(anthropicOptions(conn, model, maxTokens, env));
   return tools.length > 0 ? chat.bindTools(tools, ANTHROPIC_CALL_OPTIONS) : chat.withConfig(ANTHROPIC_CALL_OPTIONS);
 }
 
+/** Experimental (todo item 51): Anthropic's own clearing of old tool results instead of `clearOldToolResults`. */
+const anthropicContextEditing = (env: NodeJS.ProcessEnv): boolean => env.VIGIL_ANTHROPIC_CONTEXT_EDITING === "1";
+
+/**
+ * Context editing set to about the size where Vigil clears old results itself (`historyChars`, 4 characters a token),
+ * keeping the newest 4 tool uses, so a measurement compares like with like.
+ */
+const contextEditing = (env: NodeJS.ProcessEnv) => ({
+  edits: [{ type: "clear_tool_uses_20250919" as const, trigger: { type: "input_tokens" as const, value: Math.round(historyChars(env) / 4) }, keep: { type: "tool_uses" as const, value: 4 } }],
+});
+
 /** Constructor options for an Anthropic model. */
-export function anthropicOptions(conn: ResolvedConnection, model: string, maxTokens: number) {
+export function anthropicOptions(conn: ResolvedConnection, model: string, maxTokens: number, env: NodeJS.ProcessEnv = process.env) {
   return {
     model,
     apiKey: conn.apiKey ?? "",
     maxTokens,
     ...(conn.baseUrl && conn.baseUrl !== DEFAULT_URLS.anthropic ? { anthropicApiUrl: conn.baseUrl } : {}),
+    ...(anthropicContextEditing(env) ? { betas: ["context-management-2025-06-27" as const], contextManagement: contextEditing(env) } : {}),
   };
 }
 

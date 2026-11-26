@@ -9,7 +9,7 @@ import { closeState } from "../state-db";
 import type { ModelFactory } from "../llm";
 import { runAgentEval, summarizeAgentEval, type TrialResult } from "./agent-eval";
 import { AGENT_CASES, LONG_CASES } from "./agent-cases";
-import { CLEAR_WARNING } from "../history";
+import { CLEAR_WARNING, CLEARED_RESULT } from "../history";
 
 let root = "";
 const saved = { ...process.env };
@@ -118,13 +118,16 @@ describe("token cap and measures", () => {
     expect(Math.max(...budgets.slice(2))).toBeLessThanOrEqual(15 - 12);
   });
 
-  it("the long-read case passes for a model that reads all eight notes, and the model is warned before old results are cleared", async () => {
+  it("the long-read case passes for a model that reads all eight notes; with a small history limit it is warned and old results are cleared", async () => {
+    process.env.VIGIL_HISTORY_CHARS = "8000";
     let n = 0;
     let warned = 0;
+    let cleared = 0;
     setRunDeps({
       makeModel: () => ({
         invoke: async (m) => {
           if (m.some((x) => ToolMessage.isInstance(x) && String(x.content).includes(CLEAR_WARNING))) warned += 1;
+          if (m.some((x) => ToolMessage.isInstance(x) && String(x.content) === CLEARED_RESULT)) cleared += 1;
           const results = m.filter((x) => ToolMessage.isInstance(x));
           if (results.length < 8) return call("read_note", { id: `long-read-${results.length + 1}` }, `r${n++}`);
           return say("AMBER, BASALT, CEDAR, DELTA, EMBER, FJORD, GRANITE, HARBOR");
@@ -134,5 +137,25 @@ describe("token cap and measures", () => {
     const { results } = await runAgentEval({ cases: LONG_CASES });
     expect(results[0]).toMatchObject({ pass: true, modelCalls: 9 });
     expect(warned).toBeGreaterThan(0);
+    expect(cleared).toBeGreaterThan(0);
+  });
+
+  it("a model that clears old tool results itself gets the whole history; Vigil's own clearing stays out of the way", async () => {
+    process.env.VIGIL_HISTORY_CHARS = "8000";
+    let cleared = 0;
+    setRunDeps({
+      makeModel: () => ({
+        clearsOldToolResults: true as const,
+        invoke: async (m) => {
+          const results = m.filter((x) => ToolMessage.isInstance(x));
+          if (results.some((x) => String(x.content) === CLEARED_RESULT)) cleared += 1;
+          if (results.length < 8) return call("read_note", { id: `long-read-${results.length + 1}` }, `q${results.length}`);
+          return say("AMBER, BASALT, CEDAR, DELTA, EMBER, FJORD, GRANITE, HARBOR");
+        },
+      }),
+    });
+    const { results } = await runAgentEval({ cases: LONG_CASES });
+    expect(results[0]?.pass).toBe(true);
+    expect(cleared).toBe(0);
   });
 });

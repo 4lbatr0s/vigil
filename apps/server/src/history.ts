@@ -3,6 +3,12 @@ import { AIMessage, SystemMessage, ToolMessage, type BaseMessage } from "@langch
 /** About 12k tokens of recent conversation (characters / 4). Older turns stay in the checkpoint, not in the prompt. */
 export const DEFAULT_HISTORY_CHARS = 48_000;
 
+/** The history limit a run uses: `VIGIL_HISTORY_CHARS` when it is a whole number above 1,000 (for measuring), else the default. */
+export function historyChars(env: NodeJS.ProcessEnv = process.env): number {
+  const n = Number(env.VIGIL_HISTORY_CHARS);
+  return Number.isInteger(n) && n > 1000 ? n : DEFAULT_HISTORY_CHARS;
+}
+
 const size = (m: BaseMessage): number => (typeof m.content === "string" ? m.content.length : JSON.stringify(m.content).length) + JSON.stringify((m as { tool_calls?: unknown }).tool_calls ?? []).length;
 
 /**

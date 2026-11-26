@@ -112,9 +112,12 @@ export const AGENT_CASES: AgentCase[] = [
 const CODE_WORDS = ["AMBER", "BASALT", "CEDAR", "DELTA", "EMBER", "FJORD", "GRANITE", "HARBOR"];
 const FILLER = "The study group met again and went over the reading. Most of the hour went to examples, a few questions stayed open, and the next session will start where this one stopped. ";
 
-/** Eight notes of about 5,800 characters each, so a run that reads them all fills the history window and old results get cleared. */
+/**
+ * Eight notes of about 2,500 characters each. With the default history limit nothing is cleared; measure clearing with a
+ * smaller limit, for example VIGIL_HISTORY_CHARS=8000, so it happens within a small token budget (todo item 51).
+ */
 export const LONG_NOTES = CODE_WORDS.map((word, i) => {
-  const half = FILLER.repeat(Math.floor(2800 / FILLER.length));
+  const half = FILLER.repeat(Math.floor(1200 / FILLER.length));
   return { title: `Long read ${i + 1}`, body: `#longread\n\n${half}\n\nCode word: ${word}.\n\n${half}` };
 });
 
@@ -130,7 +133,7 @@ export const LONG_CASES: AgentCase[] = [
     task: "Read every note tagged #longread (there are eight: long-read-1 to long-read-8). Each one holds a line 'Code word: X'. Answer with the eight code words in note order, separated by commas.",
     agent: { tools: ["read_notes"], strict: true },
     seed: LONG_NOTES,
-    budget: 40_000,
+    budget: 30_000,
     grade: (o) => {
       if (o.status !== "succeeded") return bad(`run ended ${o.status}`);
       const reads = o.toolsCalled.filter((t) => t === "read_note").length;

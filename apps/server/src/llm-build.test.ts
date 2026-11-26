@@ -33,3 +33,23 @@ describe("anthropicOptions", () => {
     expect(anthropicOptions({ ...conn, baseUrl: "https://gateway.example" }, "x", 10).anthropicApiUrl).toBe("https://gateway.example");
   });
 });
+
+describe("Anthropic context editing (todo item 51, VIGIL_ANTHROPIC_CONTEXT_EDITING=1)", () => {
+  it("is off by default: no beta and no context_management, and the runtime keeps clearing old results itself", () => {
+    const chat = new ChatAnthropic(anthropicOptions(conn, "claude-test", 1000, {}));
+    const params = chat.invocationParams({} as never);
+    expect(params.context_management).toBeUndefined();
+    expect(buildChatModel(conn, [], "claude-test", 1000, {}, {}).clearsOldToolResults).toBeUndefined();
+  });
+
+  it("when switched on, asks the API to clear old tool results at the same size Vigil would, and says so to the runtime", () => {
+    const env = { VIGIL_ANTHROPIC_CONTEXT_EDITING: "1" };
+    const chat = new ChatAnthropic(anthropicOptions(conn, "claude-test", 1000, env));
+    const params = chat.invocationParams({} as never);
+    expect(params.betas).toContain("context-management-2025-06-27");
+    expect(params.context_management).toEqual({ edits: [{ type: "clear_tool_uses_20250919", trigger: { type: "input_tokens", value: 12_000 }, keep: { type: "tool_uses", value: 4 } }] });
+    expect(buildChatModel(conn, [], "claude-test", 1000, {}, env).clearsOldToolResults).toBe(true);
+    // Other providers never get it.
+    expect(buildChatModel({ ...conn, kind: "ollama" as const, baseUrl: "http://127.0.0.1:11434" }, [], "qwen", 100, {}, env).clearsOldToolResults).toBeUndefined();
+  });
+});
