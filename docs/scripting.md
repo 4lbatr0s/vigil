@@ -81,3 +81,11 @@ curl -s "${AUTH[@]}" "$VIGIL/api/runs/$RUN/trace" > run.jsonl
 ```
 
 The first line is the run (`"type": "run"`, with `config`, the setup fingerprint). Each log entry follows as an `"type": "event"` line. Child runs started with `call_agent` come after, each with its own run line and events.
+
+## Turn a run into an eval case
+
+```sh
+curl -s "${AUTH[@]}" "$VIGIL/api/runs/$RUN/eval-case" > ~/vigil-cases/my-case.json
+# Edit the file: check "expect", add "answer" (a regular expression) if the answer matters.
+pnpm --filter @vigil/server eval --agent --cases ~/vigil-cases
+```

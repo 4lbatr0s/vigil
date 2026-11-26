@@ -8,6 +8,7 @@
  * It works in a temp folder and never reads or writes your vault, notes index or saved connections.
  * Add `--token-cap N` (or VIGIL_EVAL_TOKEN_CAP=N) to stop starting agent trials once N tokens are used; skipped trials are
  * reported, not failed. Add `--long` for the long-read case (tens of thousands of tokens per trial).
+ * Add `--cases DIR` to run the JSON cases in DIR too (a run page's "Download as eval case", checked and edited).
  * Add `--save DIR` to keep the result in DIR (outside the vault) and name every case that passed in the last saved run of
  * the same suite and model and fails now; such a case fails the run. For a nightly check, for example in crontab:
  *   0 3 * * * cd ~/vigil && VIGIL_LLM_PROVIDER=ollama VIGIL_LLM_MODEL=qwen3:4b pnpm --filter @vigil/server eval --agent --trials 3 --save ~/vigil-evals
@@ -26,12 +27,15 @@ const capAt = process.argv.indexOf("--token-cap");
 const capText = capAt >= 0 ? process.argv[capAt + 1] : process.env.VIGIL_EVAL_TOKEN_CAP;
 const tokenCap = capText === undefined || capText === "" ? undefined : Number(capText);
 const long = process.argv.includes("--long");
+const casesAt = process.argv.indexOf("--cases");
+const casesDir = casesAt >= 0 ? process.argv[casesAt + 1] : undefined;
 const saveAt = process.argv.indexOf("--save");
 const saveDir = saveAt >= 0 ? process.argv[saveAt + 1] : undefined;
 const stopWith = (text: string): never => {
   console.error(text);
   process.exit(2);
 };
+if (casesAt >= 0 && (!casesDir || casesDir.startsWith("--"))) stopWith("--cases needs a folder, for example --cases ~/vigil-cases");
 if (tokenCap !== undefined && !(Number.isInteger(tokenCap) && tokenCap > 0)) stopWith("--token-cap needs a whole number of tokens above 0, for example --token-cap 100000");
 if (saveAt >= 0 && (!saveDir || saveDir.startsWith("--"))) stopWith("--save needs a folder, for example --save ~/vigil-evals");
 // The owner's vault, read before the temp folders replace it: results never go into it.
@@ -50,6 +54,7 @@ const { closeDb } = await import("../index-db");
 const { closeState } = await import("../state-db");
 const { ASK_CASES } = await import("./fixtures");
 const { runAgentEval } = await import("./agent-eval");
+const { loadCaseDir } = await import("./case-file");
 const { AGENT_CASES, LONG_CASES } = await import("./agent-cases");
 
 /** With `--save`: compare with the last saved run, save this one, print what newly fails. Returns how many cases newly fail. */
@@ -70,7 +75,8 @@ try {
   setRunDeps({ makeModel: modelFactoryFromEnv() });
   const model = process.env.VIGIL_LLM_MODEL ?? "(not set)";
   if (agentMode) {
-    const cases = long ? [...AGENT_CASES, ...LONG_CASES] : AGENT_CASES;
+    const own = casesDir ? await loadCaseDir(casesDir) : [];
+    const cases = [...AGENT_CASES, ...(long ? LONG_CASES : []), ...own];
     if (!json) console.log(`Agent evals, ${cases.length} cases x ${trials} trial(s), model ${model}${tokenCap ? `, token cap ${tokenCap}` : ""}\n`);
     const out = await runAgentEval({ cases, trials, ...(tokenCap ? { tokenCap } : {}), onTrial: (r) => { if (!json) console.log(`${r.skipped ? "skip" : r.pass ? "pass" : "FAIL"}  ${r.caseId.padEnd(28)} #${r.trial} ${r.status.padEnd(16)} ${r.seconds.toFixed(1).padStart(5)} s ${String(r.tokens).padStart(7)} tok ${String(r.modelCalls).padStart(3)} calls  ${r.reason}`); } });
     await waitForRuns();

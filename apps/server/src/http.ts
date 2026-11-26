@@ -33,6 +33,7 @@ import { buildGraphData } from "./graph";
 import { attachStream } from "./events";
 import { bodyBeforeRun, cancelRun, resumeRun, startRun, undoRun } from "./runs";
 import { runTrace } from "./trace";
+import { evalCaseFor } from "./eval-case";
 import { getPermissions, putPermissions } from "./permissions";
 import { planRename, renameNote } from "./rename";
 import { refreshSchedule } from "./scheduler";
@@ -1256,6 +1257,24 @@ const routes: { method: string; pattern: RegExp; keys: string[]; handler: Handle
         "content-disposition": `attachment; filename="run-${id.replace(/[^A-Za-z0-9-]/g, "")}.jsonl"`,
       });
       res.end(trace);
+    },
+  },
+  {
+    // A draft eval case from the run, to check, edit and keep in a cases folder (todo item 49).
+    method: "GET",
+    pattern: /^\/api\/runs\/([^/]+)\/eval-case$/,
+    keys: ["id"],
+    handler: async (_req, res, params) => {
+      const id = params["id"] ?? "";
+      const draft = await evalCaseFor(id);
+      if (draft === null) throw new AppError("run-not-found", `Run not found: ${id}`, 404);
+      const body = `${JSON.stringify(draft, null, 2)}\n`;
+      res.writeHead(200, {
+        "content-type": "application/json; charset=utf-8",
+        "content-length": Buffer.byteLength(body),
+        "content-disposition": `attachment; filename="eval-${id.replace(/[^A-Za-z0-9-]/g, "")}.json"`,
+      });
+      res.end(body);
     },
   },
   {

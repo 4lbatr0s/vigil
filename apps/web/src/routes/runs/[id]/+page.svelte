@@ -148,6 +148,7 @@
           </span>
         </dd>
         <dt>Trace</dt><dd><a href={`/api/runs/${encodeURIComponent(run.id)}/trace`} download>Download as JSON Lines</a></dd>
+        <dt>Eval case</dt><dd><a href={`/api/runs/${encodeURIComponent(run.id)}/eval-case`} download>Download as eval case</a></dd>
         {#if run.error}<dt>Error</dt><dd class="err">{run.error}</dd>{/if}
         {#if run.touched.length > 0}
           <dt>Notes</dt>
