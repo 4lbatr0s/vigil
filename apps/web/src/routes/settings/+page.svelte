@@ -27,13 +27,16 @@
     applyAppearance(next);
   }
 
+  /** Advanced settings stay folded; the jump link opens them. */
+  let advancedOpen = $state(false);
+
   const dirty = $derived(form !== null && saved !== null && JSON.stringify(form) !== JSON.stringify(saved));
 
   const tools = [
-    { key: "read_notes", label: "Agents can read notes", why: "Off: agents see none of your notes, so most of them can do nothing." },
-    { key: "write_notes", label: "Agents can write notes", why: "Off: agents can only read. Every write is saved first so you can undo it." },
-    { key: "web_fetch", label: "Agents can fetch web pages", why: "Off: no agent reaches the internet, whatever its own settings say." },
-    { key: "call_agents", label: "Agents can call other agents", why: "Off: an agent cannot start another one." },
+    { key: "read_notes", label: "Helpers can read notes", why: "Off: helpers see none of your notes, so most of them can do nothing." },
+    { key: "write_notes", label: "Helpers can write notes", why: "Off: helpers can only read. Every write is saved first so you can undo it." },
+    { key: "web_fetch", label: "Helpers can fetch web pages", why: "Off: no helper reaches the internet, whatever its own settings say." },
+    { key: "call_agents", label: "Helpers can ask other helpers", why: "Off: a helper cannot start another one." },
   ] as const;
 
   onMount(() => {
@@ -84,21 +87,18 @@
 
 <Page title="Settings">
   {#if loadError}<p class="error" role="alert">{loadError}</p>{/if}
-  <nav class="jump" aria-label="Jump to a section">
+  <nav class="jump" aria-label="Jump to a group">
     <Cluster gap={1}>
-      <Button variant="ghost" size="sm" href="#models">AI models</Button>
-      <Button variant="ghost" size="sm" href="#look">Appearance</Button>
-      <Button variant="ghost" size="sm" href="#study-settings">Study</Button>
-      <Button variant="ghost" size="sm" href="#mcp-settings">Other agents</Button>
-      <Button variant="ghost" size="sm" href="#pictures">Pictures</Button>
-      <Button variant="ghost" size="sm" href="#perm">Permissions</Button>
-      <Button variant="ghost" size="sm" href="#use">Usage</Button>
+      <Button variant="ghost" size="sm" href="#writing">Writing</Button>
+      <Button variant="ghost" size="sm" href="#study-group">Study</Button>
+      <Button variant="ghost" size="sm" href="#helpers">Helpers</Button>
+      <Button variant="ghost" size="sm" href="#advanced" onclick={() => (advancedOpen = true)}>Advanced</Button>
     </Cluster>
   </nav>
 
   <div class="sections">
-    <ModelsSettings />
-
+    <div class="group" id="writing">
+      <p class="group-name">Writing</p>
     <section aria-labelledby="look">
       <h2 id="look">Appearance</h2>
       <p class="muted">Kept in this browser only.</p>
@@ -123,18 +123,20 @@
         </Field>
       </div>
     </section>
+    </div>
 
-    <StudySettingsSection />
+    <div class="group" id="study-group">
+      <p class="group-name">Study</p>
+      <StudySettingsSection />
+    </div>
 
-    <MeaningSettings />
-
-    <McpSettingsSection />
-    <TidyPictures />
-
+    <div class="group" id="helpers">
+      <p class="group-name">Helpers</p>
+      <ModelsSettings />
     {#if form}
       <section aria-labelledby="perm">
         <h2 id="perm">Permissions</h2>
-        <p class="muted">What agents may do. A switch that is off wins over any single agent's own settings.</p>
+        <p class="muted">What helpers may do. A switch that is off wins over any single helper's own settings.</p>
         <Stack gap={4}>
           <Stack gap={3}>
             {#each tools as t (t.key)}
@@ -144,12 +146,12 @@
               </div>
             {/each}
             <div class="setting">
-              <Switch label="New agents ask for my approval before writing" bind:checked={form.newAgentsStrict} />
-              <p class="why">Only sets the starting value for agents you add later. You can change any agent on its own page.</p>
+              <Switch label="New helpers ask for my approval before writing" bind:checked={form.newAgentsStrict} />
+              <p class="why">Only sets the starting value for helpers you add later. You can change any helper on its own page.</p>
             </div>
           </Stack>
 
-          <Field label="Highest token budget any run may use" error={saveError?.field === "maxTokenBudget" ? saveError.text : undefined}>
+          <Field label="Most any run may spend (tokens)" error={saveError?.field === "maxTokenBudget" ? saveError.text : undefined}>
             {#snippet children({ id, describedby, invalid })}
               <span class="narrow"><Input {id} aria-describedby={describedby} {invalid} inputmode="numeric" bind:value={form!.maxTokenBudget} /></span>
             {/snippet}
@@ -168,26 +170,34 @@
         </Stack>
       </section>
     {/if}
-
     <section aria-labelledby="use">
       <h2 id="use">Usage this month</h2>
       {#if usage}
         <p>{usage.tokens.toLocaleString("en")} tokens{usage.cap ? ` of ${usage.cap.toLocaleString("en")} (${pct}%)` : " (no cap set)"}</p>
         {#if usage.cap}
           <div class="bar" role="img" aria-label={`${pct}% of the monthly cap`}><span class="fill" style:width={`${pct}%`}></span></div>
-          <p class="muted">The cap is a warning only. It never stops an agent.</p>
+          <p class="muted">The cap is a warning only. It never stops a helper.</p>
         {/if}
       {/if}
     </section>
+    </div>
 
-    <section aria-labelledby="access">
-      <h2 id="access">Access</h2>
-      {#if session?.required}
-        <Cluster gap={3}><span>Signed in.</span><Button onclick={() => void signOut()}>Sign out</Button></Cluster>
-      {:else if session}
-        <p class="muted">Local access: no token is set, so there is no login.</p>
-      {/if}
-    </section>
+    <details class="group advanced" id="advanced" bind:open={advancedOpen}>
+      <summary class="group-name">Advanced</summary>
+      <div class="advanced-body">
+        <MeaningSettings />
+        <McpSettingsSection />
+        <TidyPictures />
+        <section aria-labelledby="access">
+          <h2 id="access">Access</h2>
+          {#if session?.required}
+            <Cluster gap={3}><span>Signed in.</span><Button onclick={() => void signOut()}>Sign out</Button></Cluster>
+          {:else if session}
+            <p class="muted">Local access: no token is set, so there is no login.</p>
+          {/if}
+        </section>
+      </div>
+    </details>
   </div>
 </Page>
 
@@ -199,14 +209,40 @@
     margin-top: var(--s-6);
   }
 
+  .group,
+  .advanced-body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--s-10);
+    scroll-margin-top: var(--s-16);
+  }
+
   .sections :global(section) {
     scroll-margin-top: var(--s-16);
+  }
+
+  /* The four groups are the page's headings; each section inside is a smaller sans heading. */
+  .group-name {
+    margin: 0 0 calc(var(--s-6) * -1);
+    padding-bottom: var(--s-2);
+    box-shadow: 0 1px 0 var(--line-soft);
+    color: var(--text);
+    font: var(--weight-strong) var(--type-heading-size) / var(--type-heading-lh) var(--font-prose);
+  }
+
+  summary.group-name {
+    margin: 0;
+    cursor: pointer;
+  }
+
+  .advanced[open] summary.group-name {
+    margin-bottom: calc(var(--s-6) * -1);
   }
 
   /* Every section, including the ones other components draw: the same heading and rhythm. */
   .sections :global(section h2) {
     margin: 0 0 var(--s-1);
-    font: var(--weight-strong) var(--type-heading-size) / var(--type-heading-lh) var(--font-ui);
+    font: var(--weight-strong) var(--type-ui-size) / var(--type-ui-lh) var(--font-ui);
   }
 
   .sections :global(section > p) {

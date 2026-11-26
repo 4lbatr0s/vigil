@@ -36,7 +36,7 @@
 
 {#if settings}
   <section aria-labelledby="study-settings">
-    <h2 id="study-settings">Study</h2>
+    <h2 id="study-settings">Cards and reviews</h2>
     <p class="muted">How many new cards you meet each day, and how sure the scheduler aims to keep you of what you have learned. Higher means more reviews for the same cards.</p>
     <div class="fields">
       <Field label="New cards per day">
