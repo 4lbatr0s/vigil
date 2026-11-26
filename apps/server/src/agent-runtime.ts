@@ -8,6 +8,7 @@ import { randomUUID } from "node:crypto";
 import { effectiveAgent } from "./permissions";
 import { getCheckpointer } from "./checkpoints";
 import { configVersion } from "./harness-config";
+import { taintProblem } from "./taint";
 import { cleanStateNote } from "./untrusted";
 import { MIN_BUDGET_FOR_SUMMARY, RESUMMARIZE_AFTER_CHARS, SUMMARY_MAX_TOKENS, SUMMARY_PROMPT, clearOldToolResults, droppedMessages, repairDangling, RESTART_ANSWER, summaryNote, transcriptOf, trimHistory } from "./history";
 import { addEvent, createApproval, createRun, finishRun, getAgent, getAgentState, getChatSummary, getRun, hasRunning, putChatSummary, setTokensUsed } from "./state-db";
@@ -287,6 +288,14 @@ export const runAgent: AgentRunner = async ({ agent, task, runId, makeModel, dep
       if (found && needsApproval(call.name) && (id === "" || state.decisions[id] !== "approve")) {
         addEvent(runId, "tool-denied", `${call.name}: the owner rejected this write`, { tool: call.name });
         results.push(new ToolMessage({ content: REJECTED_TEXT, tool_call_id: id || `unnamed-${results.length}`, name: call.name }));
+        continue;
+      }
+      // Item 47: once a page is in the run, a fetch the owner did not approve may only go back to a host already read,
+      // with no query string. Pages from earlier rounds count; calls in the same round were chosen before any page.
+      const tainted = found && call.name === "fetch_url" && !needsApproval(call.name) ? taintProblem(call.args["url"], state.messages.slice(0, -1)) : null;
+      if (tainted !== null) {
+        addEvent(runId, "tool-denied", `fetch_url: ${truncate(redact(String(call.args["url"])), 300)} refused after a page was read`, { tool: call.name });
+        results.push(new ToolMessage({ content: tainted, tool_call_id: id, name: call.name }));
         continue;
       }
       if (!found) {

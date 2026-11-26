@@ -20,3 +20,6 @@ The web fetch tool ships only with all of these:
 - Allowlisted hosts can still receive data in a URL. The allowlist narrows the channel to hosts the owner chose; it does not close it. The run log makes any such request visible after the fact.
 - Template agents that browse (for example a news digest) ship with an explicit host list the owner reviews.
 - ADR-0004's other decisions (three archetypes, snapshots before writes, call_agent depth 1) are unchanged.
+
+## Amendment (2026-11-26, todo item 47)
+Once a `fetch_url` call in an earlier round of a run returned a page, a later fetch in that run may go only to a host the run already read, and with no query string. Anything else is refused with an error that says why, and the run log records it. A fetch the owner approves (`approveTools: fetch_url`) is the owner's decision and is not refused. Reason: a page is untrusted text that can ask the agent to carry note text out in an address; this rule is enforced in code, not left to the model. Calls in the same round as the first fetch are not limited, because the model chose them before it saw any page.

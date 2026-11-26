@@ -2,6 +2,7 @@
 
 ## Unreleased: UI v2 (ADR-0016), then design system v3 (ADR-0029)
 
+- Agents: after an agent has read a web page in a run, it may fetch only from hosts it already read, and with no query string, for the rest of that run. A page that tells it to send your notes to another address is refused in code. Fetches you approve one by one are not limited.
 - Evals: `--token-cap N` (or `VIGIL_EVAL_TOKEN_CAP`) keeps an agent eval run inside a token budget, each trial shows its tokens and model calls, and `--long` adds a long-reading case that shows whether facts survive when old tool results are cleared.
 - Agents: a strict agent with "Only write notes tagged" can be allowed to add to those notes without asking ("Let it add to these notes without asking", off by default). Only an addition to a note that already carries one of the tags skips Approvals; a changed or new note still waits. See the ADR-0011 amendment.
 - MCP: a named client can get a write scope when you make it ("Only write notes tagged" in Settings). It may then change only notes with one of those tags, like an agent with a write scope. See the ADR-0033 amendment.
