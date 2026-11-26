@@ -312,12 +312,12 @@
 
       <section aria-label="Schedule">
         <dl class="facts">
-          <dt>Trigger</dt>
+          <dt>Runs</dt>
           <dd>{describeTrigger(agent.trigger)}</dd>
           <dt>Next run</dt>
           <dd>{schedule?.nextRunAt ? formatStamp(schedule.nextRunAt) : agent.enabled ? "none" : "off"}</dd>
           {#if agent.trigger.kind === "heartbeat"}
-            <dt>Heartbeat</dt>
+            <dt>Last check</dt>
             <dd>{agent.enabled ? describeCheck(schedule?.lastCheckedAt ?? null, schedule?.lastSkipReason ?? null) : "off"}</dd>
           {/if}
           <dt>Last started</dt>
@@ -326,9 +326,9 @@
             <dt>Last skipped</dt>
             <dd>{schedule.lastSkipReason}</dd>
           {/if}
-          <dt>Tools</dt>
+          <dt>May</dt>
           <dd>
-            <Cluster gap={1}>{#each agent.tools as t (t)}<Badge>{t}</Badge>{:else}<span class="muted">none</span>{/each}</Cluster>
+            <Cluster gap={1}>{#each agent.tools as t (t)}<Badge>{TOOL_LABELS[t]?.label ?? t}</Badge>{:else}<span class="muted">only answer</span>{/each}</Cluster>
           </dd>
         </dl>
       </section>
@@ -358,46 +358,6 @@
             <Switch label="Enabled" bind:checked={form.enabled} />
             <Switch label="Ask me before this agent writes" bind:checked={form.strict} onchange={onStrictChange} />
             <p class="muted">Writes wait in <a href="/approvals">Approvals</a> until you accept them.</p>
-            {#if form.tools.includes("write_notes")}
-              <Field label="Only write notes tagged" hint="Tags separated by commas, for example journal. Empty means any note.">
-                {#snippet children({ id, describedby })}<Input {id} aria-describedby={describedby} placeholder="Any note" bind:value={form.writeTags} />{/snippet}
-              </Field>
-              {#if form.strict && form.writeTags.trim() !== ""}
-                <Switch label="Let it add to these notes without asking" bind:checked={form.autoApproveAppends} />
-                <p class="muted">Only adds to notes that already carry a tag. Text planted in a note or web page could then reach them without your review.</p>
-              {/if}
-            {/if}
-            {#if form.tools.includes("web_fetch")}
-              <Switch label="Ask me before it reads a web page" checked={form.approveTools.includes("fetch_url")} onchange={(on: boolean) => toggleApprove("fetch_url", on)} />
-            {/if}
-            {#if form.tools.includes("call_agents")}
-              <Switch label="Ask me before it asks another agent" checked={form.approveTools.includes("call_agent")} onchange={(on: boolean) => toggleApprove("call_agent", on)} />
-            {/if}
-            <Switch label="Remember where it stopped" bind:checked={form.keepState} />
-            <p class="muted">It keeps a short note for its next run and reads it first. The note is not one of your notes.</p>
-            {#if stateNote}
-              <p class="note-text" aria-label="The agent's saved note">{stateNote.text}</p>
-              <Cluster gap={2}>
-                <span class="muted">Saved {formatStamp(stateNote.updatedAt)}.</span>
-                <Button variant="ghost" size="sm" onclick={() => void clearNote()}>Clear note</Button>
-              </Cluster>
-            {/if}
-            {#if stateHistory.length > 0}
-              <details class="advanced">
-                <summary>Earlier versions ({stateHistory.length})</summary>
-                <Stack gap={3}>
-                  {#each stateHistory as v (v.id)}
-                    <Stack gap={1}>
-                      <p class="note-text">{v.text}</p>
-                      <Cluster gap={2}>
-                        <span class="muted">Saved {formatStamp(v.savedAt)}.</span>
-                        <Button variant="ghost" size="sm" onclick={() => void useVersion(v.id)}>Use this version</Button>
-                      </Cluster>
-                    </Stack>
-                  {/each}
-                </Stack>
-              </details>
-            {/if}
           </Stack>
 
           <Stack gap={2}>
@@ -466,12 +426,52 @@
           </Field>
 
           <details class="advanced" open={missingConnection !== null}>
-            <summary>Model, budget and instructions</summary>
+            <summary>More</summary>
             <Stack gap={4}>
-              <Field label="Token budget per run">
+              {#if form.tools.includes("write_notes")}
+                <Field label="Only write notes tagged" hint="Tags separated by commas, for example journal. Empty means any note.">
+                  {#snippet children({ id, describedby })}<Input {id} aria-describedby={describedby} placeholder="Any note" bind:value={form.writeTags} />{/snippet}
+                </Field>
+                {#if form.strict && form.writeTags.trim() !== ""}
+                  <Switch label="Let it add to these notes without asking" bind:checked={form.autoApproveAppends} />
+                  <p class="muted">Only adds to notes that already carry a tag. Text planted in a note or web page could then reach them without your review.</p>
+                {/if}
+              {/if}
+              {#if form.tools.includes("web_fetch")}
+                <Switch label="Ask me before it reads a web page" checked={form.approveTools.includes("fetch_url")} onchange={(on: boolean) => toggleApprove("fetch_url", on)} />
+              {/if}
+              {#if form.tools.includes("call_agents")}
+                <Switch label="Ask me before it asks another agent" checked={form.approveTools.includes("call_agent")} onchange={(on: boolean) => toggleApprove("call_agent", on)} />
+              {/if}
+              <Switch label="Remember where it stopped" bind:checked={form.keepState} />
+              <p class="muted">It keeps a short note for its next run and reads it first. The note is not one of your notes.</p>
+              {#if stateNote}
+                <p class="note-text" aria-label="The agent's saved note">{stateNote.text}</p>
+                <Cluster gap={2}>
+                  <span class="muted">Saved {formatStamp(stateNote.updatedAt)}.</span>
+                  <Button variant="ghost" size="sm" onclick={() => void clearNote()}>Clear note</Button>
+                </Cluster>
+              {/if}
+              {#if stateHistory.length > 0}
+                <details class="advanced">
+                  <summary>Earlier versions ({stateHistory.length})</summary>
+                  <Stack gap={3}>
+                    {#each stateHistory as v (v.id)}
+                      <Stack gap={1}>
+                        <p class="note-text">{v.text}</p>
+                        <Cluster gap={2}>
+                          <span class="muted">Saved {formatStamp(v.savedAt)}.</span>
+                          <Button variant="ghost" size="sm" onclick={() => void useVersion(v.id)}>Use this version</Button>
+                        </Cluster>
+                      </Stack>
+                    {/each}
+                  </Stack>
+                </details>
+              {/if}
+              <Field label="Most it may spend per run" hint="In tokens, the unit model providers bill by.">
                 {#snippet children({ id })}<span class="w-narrow"><Input {id} inputmode="numeric" bind:value={form.tokenBudget} /></span>{/snippet}
               </Field>
-              <Field label="Token limit per day (optional)">
+              <Field label="Most it may spend per day" hint="In tokens. Empty means no daily limit.">
                 {#snippet children({ id })}<span class="w-narrow"><Input {id} inputmode="numeric" placeholder="No limit" bind:value={form.dailyTokenCap} /></span>{/snippet}
               </Field>
               {#if missingConnection}
@@ -504,7 +504,7 @@
               <Field label="When started without instructions">
                 {#snippet children({ id })}<Input {id} bind:value={form.defaultTask} />{/snippet}
               </Field>
-              <Field label="System prompt">
+              <Field label="Instructions" hint="What it is for and how it should work, in plain words.">
                 {#snippet children({ id })}<Textarea {id} rows={10} bind:value={form.systemPrompt} />{/snippet}
               </Field>
             </Stack>
