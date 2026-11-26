@@ -4,11 +4,7 @@
   import NotebookText from "@lucide/svelte/icons/notebook-text";
   import Bot from "@lucide/svelte/icons/bot";
   import Settings from "@lucide/svelte/icons/settings";
-  import ShieldCheck from "@lucide/svelte/icons/shield-check";
   import MessageSquare from "@lucide/svelte/icons/message-square";
-  import Network from "@lucide/svelte/icons/network";
-  import LayoutDashboard from "@lucide/svelte/icons/layout-dashboard";
-  import Wrench from "@lucide/svelte/icons/wrench";
   import Sunrise from "@lucide/svelte/icons/sunrise";
   import GraduationCap from "@lucide/svelte/icons/graduation-cap";
   import Menu from "@lucide/svelte/icons/menu";
@@ -23,6 +19,7 @@
   import { startLive } from "$lib/live";
   import { trackUnseen, unseenCount } from "$lib/today";
   import { refreshStudyDue, studyDue } from "$lib/study-state";
+  import { NOTES_PATH } from "$lib/links";
 
   let { children }: { children: Snippet } = $props();
   let paletteOpen = $state(false);
@@ -69,17 +66,17 @@
     }
   }
 
-  /** The navigation in four groups, so eight-plus links read as places, not a list. */
+  /**
+   * The navigation by what the learner does (2026-11-26): four places to work, then the helpers and settings at the
+   * bottom. Pages that used to have their own link (Graph, Canvas, the study tools, Chat, Approvals) light up the place
+   * they belong to.
+   */
   const items = [
-    { group: "Write", href: "/", label: "Notes", icon: NotebookText, match: (p: string) => p === "/" },
-    { group: "Write", href: "/canvas", label: "Canvas", icon: LayoutDashboard, match: (p: string) => p.startsWith("/canvas") },
-    { group: "Write", href: "/graph", label: "Graph", icon: Network, match: (p: string) => p.startsWith("/graph") },
-    { group: "Learn", href: "/today", label: "Today", icon: Sunrise, match: (p: string) => p.startsWith("/today") },
-    { group: "Learn", href: "/study", label: "Study", icon: GraduationCap, match: (p: string) => p.startsWith("/study") },
-    { group: "Learn", href: "/tools", label: "Tools", icon: Wrench, match: (p: string) => ["/tools", "/ask", "/gap", "/recall", "/outline", "/import", "/capture"].some((x) => p.startsWith(x)) },
-    { group: "Agents", href: "/agents", label: "Agents", icon: Bot, match: (p: string) => p.startsWith("/agents") || p.startsWith("/runs") },
-    { group: "Agents", href: "/chat", label: "Chat", icon: MessageSquare, match: (p: string) => p.startsWith("/chat") },
-    { group: "Agents", href: "/approvals", label: "Approvals", icon: ShieldCheck, match: (p: string) => p.startsWith("/approvals") },
+    { group: "Main", href: "/", label: "Today", icon: Sunrise, match: (p: string) => p === "/" || p.startsWith("/capture") },
+    { group: "Main", href: NOTES_PATH, label: "Notes", icon: NotebookText, match: (p: string) => [NOTES_PATH, "/graph", "/canvas"].some((x) => p.startsWith(x)) },
+    { group: "Main", href: "/study", label: "Study", icon: GraduationCap, match: (p: string) => ["/study", "/recall", "/outline", "/gap", "/import"].some((x) => p.startsWith(x)) },
+    { group: "Main", href: "/ask", label: "Ask", icon: MessageSquare, match: (p: string) => p.startsWith("/ask") || p.startsWith("/chat") },
+    { group: "App", href: "/agents", label: "Helpers", icon: Bot, match: (p: string) => ["/agents", "/runs", "/approvals"].some((x) => p.startsWith(x)) },
     { group: "App", href: "/settings", label: "Settings", icon: Settings, match: (p: string) => p.startsWith("/settings") },
   ];
 </script>
@@ -98,16 +95,16 @@
     {#each items as item, i (item.href)}
       {@const Icon = item.icon}
       {#if i > 0 && items[i - 1]?.group !== item.group}
-        <span class="sep" aria-hidden="true"></span>
+        <span class="sep" class:push={item.group === "App"} aria-hidden="true"></span>
       {/if}
-      <a class="rail-link" class:active={item.match(page.url.pathname)} href={item.href} aria-label={item.label} aria-current={item.match(page.url.pathname) ? "page" : undefined}>
+      <a class="rail-link" class:active={item.match(page.url.pathname)} href={item.href === "/agents" && $pendingCount > 0 ? "/approvals" : item.href} aria-label={item.label} aria-current={item.match(page.url.pathname) ? "page" : undefined}>
         <Icon size={18} strokeWidth={1.5} />
         <span class="text">{item.label}</span>
-        {#if item.href === "/approvals" && $pendingCount > 0}
+        {#if item.href === "/agents" && $pendingCount > 0}
           <span class="count" role="img" aria-label={`${$pendingCount} waiting`}><Badge tone="agent">{$pendingCount}</Badge></span>
         {:else if item.href === "/study" && $studyDue > 0}
           <span class="count" role="img" aria-label={`${$studyDue} to study`}><Badge>{$studyDue > 99 ? "99+" : $studyDue}</Badge></span>
-        {:else if item.href === "/today" && $unseenCount > 0}
+        {:else if item.href === "/" && $unseenCount > 0}
           <span class="count" role="img" aria-label={`${$unseenCount} new`}><Badge>{$unseenCount > 99 ? "99+" : $unseenCount}</Badge></span>
         {/if}
       </a>
@@ -156,7 +153,7 @@
   .mark {
     display: none;
     padding: var(--s-2) var(--s-3) var(--s-4);
-    font: var(--weight-strong) var(--type-heading-size) / var(--type-heading-lh) var(--font-ui);
+    font: var(--weight-strong) var(--type-heading-size) / var(--type-heading-lh) var(--font-prose);
     letter-spacing: var(--type-title-tracking);
   }
 
@@ -185,9 +182,13 @@
     color: var(--text);
   }
 
-  /* Groups are a gap, not a label: nine links need no headings. */
+  /* Groups are a gap, not a label. The helpers and settings sit at the bottom of the rail. */
   .sep {
     height: var(--s-3);
+  }
+
+  .sep.push {
+    flex: 1;
   }
 
   .text {
@@ -218,7 +219,7 @@
 
   .brand {
     display: none;
-    font: var(--weight-strong) var(--type-heading-size) / var(--type-heading-lh) var(--font-ui);
+    font: var(--weight-strong) var(--type-heading-size) / var(--type-heading-lh) var(--font-prose);
   }
 
   .nav-toggle {

@@ -1,4 +1,5 @@
 <script lang="ts">
+import { noteHref } from "$lib/links";
   import { onMount } from "svelte";
   import { goto } from "$app/navigation";
   import { slugify } from "@vigil/shared";
@@ -75,7 +76,7 @@
   }
 
   function openNote(id: string): void {
-    void goto(`/?note=${encodeURIComponent(id)}`);
+    void goto(noteHref(id));
   }
 
   function openNode(id: string): void {
@@ -87,7 +88,7 @@
   async function createGhost(node: GraphNodeData): Promise<void> {
     try {
       const note = await putNote(slugify(node.title) || node.id, { title: node.title, body: "" });
-      await goto(`/?note=${encodeURIComponent(note.id)}`);
+      await goto(noteHref(note.id));
     } catch (err) {
       error = err instanceof Error ? err.message : "Could not create the note";
     }
@@ -209,7 +210,7 @@
       {/if}
       {#if backlinkIds.length > 0}
         <h3>Linked from</h3>
-        <ul>{#each backlinkIds as id (id)}<li><a href={`/?note=${encodeURIComponent(id)}`}>{titleOf(id)}</a></li>{/each}</ul>
+        <ul>{#each backlinkIds as id (id)}<li><a href={noteHref(id)}>{titleOf(id)}</a></li>{/each}</ul>
       {/if}
       {#if touches.length > 0}
         <h3>Agents</h3>

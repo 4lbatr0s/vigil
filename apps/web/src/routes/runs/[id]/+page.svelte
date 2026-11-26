@@ -1,4 +1,5 @@
 <script lang="ts">
+import { noteHref } from "$lib/links";
   import { Button, Dialog, Page, Stack, Textarea } from "$lib/ui";
   import { onMount } from "svelte";
   import { page } from "$app/state";
@@ -130,7 +131,7 @@
       {#if undoError}
         <p class="error" role="alert">
           {undoError}
-          {#each noteIdsInMessage(undoError) as n (n)} <a href={`/?note=${n}`}>{n}</a>{/each}
+          {#each noteIdsInMessage(undoError) as n (n)} <a href={noteHref(n)}>{n}</a>{/each}
         </p>
       {/if}
 
@@ -152,7 +153,7 @@
         {#if run.error}<dt>Error</dt><dd class="err">{run.error}</dd>{/if}
         {#if run.touched.length > 0}
           <dt>Notes</dt>
-          <dd class="notes">{#each run.touched as n (n)}<a href={`/?note=${n}`}>{n}</a>{/each}</dd>
+          <dd class="notes">{#each run.touched as n (n)}<a href={noteHref(n)}>{n}</a>{/each}</dd>
         {/if}
       </dl>
 
@@ -168,7 +169,7 @@
               <span class="text">
                 {#if open[e.seq]}<span class="full">{e.text}</span>{:else}{p.short}{/if}
                 {#if stepStats(e)}<span class="stats">{stepStats(e)}</span>{/if}
-                {#if note}<a href={`/?note=${note}`}>open note</a>{/if}
+                {#if note}<a href={noteHref(note)}>open note</a>{/if}
                 {#if child}<a href={`/runs/${encodeURIComponent(child)}`}>open child run</a>{/if}
                 {#if p.long}
                   <button type="button" class="more" onclick={() => (open[e.seq] = !open[e.seq])} aria-expanded={open[e.seq] ?? false}>

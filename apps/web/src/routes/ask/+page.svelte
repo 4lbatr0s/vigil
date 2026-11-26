@@ -71,6 +71,9 @@
 <svelte:head><title>Ask your notes · Vigil</title></svelte:head>
 
 <Page title="Ask your notes" width="prose">
+  {#snippet actions()}
+    <Button variant="ghost" href="/chat">Chat with a helper</Button>
+  {/snippet}
   <Stack gap={6}>
     <p class="muted">Answers come only from lines of your own notes, and every claim points at the line behind it. If your notes do not cover a question, you are told so.</p>
 

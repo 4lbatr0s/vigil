@@ -1,4 +1,5 @@
 <script lang="ts">
+import { noteHref } from "$lib/links";
   import { getContext } from "svelte";
   import { NodeResizer, type NodeProps } from "@xyflow/svelte";
   import { checklistProgress, cssColor, excerpt, imageNameOf, noteIdOf, sectionOf, type CardData } from "$lib/canvas";
@@ -34,7 +35,7 @@
     <p class="title">{noteId}</p>
     <p class="hint">This note no longer exists.</p>
   {:else}
-    <a class="title nodrag" href={`/?note=${encodeURIComponent(noteId)}`} title="Open the note">{info.title}{#if part}<span class="part"> › {part}</span>{/if}</a>
+    <a class="title nodrag" href={noteHref(noteId)} title="Open the note">{info.title}{#if part}<span class="part"> › {part}</span>{/if}</a>
     <pre class="excerpt">{excerpt(shown)}</pre>
     {#if progress}
       <div class="progress" role="progressbar" aria-label="Checklist progress" aria-valuemin="0" aria-valuemax={progress.total} aria-valuenow={progress.done}>

@@ -1,4 +1,5 @@
 <script lang="ts">
+import { noteHref } from "$lib/links";
   import { goto } from "$app/navigation";
   import { slugify } from "@vigil/shared";
   import GraphCanvas from "$lib/components/graph/GraphCanvas.svelte";
@@ -64,7 +65,7 @@
     error = "";
     try {
       const note = await putNote(slugify(title) || title, { title, body: "" });
-      await goto(`/?note=${encodeURIComponent(note.id)}`);
+      await goto(noteHref(note.id));
     } catch (err) {
       error = err instanceof Error ? err.message : "Could not create the note";
     }
@@ -74,7 +75,7 @@
     if (id === null || id === noteId || id.startsWith("agent:")) return;
     const node = graph?.nodes.find((n) => n.id === id);
     if (node?.ghost) void create(node.title);
-    else void goto(`/?note=${encodeURIComponent(id)}`);
+    else void goto(noteHref(id));
   }
 </script>
 
@@ -128,7 +129,7 @@
                 {#if o.ghost}
                   <p class="ghost"><span>{o.title}</span><Button size="sm" onclick={() => void create(o.title)}>Create note</Button></p>
                 {:else}
-                  <Row title={o.title} href={`/?note=${encodeURIComponent(o.id)}`} />
+                  <Row title={o.title} href={noteHref(o.id)} />
                 {/if}
               {/each}
             </div>
@@ -138,7 +139,7 @@
             {#if links.backlinks.length === 0}<p class="muted">No other note links here yet.</p>{/if}
             <div class="rows">
               {#each links.backlinks as b (b.id)}
-                <Row title={b.title || b.id} snippet={b.snippet} href={`/?note=${encodeURIComponent(b.id)}`} wrap />
+                <Row title={b.title || b.id} snippet={b.snippet} href={noteHref(b.id)} wrap />
               {/each}
             </div>
           </section>
@@ -151,7 +152,7 @@
             {/if}
             <div class="rows">
               {#each links.mentions as m (m.id)}
-                <Row title={m.title || m.id} snippet={m.snippet} href={`/?note=${encodeURIComponent(m.id)}`} wrap />
+                <Row title={m.title || m.id} snippet={m.snippet} href={noteHref(m.id)} wrap />
               {/each}
             </div>
           </section>

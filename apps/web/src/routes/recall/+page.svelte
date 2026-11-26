@@ -1,4 +1,5 @@
 <script lang="ts">
+import { noteHref, NOTES_PATH } from "$lib/links";
   import { Button, Checkbox, Cluster, Input, Page, Row, Stack, Textarea } from "$lib/ui";
   import { onDestroy, onMount } from "svelte";
   import { page } from "$app/state";
@@ -132,7 +133,7 @@
         <p>Open a note and press Recall to start. Vigil brings it back after a day, then 3, 7 and 21 days.</p>
       {/if}
     {:else if step === "write"}
-      <p>Without looking at <a href={`/?note=${encodeURIComponent(noteId ?? "")}`} target="_blank" rel="noopener">“{title}”</a>, write everything you can remember about it. Rough is fine.</p>
+      <p>Without looking at <a href={noteHref(noteId ?? "")} target="_blank" rel="noopener">“{title}”</a>, write everything you can remember about it. Rough is fine.</p>
       {#if shaky.length > 0}
         <section class="panel" aria-labelledby="shaky-h">
           <h2 id="shaky-h">You mixed these up before</h2>
@@ -169,7 +170,7 @@
               </form>
             </Stack>
           </div>
-          <p class="muted">The checker can be wrong. Open <a href={`/?note=${encodeURIComponent(noteId ?? "")}`} target="_blank" rel="noopener">the note</a> to be sure.</p>
+          <p class="muted">The checker can be wrong. Open <a href={noteHref(noteId ?? "")} target="_blank" rel="noopener">the note</a> to be sure.</p>
         </Stack>
       </section>
       <p>How did it go?</p>
@@ -181,7 +182,7 @@
       {#if message}<p class="error" role="alert">{message}</p>{/if}
     {:else if step === "done"}
       <p>Saved. You will be asked again {next ? untilText(next.due) : "later"}.</p>
-      <div><Button variant="primary" href="/">Back to your notes</Button></div>
+      <div><Button variant="primary" href={NOTES_PATH}>Back to your notes</Button></div>
     {:else}
       <p class="error" role="alert">{message}</p>
       <div><Button href="/recall" data-sveltekit-reload="">Start again</Button></div>

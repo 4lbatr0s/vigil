@@ -1,4 +1,5 @@
 <script lang="ts">
+import { noteHref } from "$lib/links";
   import { getRelated, type RelatedNote } from "$lib/api";
 
   let { noteId, signature = "" }: { noteId: string; /** changes when notes change, to refresh the list */ signature?: string } = $props();
@@ -28,7 +29,7 @@
   <details class="related">
     <summary>Related notes <span class="count">{rows.length}</span></summary>
     <ul>
-      {#each rows as r (r.id)}<li><a href={`/?note=${encodeURIComponent(r.id)}`}>{r.title || r.id}</a></li>{/each}
+      {#each rows as r (r.id)}<li><a href={noteHref(r.id)}>{r.title || r.id}</a></li>{/each}
     </ul>
   </details>
 {/if}

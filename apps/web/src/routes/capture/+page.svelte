@@ -1,4 +1,5 @@
 <script lang="ts">
+import { noteHref, NOTES_PATH } from "$lib/links";
   import { Button, Cluster, Input, Page, Stack, Textarea } from "$lib/ui";
   import { onMount } from "svelte";
   import { page } from "$app/state";
@@ -70,7 +71,7 @@
   <Stack gap={6}>
     {#if done}
       <p>Added to your Inbox note.</p>
-      <div><Button variant="primary" href="/">Back to your notes</Button></div>
+      <div><Button variant="primary" href={NOTES_PATH}>Back to your notes</Button></div>
     {:else}
       <p class="muted">This goes to the end of your Inbox note. Edit it first if you like.</p>
       <form onsubmit={add}>
@@ -82,7 +83,7 @@
         <Stack gap={3}>
           <p class="muted">For an article or a lecture transcript. It becomes a note called "Source: ..." tagged #source, so Ask, the Wiki keeper and the Gap check can use it. Your own notes stay separate.</p>
           {#if srcId}
-            <p>Saved. <a href={`/?note=${encodeURIComponent(srcId)}`}>Open the source note</a></p>
+            <p>Saved. <a href={noteHref(srcId)}>Open the source note</a></p>
           {:else}
             <Input bind:value={srcTitle} placeholder="Title" aria-label="Source title" maxlength={120} />
             <Input bind:value={srcOrigin} placeholder="Where it is from (a link or a course), optional" aria-label="Where the source is from" maxlength={300} />

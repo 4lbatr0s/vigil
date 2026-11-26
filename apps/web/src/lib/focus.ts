@@ -1,5 +1,6 @@
 import type { Goal, RecallItem, StuckCard } from "./api";
 import { daysLeftText } from "./goals";
+import { noteHref } from "./links";
 
 export type Focus = { key: string; text: string; href: string; label: string };
 
@@ -36,6 +37,6 @@ export function startHere(i: Input): Focus[] {
   if (cards > 0 && !out.some((f) => f.key === "exam")) out.push({ key: "cards", text: `${plural(cards, "card is", "cards are")} ready to review.`, href: "/study", label: "Study" });
   if (i.stuck.length > 0) out.push({ key: "stuck", text: `${plural(i.stuck.length, "card keeps", "cards keep")} slipping: reword or split ${i.stuck.length === 1 ? "it" : "them"}.`, href: "/study", label: "See them" });
   const fresh = i.uncarded?.[0];
-  if (fresh) out.push({ key: "uncarded", text: `You wrote "${fresh.title}" recently and it has no study cards yet.`, href: `/?note=${encodeURIComponent(fresh.id)}`, label: "Make cards" });
+  if (fresh) out.push({ key: "uncarded", text: `You wrote "${fresh.title}" recently and it has no study cards yet.`, href: noteHref(fresh.id), label: "Make cards" });
   return out.slice(0, 3);
 }

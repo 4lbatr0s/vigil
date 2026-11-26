@@ -38,7 +38,7 @@ describe("startHere", () => {
   it("suggests making cards for a note written lately, after the more pressing things", () => {
     const quiet = { goals: [], recallDue: [], studyDue: 0, newOffered: 0, stuck: [], pendingApprovals: 0, titles: new Map() };
     const r = startHere({ ...quiet, uncarded: [{ id: "cells", title: "Cells" }] });
-    expect(r).toEqual([{ key: "uncarded", text: 'You wrote "Cells" recently and it has no study cards yet.', href: "/?note=cells", label: "Make cards" }]);
+    expect(r).toEqual([{ key: "uncarded", text: 'You wrote "Cells" recently and it has no study cards yet.', href: "/notes?note=cells", label: "Make cards" }]);
     expect(startHere({ ...quiet, pendingApprovals: 2, uncarded: [{ id: "cells", title: "Cells" }] }).map((f) => f.key)).toEqual(["approvals", "uncarded"]);
   });
 });

@@ -1,4 +1,5 @@
 <script lang="ts">
+import { noteHref } from "$lib/links";
   import { Button, Cluster, Field, Input, Page, Stack, Textarea } from "$lib/ui";
   import { onDestroy } from "svelte";
   import { goto } from "$app/navigation";
@@ -70,7 +71,7 @@
     try {
       const id = freeId(slugify(name), (await listNotes()).map((n) => n.id));
       const note = await putNote(id, { title: name, body: noteBody });
-      await goto(`/?note=${encodeURIComponent(note.id)}`);
+      await goto(noteHref(note.id));
     } catch (err) {
       message = err instanceof ApiError ? err.detail : err instanceof Error ? err.message : "Could not save the note";
     } finally {

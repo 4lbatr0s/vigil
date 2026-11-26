@@ -1,4 +1,5 @@
 <script lang="ts">
+import { noteHref } from "$lib/links";
   import type { Passage } from "$lib/api";
   import type { Part } from "$lib/citations";
 
@@ -18,7 +19,7 @@
 
 <p class="answer" class:pre={preserveLines}>
   {#each parts as part}
-    {#if part.kind === "text"}{part.text}{:else if part.passage}<a class="cite" href={`/?note=${encodeURIComponent(part.passage.noteId)}&line=${part.passage.line}`} aria-label={`${part.passage.title}, line ${part.passage.line}`}>{part.n}</a>{:else}<span class="cite bad" aria-label="This mark points at no line">{part.n}</span>{/if}
+    {#if part.kind === "text"}{part.text}{:else if part.passage}<a class="cite" href={noteHref(part.passage.noteId, part.passage.line)} aria-label={`${part.passage.title}, line ${part.passage.line}`}>{part.n}</a>{:else}<span class="cite bad" aria-label="This mark points at no line">{part.n}</span>{/if}
   {/each}
 </p>
 {#if warning}<p class="warn" role="note">{warning}</p>{/if}
@@ -27,7 +28,7 @@
   <ol class="sources">
     {#each used as p (p.n)}
       <li value={p.n}>
-        <a href={`/?note=${encodeURIComponent(p.noteId)}&line=${p.line}`}>{p.title}</a> <span class="meta">line {p.line}</span>
+        <a href={noteHref(p.noteId, p.line)}>{p.title}</a> <span class="meta">line {p.line}</span>
         <blockquote>{p.text}</blockquote>
       </li>
     {/each}

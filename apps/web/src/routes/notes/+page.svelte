@@ -1,0 +1,728 @@
+<script lang="ts">
+import { noteHref, NOTES_PATH } from "$lib/links";
+  import { onMount, untrack } from "svelte";
+  import { goto, replaceState } from "$app/navigation";
+  import { page } from "$app/state";
+  import { slugify, type Note, type NoteSummary } from "@vigil/shared";
+  import { createCanvas, getNote, getStudyStats, saveCanvas, listApprovals, listNotes, listPins, listRuns, pinNote, putNote, unpinNote, type ApprovalItem, type StudyStats } from "$lib/api";
+  import { SIZES, noteFile } from "$lib/canvas";
+  import { outlineToBoard } from "$lib/canvas-layout";
+  import { newAgentNotes } from "$lib/notes-poll";
+  import { refreshOnLive } from "$lib/live";
+  import NoteList from "$lib/components/NoteList.svelte";
+  import Backlinks from "$lib/components/Backlinks.svelte";
+  import RelatedNotes from "$lib/components/RelatedNotes.svelte";
+  import RenameNote from "$lib/components/RenameNote.svelte";
+  import DeleteNote from "$lib/components/DeleteNote.svelte";
+  import { nextAfterDelete } from "$lib/after-delete";
+  import { dailyNote, parseDay } from "$lib/daily";
+  import { fromTemplate, templateById } from "$lib/note-templates";
+  import { WELCOME_BODY, WELCOME_ID, WELCOME_TITLE } from "$lib/welcome";
+  import PanelLeft from "@lucide/svelte/icons/panel-left";
+  import type { Run } from "@vigil/shared";
+  import AskAgent from "$lib/components/AskAgent.svelte";
+  import CardMaker from "$lib/components/CardMaker.svelte";
+  import StudyWith from "$lib/components/StudyWith.svelte";
+  import Ellipsis from "@lucide/svelte/icons/ellipsis";
+  import Network from "@lucide/svelte/icons/network";
+  import { Button, EmptyState, IconButton, Menu } from "$lib/ui";
+  import NoteActivity from "$lib/components/NoteActivity.svelte";
+  import ChangeReview from "$lib/components/ChangeReview.svelte";
+  import ProvenanceBar from "$lib/components/ProvenanceBar.svelte";
+  import { runsForNote, undoableRun } from "$lib/note-activity";
+
+  let notes = $state<NoteSummary[]>([]);
+  let selectedId = $state<string | null>(null);
+  let draft = $state<{ title: string; body: string } | null>(null);
+  let status = $state("");
+  // A wikilink that points at no note yet: the inline "create it?" prompt.
+  let pendingCreate = $state<string | null>(null);
+  let loading = $state(true);
+  /** A line named by the address (`&line=4`), scrolled to once when that note opens. */
+  let jumpLine = $state<number | null>(null);
+  let loadError = $state("");
+  let flicker = $state(new Set<string>());
+  let pins = $state<string[]>([]);
+  // What agents did to this note, and what they are waiting to do (ProvenanceBar and NoteActivity).
+  let runs = $state<Run[]>([]);
+  let pending = $state<ApprovalItem[]>([]);
+  let cardStats = $state<StudyStats | null>(null);
+  /** The Connections panel beside the note (remembered per browser). */
+  let connectionsOpen = $state((() => {
+    try {
+      return localStorage.getItem("vigil.connections") === "1";
+    } catch {
+      return false;
+    }
+  })());
+  function toggleConnections(): void {
+    connectionsOpen = !connectionsOpen;
+    try {
+      localStorage.setItem("vigil.connections", connectionsOpen ? "1" : "0");
+    } catch {
+      // A blocked store only means the choice is not remembered.
+    }
+  }
+  let createOpen = $state(false);
+  let renameOpen = $state(false);
+  let deleteOpen = $state(false);
+  let askOpen = $state(false);
+  let cardsOpen = $state(false);
+  let studyOpen = $state(false);
+  /** Bumped when the note changed on disk behind the editor, so the editor is rebuilt from the saved text. */
+  let reloadKey = $state(0);
+  /** The run whose changes are being reviewed hunk by hunk, for the open note only. */
+  let review = $state<{ runId: string; noteId: string; agent: string } | null>(null);
+  let askSelection = $state<string | null>(null);
+  const current = $derived(notes.find((n) => n.id === selectedId));
+  const noteRuns = $derived(selectedId ? runsForNote(runs, selectedId) : []);
+  const writerRun = $derived(selectedId && current?.author === "agent" ? undoableRun(runs, selectedId, current.agentName) : null);
+  const pendingHere = $derived(pending.filter((p) => p.noteId === selectedId));
+
+  async function loadActivity(): Promise<void> {
+    try {
+      const id = selectedId;
+      [runs, pending, cardStats] = await Promise.all([listRuns({ limit: 100 }), listApprovals("pending"), id ? getStudyStats(id) : Promise.resolve(null)]);
+    } catch {
+      // The panels keep what they had; the next poll tries again.
+    }
+  }
+
+  /** After "Undo this run": the note on disk changed, so reload it and the lists. */
+  async function onUndone(): Promise<void> {
+    await pollNotes();
+    if (selectedId) await select(selectedId);
+    reloadKey += 1;
+  }
+
+  /** After cards were saved into the note from the review panel. */
+  async function onCardsSaved(): Promise<void> {
+    await pollNotes();
+    if (selectedId) await select(selectedId);
+    reloadKey += 1;
+  }
+  // The title field: edited in place, saved on Enter or when it loses focus (Escape puts the old title back).
+  let titleValue = $state("");
+  let titleFocused = $state(false);
+  $effect(() => {
+    titleValue = draft?.title ?? "";
+  });
+  const words = $derived.by(() => {
+    const text = draft?.body.trim() ?? "";
+    return text === "" ? 0 : text.split(/\s+/).length;
+  });
+
+  async function commitTitle(): Promise<void> {
+    if (!draft || !selectedId) return;
+    const next = titleValue.trim();
+    if (next === "" || next === draft.title) {
+      titleValue = draft.title;
+      return;
+    }
+    draft.title = next;
+    await persist(selectedId, draft.body);
+  }
+  /** Below 1024px the list is a slide-over (ADR-0016); this says whether it is open. */
+  let listOpen = $state(false);
+
+  let dirty = false;
+  // The updatedAt this editor last saw; sent with every save so a newer change is never overwritten.
+  let baseUpdatedAt: string | undefined;
+
+  async function pollNotes(): Promise<void> {
+    try {
+      const next = await listNotes();
+      const landed = newAgentNotes(notes, next);
+      notes = next;
+      void loadActivity();
+      if (landed.length > 0) {
+        flicker = new Set(landed);
+        setTimeout(() => (flicker = new Set()), 700);
+      }
+    } catch {
+      // Keep the list we have; the next poll tries again.
+    }
+  }
+
+  onMount(() => {
+    // Start polling only after the first load, so opening the page never flickers.
+    let stop: (() => void) | undefined;
+    void (async () => {
+      try {
+        [notes, pins] = await Promise.all([listNotes(), listPins().catch(() => [] as string[])]);
+        // The address wins over "newest first" when it names a note.
+        const asked = page.url.searchParams.get("note");
+        const target = asked ?? notes[0]?.id;
+        if (target) await select(target);
+        // On a phone or a narrow window a notes app opens to its list, unless the address names a note.
+        if (!asked && window.matchMedia("(max-width: 1023px)").matches) listOpen = true;
+      } catch (err) {
+        loadError = err instanceof Error ? err.message : "Could not load notes";
+      } finally {
+        loading = false;
+        stop = refreshOnLive(pollNotes, ["note"], 5000);
+      }
+    })();
+    return () => stop?.();
+  });
+
+  // The command palette and run viewer link here: /?note=<id> opens a note, /?new=1 focuses the new-note box.
+  $effect(() => {
+    // Runs when the address changes, not when the selection does (select() updates the address itself).
+    const wanted = page.url.searchParams.get("note");
+    untrack(() => {
+      if (wanted && !loading && wanted !== selectedId) void select(wanted);
+    });
+  });
+  // /?daily=1 (or a day such as /?daily=2026-11-17) opens that day's note and creates it first when it does not exist yet.
+  $effect(() => {
+    const asked = page.url.searchParams.get("daily");
+    const day = asked === "1" ? new Date() : asked ? parseDay(asked) : null;
+    if (!day || loading) return;
+    untrack(() => {
+      const { id, title } = dailyNote(day);
+      void (async () => {
+        try {
+          if (!notes.some((n) => n.id === id)) onCreated(await putNote(id, { title, body: "" }));
+          else await select(id);
+        } catch (err) {
+          status = err instanceof Error ? err.message : "Could not open today's note";
+        }
+      })();
+    });
+  });
+  // /?template=lecture starts a note from a template (and opens it if today's already exists).
+  $effect(() => {
+    const wanted = page.url.searchParams.get("template");
+    const template = wanted ? templateById(wanted) : undefined;
+    if (!template || loading) return;
+    untrack(() => {
+      const { id, title, body } = fromTemplate(template);
+      void (async () => {
+        try {
+          if (!notes.some((n) => n.id === id)) onCreated(await putNote(id, { title, body }));
+          else await select(id);
+        } catch (err) {
+          status = err instanceof Error ? err.message : "Could not start the note";
+        }
+      })();
+    });
+  });
+  $effect(() => {
+    if (page.url.searchParams.get("new") === "1" && !loading) {
+      createOpen = true;
+    }
+  });
+
+  async function select(id: string): Promise<void> {
+    dirty = false;
+    try {
+      const note = await getNote(id);
+      selectedId = note.id;
+      listOpen = false;
+      void loadActivity();
+      draft = { title: note.title, body: note.body };
+      baseUpdatedAt = note.updatedAt;
+      const wantedLine = Number(page.url.searchParams.get("line"));
+      jumpLine = Number.isInteger(wantedLine) && wantedLine > 0 && page.url.searchParams.get("note") === note.id ? wantedLine : null;
+      // Keep the address in step with the open note, so a reload or a copied link opens the same one.
+      if (page.url.searchParams.get("note") !== note.id) replaceState(noteHref(note.id), {});
+    } catch (err) {
+      status = err instanceof Error ? err.message : "Could not open note";
+    }
+  }
+
+  async function persist(id: string, body: string): Promise<void> {
+    if (!draft) return;
+    try {
+      const note = await putNote(id, { title: draft.title, body, baseUpdatedAt });
+      notes = notes.map((n) => (n.id === note.id ? note : n));
+      baseUpdatedAt = note.updatedAt;
+      dirty = false;
+      status = `saved ${new Date(note.updatedAt).toTimeString().slice(0, 8)}`;
+    } catch (err) {
+      status = err instanceof Error ? err.message : "save failed";
+    }
+  }
+
+  // Autosave: debounce 1000ms after the body changes.
+  $effect(() => {
+    const id = selectedId;
+    const body = draft?.body;
+    if (!id || body === undefined) return;
+    if (!dirty) return;
+    const timer = setTimeout(() => {
+      if (dirty) void persist(id, body);
+    }, 1000);
+    return () => clearTimeout(timer);
+  });
+
+  function onDocChange(next: string) {
+    if (!draft) return;
+    draft.body = next;
+    dirty = true;
+  }
+
+  async function saveNow(): Promise<void> {
+    if (!selectedId || !draft) return;
+    await persist(selectedId, draft.body);
+  }
+
+  function onKeydown(event: KeyboardEvent) {
+    if (event.key === "Escape" && listOpen) listOpen = false;
+    if (!event.defaultPrevented && (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "j" && draft) {
+      event.preventDefault();
+      askSelection = null;
+      askOpen = true;
+    }
+    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") {
+      event.preventDefault();
+      void saveNow();
+    }
+  }
+
+  /** Cmd/Ctrl+click on [[Title]]: open that note, or ask before creating it. */
+  async function openWikilink(title: string): Promise<void> {
+    const id = slugify(title);
+    if (id === "") return;
+    if (notes.some((n) => n.id === id)) {
+      pendingCreate = null;
+      await select(id);
+    } else {
+      pendingCreate = title;
+    }
+  }
+
+  /** From an empty vault: a sample note that teaches by example. */
+  async function createWelcome(): Promise<void> {
+    try {
+      onCreated(await putNote(WELCOME_ID, { title: WELCOME_TITLE, body: WELCOME_BODY }));
+    } catch (err) {
+      status = err instanceof Error ? err.message : "Could not create the sample note";
+    }
+  }
+
+  async function createPending(): Promise<void> {
+    const title = pendingCreate;
+    pendingCreate = null;
+    if (!title) return;
+    try {
+      const note = await putNote(slugify(title), { title, body: "" });
+      onCreated(note);
+    } catch (err) {
+      status = err instanceof Error ? err.message : "Could not create the note";
+    }
+  }
+
+  /** After a rename the id changed: refresh the list and open the note under its new id. */
+  async function onRenamed(note: Note): Promise<void> {
+    try {
+      notes = await listNotes();
+    } catch {
+      // The poll refreshes the list shortly; opening the renamed note below still works.
+    }
+    await select(note.id);
+  }
+
+  /** After a delete: drop it from the list and open the next note, or show the empty state. */
+  /** A new canvas board that already holds this note as a card, opened for you. */
+  async function openAsCanvas(): Promise<void> {
+    if (!draft || !selectedId) return;
+    try {
+      const made = await createCanvas(draft.title);
+      await saveCanvas(made.id, { nodes: [{ id: "note1", type: "file", x: 0, y: 0, width: SIZES.file.width, height: SIZES.file.height, file: noteFile(selectedId) }], edges: [] }, made.updatedAt);
+      await goto(`/canvas/${encodeURIComponent(made.id)}`);
+    } catch (err) {
+      status = err instanceof Error ? err.message : "Could not make a canvas";
+    }
+  }
+
+  /** The note's headings as a map: the note on the left, one card per heading, arrows from each heading's parent. */
+  async function openAsMap(): Promise<void> {
+    if (!draft || !selectedId) return;
+    try {
+      const made = await createCanvas(`${draft.title} map`);
+      await saveCanvas(made.id, outlineToBoard(selectedId, draft.body), made.updatedAt);
+      await goto(`/canvas/${encodeURIComponent(made.id)}`);
+    } catch (err) {
+      status = err instanceof Error ? err.message : "Could not make a map";
+    }
+  }
+
+  async function onDeleted(id: string): Promise<void> {
+    const next = nextAfterDelete(notes.map((n) => n.id), id);
+    notes = notes.filter((n) => n.id !== id);
+    if (next) {
+      await select(next);
+    } else {
+      selectedId = null;
+      draft = null;
+      replaceState(NOTES_PATH, {});
+    }
+  }
+
+  async function togglePin(id: string, pinned: boolean): Promise<void> {
+    const before = pins;
+    pins = pinned ? [id, ...pins.filter((p) => p !== id)] : pins.filter((p) => p !== id); // show it at once
+    try {
+      pins = pinned ? await pinNote(id) : await unpinNote(id);
+    } catch (err) {
+      pins = before;
+      status = err instanceof Error ? err.message : "Could not change the pin";
+    }
+  }
+
+  function onCreated(note: Note) {
+    notes = [note, ...notes.filter((n) => n.id !== note.id)];
+    void select(note.id);
+  }
+</script>
+
+<svelte:window onkeydown={onKeydown} />
+
+<div class="app" class:with-panel={connectionsOpen && draft !== null}>
+  {#if listOpen}
+    <button type="button" class="scrim" aria-label="Close the notes list" onclick={() => (listOpen = false)}></button>
+  {/if}
+  <div class="listpane" class:open={listOpen}>
+    <NoteList {notes} {pins} {selectedId} {flicker} bind:createOpen onselect={(id) => void select(id)} oncreated={onCreated} ontogglepin={(id, on) => void togglePin(id, on)} />
+  </div>
+
+  <main class="main">
+    {#if loadError}
+      <p class="notice">{loadError}</p>
+    {:else if loading}
+      <p class="notice">Loading…</p>
+    {:else if !draft}
+      <div class="blank">
+        <span class="list-toggle"><Button variant="ghost" onclick={() => (listOpen = true)}>{#snippet icon()}<PanelLeft size={16} strokeWidth={1.5} />{/snippet}Notes</Button></span>
+        {#if notes.length === 0}
+          <EmptyState title="No notes yet. Write one, or start from a sample.">
+            {#snippet action()}
+              <span class="cta">
+                <Button variant="primary" onclick={() => (createOpen = true)}>New note</Button>
+                <Button onclick={() => void createWelcome()}>Add a sample note</Button>
+              </span>
+            {/snippet}
+          </EmptyState>
+        {:else}
+          <EmptyState title="Pick a note from the list, or press ⌘K to find one." />
+        {/if}
+      </div>
+    {:else}
+      <header class="head">
+        <span class="list-toggle"><Button variant="ghost" aria-label="Show the notes list" onclick={() => (listOpen = true)}>{#snippet icon()}<PanelLeft size={16} strokeWidth={1.5} />{/snippet}Notes</Button></span>
+        <span class="grow"></span>
+        <IconButton label="Connections" pressed={connectionsOpen} onclick={toggleConnections}><Network size={16} strokeWidth={1.5} /></IconButton>
+        <Button onclick={() => (studyOpen = true)}>Study</Button>
+        <Menu
+          label="More actions for this note"
+          items={[
+            { label: "Make cards", onselect: () => (cardsOpen = true) },
+            { label: "Recall check", onselect: () => void goto(`/recall?note=${encodeURIComponent(selectedId ?? "")}`) },
+            { label: "Put on a canvas", onselect: () => void openAsCanvas() },
+            { label: "Turn headings into a map", onselect: () => void openAsMap() },
+            { kind: "separator" },
+            { label: "Rename", onselect: () => (renameOpen = true) },
+            { label: "Delete", danger: true, onselect: () => (deleteOpen = true) },
+          ]}
+        >
+          {#snippet trigger({ props })}
+            <IconButton label="More actions for this note" {...props}><Ellipsis size={16} strokeWidth={1.5} /></IconButton>
+          {/snippet}
+        </Menu>
+      </header>
+
+      <ProvenanceBar agentName={current?.author === "agent" ? current.agentName : undefined} writtenAt={current?.updatedAt} run={writerRun} pending={pendingHere} onundone={() => void onUndone()} onreview={() => (review = writerRun && selectedId ? { runId: writerRun.id, noteId: selectedId, agent: current?.agentName ?? "The agent" } : null)} />
+      {#if review && review.noteId === selectedId}
+        <ChangeReview runId={review.runId} noteId={review.noteId} agentName={review.agent} onclose={() => (review = null)} onchanged={() => void onUndone()} />
+      {/if}
+
+      {#if pendingCreate}
+        <div class="prompt" role="alertdialog" aria-label="Create note">
+          <span>No note called “{pendingCreate}” yet. Create it?</span>
+          <Button variant="primary" size="sm" onclick={() => void createPending()}>Create note</Button>
+          <Button variant="ghost" size="sm" onclick={() => (pendingCreate = null)}>Cancel</Button>
+        </div>
+      {/if}
+
+      <div class="panes">
+        <section class="pane editor-pane">
+          <div class="doc">
+            <input
+              class="title"
+              type="text"
+              aria-label="Note title"
+              aria-describedby={titleFocused ? "title-hint" : undefined}
+              bind:value={titleValue}
+              onfocus={() => (titleFocused = true)}
+              onblur={() => ((titleFocused = false), void commitTitle())}
+              onkeydown={(e) => {
+                if (e.key === "Enter") e.currentTarget.blur();
+                else if (e.key === "Escape") {
+                  titleValue = draft?.title ?? "";
+                  e.currentTarget.blur();
+                }
+              }}
+            />
+            {#if titleFocused}
+              <p class="title-hint" id="title-hint">The file name stays the same. Use Rename to change it.</p>
+            {/if}
+          <!-- The editor is the heavy part: load it after the shell and list. -->
+          {#await import("$lib/components/NoteEditor.svelte") then { default: NoteEditor }}
+            {#key reloadKey}<NoteEditor value={draft.body} noteId={selectedId ?? ""} onDocChange={onDocChange} onOpenWikilink={(t) => void openWikilink(t)} getTitles={() => notes.map((n) => n.title)} getTitle={() => draft?.title} onProblem={(m) => (status = m)} onAsk={(sel) => ((askSelection = sel), (askOpen = true))} {jumpLine} />{/key}
+          {/await}
+          </div>
+        </section>
+      </div>
+
+      <NoteActivity runs={noteRuns} />
+      <Backlinks noteId={selectedId ?? ""} signature={notes.map((n) => n.updatedAt).join("|")} />
+      <RelatedNotes noteId={selectedId ?? ""} signature={notes.map((n) => n.updatedAt).join("|")} />
+
+      <footer class="status">
+        <span class="path">{words} {words === 1 ? "word" : "words"}{#if cardStats && cardStats.total > 0}{" · "}<a class="cards-link" href={`/study?note=${encodeURIComponent(selectedId ?? "")}`}>{cardStats.total} {cardStats.total === 1 ? "card" : "cards"}{cardStats.due + cardStats.new > 0 ? `, ${cardStats.due + cardStats.new} to study` : ""}</a>{/if}</span>
+        <span class="state">{status}</span>
+      </footer>
+    {/if}
+  </main>
+
+  {#if connectionsOpen && draft && selectedId}
+    <div class="panelpane">
+      <!-- The graph libraries are heavy: load them only when the panel is opened. -->
+      {#await import("$lib/components/ConnectionsPanel.svelte") then { default: ConnectionsPanel }}
+        <ConnectionsPanel noteId={selectedId} signature={notes.map((n) => n.updatedAt).join("|")} onclose={toggleConnections} />
+      {/await}
+    </div>
+  {/if}
+</div>
+
+{#if draft && selectedId}
+  <StudyWith bind:open={studyOpen} noteId={selectedId} title={draft.title} />
+  <CardMaker bind:open={cardsOpen} noteId={selectedId} onsaved={() => void onCardsSaved()} />
+  <AskAgent bind:open={askOpen} noteId={selectedId} title={draft.title} selection={askSelection} />
+  <RenameNote noteId={selectedId} title={draft.title} bind:open={renameOpen} onrenamed={onRenamed} />
+  <DeleteNote noteId={selectedId} title={draft.title} bind:open={deleteOpen} ondeleted={onDeleted} />
+{/if}
+
+<style>
+  .app {
+    position: relative;
+    display: grid;
+    grid-template-columns: var(--sidebar-width) 1fr;
+    height: 100%;
+  }
+
+  .listpane {
+    min-width: 0;
+    min-height: 0;
+    background: var(--paper);
+  }
+
+  .app.with-panel {
+    grid-template-columns: var(--sidebar-width) 1fr 340px;
+  }
+
+  .panelpane {
+    min-width: 0;
+    min-height: 0;
+    height: 100%;
+  }
+
+  /* Narrower than a wide screen the panel floats over the note instead of squeezing it. */
+  @media (max-width: 1279px) {
+    .app.with-panel {
+      grid-template-columns: var(--sidebar-width) 1fr;
+    }
+    .panelpane {
+      position: absolute;
+      inset: 0 0 0 auto;
+      z-index: 8;
+      width: min(360px, 100%);
+      box-shadow: var(--elev-float);
+    }
+  }
+
+  @media (max-width: 1023px) {
+    .app.with-panel {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  .scrim,
+  .list-toggle {
+    display: none;
+  }
+
+  .main {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    height: 100%;
+    min-height: 0;
+    background: var(--paper);
+  }
+
+  .blank {
+    align-self: center;
+    padding: var(--s-6);
+    max-width: 36ch;
+    margin: auto;
+  }
+
+  .cta {
+    display: inline-flex;
+    gap: var(--s-2);
+  }
+
+  .notice {
+    margin: auto;
+    color: var(--text-2);
+    font: var(--weight-regular) var(--type-ui-size) / var(--type-ui-lh) var(--font-ui);
+  }
+
+  .head {
+    display: flex;
+    align-items: center;
+    gap: var(--s-2);
+    padding: var(--s-2) var(--s-6);
+  }
+
+  .grow {
+    flex: 1;
+  }
+
+  /* The title is the page heading: large, no box, editable in place. */
+  .title {
+    display: block;
+    width: calc(100% + 2 * var(--s-2));
+    min-width: 0;
+    padding: var(--s-1) var(--s-2);
+    margin: var(--s-6) calc(-1 * var(--s-2)) var(--s-3);
+    border: 0;
+    border-radius: var(--r-control);
+    background: none;
+    font: var(--weight-strong) var(--type-title-size) / var(--type-title-lh) var(--font-prose);
+    letter-spacing: var(--type-title-tracking);
+    color: var(--text);
+  }
+
+  .title::placeholder {
+    color: var(--text-3);
+  }
+
+  .title:hover {
+    background: var(--fill-hover);
+  }
+
+  .title:focus-visible {
+    outline: none;
+    background: var(--fill-hover);
+    box-shadow: 0 0 0 3px var(--select-wash);
+  }
+
+  .doc {
+    width: 100%;
+    max-width: var(--measure);
+    margin: 0 auto;
+  }
+
+  .title-hint {
+    margin: 0 0 var(--s-2);
+    color: var(--text-3);
+    font: var(--weight-regular) var(--type-meta-size) / var(--type-meta-lh) var(--font-ui);
+  }
+
+  .panes {
+    display: grid;
+    grid-template-columns: 1fr;
+    flex: 1;
+    min-height: 0;
+  }
+
+  .prompt {
+    display: flex;
+    align-items: center;
+    gap: var(--s-3);
+    margin: 0 var(--s-6);
+    padding: var(--s-2) var(--s-3);
+    border-radius: var(--r-control);
+    background: var(--fill-hover);
+    font: var(--weight-regular) var(--type-ui-size) / var(--type-ui-lh) var(--font-ui);
+  }
+
+  .pane {
+    min-width: 0;
+    overflow: auto;
+    padding: var(--s-6);
+  }
+
+  /* Room on the left for the block handle that appears beside the line you point at. */
+  @media (min-width: 1024px) {
+    .editor-pane {
+      padding-left: calc(var(--s-12) + var(--s-8));
+    }
+  }
+
+  .status {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--s-2) var(--s-6);
+    color: var(--text-3);
+    font: var(--weight-regular) var(--type-meta-size) / var(--type-meta-lh) var(--font-ui);
+  }
+
+  .cards-link {
+    color: var(--text-2);
+    text-underline-offset: 2px;
+  }
+
+  /* Below 1024px the list is a slide-over; the Notes button opens it. */
+  @media (max-width: 1023px) {
+    .app {
+      grid-template-columns: 1fr;
+    }
+    .listpane {
+      position: absolute;
+      inset: 0 auto 0 0;
+      z-index: 10;
+      width: min(var(--sidebar-width), 88vw);
+      transform: translateX(-100%);
+      visibility: hidden;
+      transition: transform var(--dur-base) var(--ease-out), visibility 0s linear var(--dur-base);
+      box-shadow: var(--elev-overlay);
+    }
+    .listpane.open {
+      transform: none;
+      visibility: visible;
+      transition: transform var(--dur-base) var(--ease-out);
+    }
+    .scrim {
+      display: block;
+      position: absolute;
+      inset: 0;
+      z-index: 9;
+      background: var(--scrim);
+    }
+    .list-toggle {
+      display: inline-flex;
+    }
+    .pane {
+      padding: var(--s-4);
+    }
+  }
+
+  @media (max-width: 639px) {
+    .listpane {
+      width: 100%;
+    }
+    .head {
+      padding: var(--s-2) var(--s-4);
+    }
+    .status {
+      padding: var(--s-2) var(--s-4);
+      padding-bottom: calc(var(--s-2) + env(safe-area-inset-bottom));
+    }
+  }
+</style>

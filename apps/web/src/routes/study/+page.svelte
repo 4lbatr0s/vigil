@@ -1,4 +1,5 @@
 <script lang="ts">
+import { noteHref, NOTES_PATH } from "$lib/links";
   import ExamDates from "$lib/components/ExamDates.svelte";
   import { Button, Cluster, Kbd, Page, Row, Stack, Switch, Textarea } from "$lib/ui";
   import { onMount, tick } from "svelte";
@@ -167,7 +168,7 @@
           <p class="muted">No cards are due.</p>
         {/if}
         {#if before && lastAnswer}<p class="muted">Last answer: {lastAnswer}. <button type="button" class="linkbtn" onclick={() => void undo()}>Take it back</button> <Kbd keys={inUndoBox ? `${modKey} Z` : "Z"} /></p>{/if}
-        <div><Button href="/">Back to your notes</Button></div>
+        <div><Button href={NOTES_PATH}>Back to your notes</Button></div>
       </section>
     {:else if card}
       <div class="stage" tabindex="-1" bind:this={stage}>
@@ -198,16 +199,22 @@
           <aside class="stuck" aria-label="This card keeps slipping">
             <p><strong>This one keeps slipping.</strong> You have forgotten it {card.lapses} times. A card that is hard to hold usually needs rewording or splitting.</p>
             {#each lintCard(card) as h (h.code)}<p class="muted">{h.message}</p>{/each}
-            <p><a href={`/?note=${encodeURIComponent(card.noteId)}`}>Open the note to rewrite it</a></p>
+            <p><a href={noteHref(card.noteId)}>Open the note to rewrite it</a></p>
           </aside>
         {/if}
-        <p class="source"><a href={`/?note=${encodeURIComponent(card.noteId)}`}>From {card.noteId}</a></p>
+        <p class="source"><a href={noteHref(card.noteId)}>From {card.noteId}</a></p>
       </div>
     {/if}
 
     <Cluster gap={2}>
       <Button variant="ghost" size="sm" href={`/api/study/export${noteId ? `?note=${encodeURIComponent(noteId)}` : ""}`} download>Download cards for Anki</Button>
       <Button variant="ghost" size="sm" href="/import">Import cards</Button>
+    </Cluster>
+
+    <Cluster gap={2}>
+      <Button variant="ghost" size="sm" href="/recall">Recall check</Button>
+      <Button variant="ghost" size="sm" href="/outline">Outline a text</Button>
+      <Button variant="ghost" size="sm" href="/gap">Gap check</Button>
     </Cluster>
 
     <ExamDates initialNote={noteId} onchange={() => void refreshStudyDue()} />
@@ -230,7 +237,7 @@
         <p class="muted">Rewording or splitting these usually works better than more drilling.</p>
         <div class="list">
           {#each stuck as c (c.id)}
-            <Row title={c.front} meta={`forgotten ${c.lapses} times`} href={`/?note=${encodeURIComponent(c.noteId)}`} />
+            <Row title={c.front} meta={`forgotten ${c.lapses} times`} href={noteHref(c.noteId)} />
           {/each}
         </div>
       </section>

@@ -1,4 +1,5 @@
 <script lang="ts">
+import { dailyHref } from "$lib/links";
   import { onDestroy } from "svelte";
   import { slugify, type Note, type NoteSummary } from "@vigil/shared";
   import Pin from "@lucide/svelte/icons/pin";
@@ -50,7 +51,7 @@
     }
   }
   function openDay(day: string): void {
-    void goto(`/?daily=${day}`);
+    void goto(dailyHref(day));
   }
 
   let newTitle = $state("");

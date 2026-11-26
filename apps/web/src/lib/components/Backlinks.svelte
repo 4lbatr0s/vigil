@@ -1,4 +1,5 @@
 <script lang="ts">
+import { noteHref } from "$lib/links";
   import { getBacklinks, type Backlink } from "$lib/api";
 
   let { noteId, signature = "" }: { noteId: string; /** changes when notes change, to refresh the list */ signature?: string } = $props();
@@ -37,7 +38,7 @@
     <ul>
       {#each links as l (l.id)}
         <li>
-          <a href={`/?note=${encodeURIComponent(l.id)}`}>{l.title || l.id}</a>
+          <a href={noteHref(l.id)}>{l.title || l.id}</a>
           {#if l.snippet}<span class="snippet">{l.snippet}</span>{/if}
         </li>
       {/each}

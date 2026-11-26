@@ -1,4 +1,5 @@
 <script lang="ts">
+import { noteHref } from "$lib/links";
   import { onMount, tick } from "svelte";
   import { goto } from "$app/navigation";
   import { page } from "$app/state";
@@ -260,7 +261,7 @@
       <header class="head">
         <h1>Chat with {thread.agent}</h1>
         <div class="head-actions">
-          {#if saved}<span class="muted">Saved · <a href={`/?note=${saved.id}`}>open note</a></span>{:else}<Button variant="ghost" onclick={() => void save()} disabled={messages.length === 0}>Save as note</Button>{/if}
+          {#if saved}<span class="muted">Saved · <a href={noteHref(saved.id)}>open note</a></span>{:else}<Button variant="ghost" onclick={() => void save()} disabled={messages.length === 0}>Save as note</Button>{/if}
           <Menu label="More actions for this chat" items={[{ label: "Delete chat", danger: true, onselect: () => (confirmDelete = true) }]}>
             {#snippet trigger({ props })}
               <IconButton label="More actions for this chat" {...props}><Ellipsis size={16} strokeWidth={1.5} /></IconButton>

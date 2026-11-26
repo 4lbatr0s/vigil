@@ -9,6 +9,7 @@
   import { describeTrigger, lastRunByAgent, statusDot } from "$lib/schedule";
   import { bannerFor } from "$lib/settings-form";
   import StatusDot from "$lib/components/StatusDot.svelte";
+  import { pendingCount } from "$lib/approvals-state";
   import { Badge, Button, Cluster, Dialog, EmptyState, Field, Input, Page, Row, Stack, Textarea } from "$lib/ui";
 
   let agents = $state<Agent[]>([]);
@@ -83,11 +84,12 @@
   }
 </script>
 
-<svelte:head><title>Agents · Vigil</title></svelte:head>
+<svelte:head><title>Helpers · Vigil</title></svelte:head>
 
-<Page title="Agents" width="wide">
+<Page title="Helpers" width="wide">
   {#snippet actions()}
-    <Button variant="primary" href="/agents/new">Create an agent</Button>
+    <Button variant="ghost" href="/approvals">Approvals{#if $pendingCount > 0}&nbsp;<Badge tone="agent">{$pendingCount}</Badge>{/if}</Button>
+    <Button variant="primary" href="/agents/new">Create a helper</Button>
   {/snippet}
 
   <Stack gap={8}>

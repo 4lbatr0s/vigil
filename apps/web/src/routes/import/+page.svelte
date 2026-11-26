@@ -1,4 +1,5 @@
 <script lang="ts">
+import { noteHref } from "$lib/links";
   import { Button, Field, Input, Page, Stack, Textarea } from "$lib/ui";
   import { goto } from "$app/navigation";
   import { slugify } from "@vigil/shared";
@@ -35,7 +36,7 @@
       const body = `## Cards\n\n${result.lines.join("\n\n")}\n`;
       const id = freeId(slugify(name), (await listNotes()).map((n) => n.id));
       const note = await putNote(id, { title: name, body });
-      await goto(`/?note=${encodeURIComponent(note.id)}`);
+      await goto(noteHref(note.id));
     } catch (err) {
       message = err instanceof ApiError ? err.detail : err instanceof Error ? err.message : "Could not save the note";
     } finally {
