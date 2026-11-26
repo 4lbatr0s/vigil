@@ -48,7 +48,7 @@ export function trimHistory(messages: BaseMessage[], maxChars: number = DEFAULT_
  * A turn that stopped half way (a restart, or a checkpoint from before this fix) leaves such calls, and a provider
  * rejects a request that holds one. It returns the same array when nothing is missing.
  */
-export function repairDangling(messages: BaseMessage[]): BaseMessage[] {
+export function repairDangling(messages: BaseMessage[], answer = "error: not run, the turn stopped before this call"): BaseMessage[] {
   const answered = new Set(messages.filter((m): m is ToolMessage => ToolMessage.isInstance(m)).map((m) => m.tool_call_id));
   let changed = false;
   const out: BaseMessage[] = [];
@@ -59,11 +59,14 @@ export function repairDangling(messages: BaseMessage[]): BaseMessage[] {
       const id = call.id ?? "";
       if (id !== "" && answered.has(id)) continue;
       changed = true;
-      out.push(new ToolMessage({ content: "error: not run, the turn stopped before this call", tool_call_id: id || `unnamed-${i}`, name: call.name }));
+      out.push(new ToolMessage({ content: answer, tool_call_id: id || `unnamed-${i}`, name: call.name }));
     }
   }
   return changed ? out : messages;
 }
+
+/** The answer for a tool call cut off by a server restart (ADR-0034). It may have happened, so the model must check, not repeat. */
+export const RESTART_ANSWER = "error: the server restarted while this call was running; it may or may not have happened. Read the note before writing again.";
 
 export const CLEARED_RESULT = "[old tool result cleared to save space; call the tool again if you need it]";
 

@@ -1,7 +1,7 @@
 # ADR-0011: Strict mode, the approvals queue, and the checkpointer
 
 ## Status
-Accepted (2026-11-15). Implements ADR-0004's "strict mode queues writes for approval" using the runtime chosen in ADR-0009.
+Accepted (2026-11-15). Implements ADR-0004's "strict mode queues writes for approval" using the runtime chosen in ADR-0009. Amended 2026-11-26 by [ADR-0034](0034-recover-runs-after-restart.md): runs started by a person, a schedule or a note change use the checkpointer too, and a finished run's checkpoint is deleted.
 
 ## Context
 ADR-0004 promises an optional per-agent strict mode: writes wait for the owner. LangGraph's `interrupt()` pauses a graph and resumes it with `Command({ resume })`, but a resumed node restarts from its beginning, so any side effect before the interrupt would happen twice. Pending approvals must survive a server restart.

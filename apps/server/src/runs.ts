@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { Agent, Run } from "@vigil/shared";
-import { runAgent, type AgentRunner, type RunOutcome, type TurnEvent } from "./agent-runtime";
+import { RECOVERED_EVENT, runAgent, type AgentRunner, type RunOutcome, type TurnEvent } from "./agent-runtime";
+import { getCheckpointer } from "./checkpoints";
 import { AppError } from "./errors";
 import { effectiveAgent } from "./permissions";
 import { notifyRun } from "./notify";
@@ -18,6 +19,8 @@ import {
   getRun,
   hasRunning,
   listChildRuns,
+  listEvents,
+  listRunningRunIds,
   listWaitingRunIds,
   getSnapshot,
   listSnapshots,
@@ -59,7 +62,7 @@ export function startRun(agentName: string, task?: string, trigger: Run["trigger
   assertUnderHardCap();
   assertAgentUnderDailyCap(agent.name, agent.dailyTokenCap);
   const run = createRun(randomUUID(), agent.name, agent.tokenBudget, trigger);
-  launch(run.id, agent, task ?? agent.defaultTask, undefined, images);
+  launch(run.id, agent, task ?? agent.defaultTask, { ...(images ? { images } : {}) });
   return run;
 }
 
@@ -114,8 +117,17 @@ export function cancelRun(runId: string): Run {
 }
 
 /** Runs the agent in the background. A run that stops at `waiting-approval` is not finished: it waits for the owner. */
-function launch(runId: string, agent: Agent, task: string, resume?: { decisions: Record<string, "approve" | "reject"> }, images?: { mime: string; data: string }[]): void {
+/** Runs that may continue after a restart (ADR-0034): started by a person, a schedule or a note change, with no parent. */
+function recoverable(run: Run | null): boolean {
+  return run !== null && run.parentRunId === null && (run.trigger === "manual" || run.trigger === "cron" || run.trigger === "heartbeat");
+}
+
+type LaunchOptions = { resume?: { decisions: Record<string, "approve" | "reject"> }; images?: { mime: string; data: string }[]; recover?: boolean };
+
+function launch(runId: string, agent: Agent, task: string, opts: LaunchOptions = {}): void {
+  const { resume, images, recover } = opts;
   const threadId = resume ? chatThreadForRun(runId) : null;
+  const checkpoint = recoverable(getRun(runId));
   const controller = new AbortController();
   controllers.set(runId, controller);
   const work = (async () => {
@@ -127,12 +139,17 @@ function launch(runId: string, agent: Agent, task: string, resume?: { decisions:
         makeModel: deps.makeModel,
         signal: controller.signal,
         ...(resume ? { resume } : {}),
+        ...(checkpoint ? { checkpoint: true } : {}),
+        ...(recover ? { recover: true } : {}),
         ...(images && images.length > 0 ? { images } : {}),
         ...(threadId ? { chat: { threadId, first: false } } : {}),
       });
       settle(runId, noEmptyAnswer(agent, outcome));
+      // A finished run needs its checkpoint no more; a chat thread keeps its own (it holds the conversation).
+      if (outcome.status !== "waiting-approval" && threadId === null) await dropCheckpoint(runId);
     } catch (err) {
       settleFailure(runId, err);
+      await dropCheckpoint(runId);
     } finally {
       controllers.delete(runId);
     }
@@ -190,8 +207,39 @@ export function resumeRun(runId: string): Run {
   // The budget the run started with stays; tools and limits follow the owner's settings as of now.
   const agent = { ...effectiveAgent(stored), tokenBudget: run.tokenBudget };
   setRunStatus(runId, "running");
-  launch(runId, agent, agent.defaultTask, { decisions });
+  launch(runId, agent, agent.defaultTask, { resume: { decisions } });
   return getRun(runId) as Run;
+}
+
+async function dropCheckpoint(runId: string): Promise<void> {
+  try {
+    await getCheckpointer().deleteThread(runId);
+  } catch (err) {
+    // The run is settled already; a leftover checkpoint only costs disk space.
+    console.warn(`vigil-server could not delete the checkpoint of run ${runId}: ${redact(err instanceof Error ? err.message : String(err))}`);
+  }
+}
+
+/**
+ * At start, before `markInterruptedRuns`: continue each run a restart cut off, once (ADR-0034). Child, chat and MCP runs,
+ * runs with approval rows, runs of a missing or switched-off agent, runs with no checkpoint and runs already continued
+ * once are left for `markInterruptedRuns`; pass it the returned ids so it keeps them `running`.
+ */
+export async function recoverRuns(): Promise<string[]> {
+  const recovered: string[] = [];
+  for (const id of listRunningRunIds()) {
+    const run = getRun(id);
+    if (!run || !recoverable(run) || controllers.has(id)) continue;
+    if (approvalsForRun(id).length > 0) continue;
+    if (listEvents(id).some((e) => e.kind === "stop" && e.text.startsWith(RECOVERED_EVENT))) continue;
+    const stored = getAgent(run.agent);
+    if (!stored || !stored.enabled) continue;
+    if ((await getCheckpointer().getTuple({ configurable: { thread_id: id } })) === undefined) continue;
+    // The budget the run started with stays; tools and limits follow the owner's settings as of now, like a resume.
+    launch(id, { ...effectiveAgent(stored), tokenBudget: run.tokenBudget }, stored.defaultTask, { recover: true });
+    recovered.push(id);
+  }
+  return recovered;
 }
 
 /** At start: resume runs whose approvals were all decided just before a restart or crash. Runs still waiting stay waiting. */

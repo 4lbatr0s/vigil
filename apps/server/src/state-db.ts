@@ -276,12 +276,15 @@ export function closeState(): void {
   }
 }
 
-/** Runs left `running` by a crash or restart can never finish: say so. Call once at start. */
-export function markInterruptedRuns(): number {
-  const result = open()
-    .prepare("UPDATE runs SET status = 'interrupted', finished_at = ?, error = 'server restarted during the run' WHERE status = 'running'")
-    .run(new Date().toISOString());
-  return result.changes;
+/** Runs left `running` by a crash or restart can never finish: say so. Call once at start. `keep` are runs that continue (ADR-0034). */
+export function markInterruptedRuns(keep: string[] = []): number {
+  const db = open();
+  const mark = db.prepare("UPDATE runs SET status = 'interrupted', finished_at = ?, error = 'server restarted during the run' WHERE id = ?");
+  const now = new Date().toISOString();
+  const kept = new Set(keep);
+  let changes = 0;
+  for (const id of listRunningRunIds()) if (!kept.has(id)) changes += mark.run(now, id).changes;
+  return changes;
 }
 
 // ---- agents ----
@@ -688,6 +691,11 @@ export function decideApproval(id: string, decision: "approve" | "reject"): bool
   if (res.changes === 0) return false;
   publish({ type: "approval", count: pendingApprovalCount() });
   return true;
+}
+
+/** Ids of runs left `running`, oldest first (at start these were cut off by a restart). */
+export function listRunningRunIds(): string[] {
+  return (open().prepare("SELECT id FROM runs WHERE status = 'running' ORDER BY started_at").all() as { id: string }[]).map((r) => r.id);
 }
 
 /** Runs waiting for the owner. */

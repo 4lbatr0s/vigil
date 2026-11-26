@@ -9,7 +9,7 @@ import { effectiveAgent } from "./permissions";
 import { getCheckpointer } from "./checkpoints";
 import { configVersion } from "./harness-config";
 import { cleanStateNote } from "./untrusted";
-import { MIN_BUDGET_FOR_SUMMARY, RESUMMARIZE_AFTER_CHARS, SUMMARY_MAX_TOKENS, SUMMARY_PROMPT, clearOldToolResults, droppedMessages, repairDangling, summaryNote, transcriptOf, trimHistory } from "./history";
+import { MIN_BUDGET_FOR_SUMMARY, RESUMMARIZE_AFTER_CHARS, SUMMARY_MAX_TOKENS, SUMMARY_PROMPT, clearOldToolResults, droppedMessages, repairDangling, RESTART_ANSWER, summaryNote, transcriptOf, trimHistory } from "./history";
 import { addEvent, createApproval, createRun, finishRun, getAgent, getAgentState, getChatSummary, getRun, hasRunning, putChatSummary, setTokensUsed } from "./state-db";
 import { getNote as vaultGetNote, slugify, validateId } from "./vault";
 
@@ -24,6 +24,10 @@ export type AgentRunner = (input: {
   depth?: 0 | 1;
   /** Continue a run that stopped at `waiting-approval`: the owner's decision per tool call id. */
   resume?: { decisions: Record<string, "approve" | "reject"> };
+  /** Save a checkpoint after each step under the run id, so a restart can continue the run (ADR-0034). */
+  checkpoint?: boolean;
+  /** Continue a run cut off by a server restart from its last checkpoint. No tool call runs again (ADR-0034). */
+  recover?: boolean;
   /** A chat turn: the conversation lives in the checkpoint under this thread id, so a later turn sees earlier ones. */
   chat?: { threadId: string; first: boolean };
   /** Pictures to show the model with the task (base64, no `data:` prefix). Only for a model that can see images. */
@@ -79,6 +83,9 @@ export function childWriteScope(parent: string[] | undefined, child: string[] | 
   return inside.length > 0 ? inside : null;
 }
 
+/** The run log line that marks a run continued after a restart. A run is continued only once (ADR-0034). */
+export const RECOVERED_EVENT = "continued after a server restart";
+
 /** What the tools node answers for a write the owner rejected. */
 export const REJECTED_TEXT = "error: the owner rejected this write";
 
@@ -93,9 +100,9 @@ type PendingCall = { id: string; name: string; args: Record<string, unknown> };
 const notRun = (calls: { id?: string | undefined; name: string }[], why: string): ToolMessage[] =>
   calls.map((c, i) => new ToolMessage({ content: `error: not run, ${why}`, tool_call_id: c.id || `unnamed-${i}`, name: c.name }));
 
-export const runAgent: AgentRunner = async ({ agent, task, runId, makeModel, depth = 0, resume, chat, images, signal, onEvent }) => {
+export const runAgent: AgentRunner = async ({ agent, task, runId, makeModel, depth = 0, resume, checkpoint, recover, chat, images, signal, onEvent }) => {
   // A resumed run continues its token count; it never starts from zero.
-  let used = resume ? (getRun(runId)?.tokensUsed ?? 0) : 0;
+  let used = resume || recover ? (getRun(runId)?.tokensUsed ?? 0) : 0;
   let finalText = "";
   let toolCalls = 0;
 
@@ -329,8 +336,9 @@ export const runAgent: AgentRunner = async ({ agent, task, runId, makeModel, dep
   };
 
   const builder = new StateGraph(State).addNode("agent", agentNode).addNode("tools", toolsNode).addEdge(START, "agent");
-  // Only strict runs need a checkpointer (to pause and survive a restart); the others keep the plain graph.
-  const graph = strictActive || chat
+  // Strict runs and chat need a checkpointer (to pause, and to keep a conversation); runs that can continue after a
+  // restart use it too (ADR-0034). Child runs keep the plain graph.
+  const graph = strictActive || chat || checkpoint || recover
     ? (strictActive
         ? builder.addNode("approve", approveNode).addConditionalEdges("agent", route, ["approve", "tools", END]).addEdge("approve", "tools")
         : builder.addConditionalEdges("agent", route, ["tools", END])
@@ -350,7 +358,20 @@ export const runAgent: AgentRunner = async ({ agent, task, runId, makeModel, dep
 
   try {
     let result: unknown;
-    if (resume) {
+    if (recover) {
+      // Read where the run was, then start the graph fresh from there. Re-entering the checkpoint would run the tools
+      // node that was cut off again, with every call in it, and a write could happen twice.
+      const saved = ((await graph.getState(config)).values as { messages?: BaseMessage[] }).messages ?? [];
+      if (saved.length === 0) {
+        addEvent(runId, "stop", "not continued after a server restart: no step was saved");
+        return { status: "interrupted", tokensUsed: used, error: "server restarted during the run", finalText, toolCalls };
+      }
+      await getCheckpointer().deleteThread(runId);
+      const patched = repairDangling(saved, RESTART_ANSWER);
+      const cut = patched.length - saved.length;
+      addEvent(runId, "stop", `${RECOVERED_EVENT}${cut > 0 ? ` (${cut} tool call${cut === 1 ? "" : "s"} cut off; the agent was told to check them)` : ""}`);
+      result = await graph.invoke({ messages: patched }, config);
+    } else if (resume) {
       const values = Object.values(resume.decisions);
       addEvent(runId, "stop", `resumed after the owner's decision (${values.filter((d) => d === "approve").length} approved, ${values.filter((d) => d === "reject").length} rejected)`);
       result = await graph.invoke(new Command({ resume: resume.decisions }), config);
