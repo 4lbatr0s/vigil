@@ -6,6 +6,8 @@
  *   VIGIL_LLM_PROVIDER=ollama VIGIL_LLM_MODEL=qwen3:4b pnpm --filter @vigil/server eval
  *   VIGIL_LLM_PROVIDER=anthropic VIGIL_LLM_API_KEY=... VIGIL_LLM_MODEL=... pnpm --filter @vigil/server eval --json
  * It works in a temp folder and never reads or writes your vault, notes index or saved connections.
+ * Add `--token-cap N` (or VIGIL_EVAL_TOKEN_CAP=N) to stop starting agent trials once N tokens are used; skipped trials are
+ * reported, not failed. Add `--long` for the long-read case (tens of thousands of tokens per trial).
  * Add `--save DIR` to keep the result in DIR (outside the vault) and name every case that passed in the last saved run of
  * the same suite and model and fails now; such a case fails the run. For a nightly check, for example in crontab:
  *   0 3 * * * cd ~/vigil && VIGIL_LLM_PROVIDER=ollama VIGIL_LLM_MODEL=qwen3:4b pnpm --filter @vigil/server eval --agent --trials 3 --save ~/vigil-evals
@@ -20,12 +22,17 @@ const json = process.argv.includes("--json");
 const agentMode = process.argv.includes("--agent");
 const trialsAt = process.argv.indexOf("--trials");
 const trials = trialsAt >= 0 ? Math.max(1, Number(process.argv[trialsAt + 1]) || 1) : 1;
+const capAt = process.argv.indexOf("--token-cap");
+const capText = capAt >= 0 ? process.argv[capAt + 1] : process.env.VIGIL_EVAL_TOKEN_CAP;
+const tokenCap = capText === undefined || capText === "" ? undefined : Number(capText);
+const long = process.argv.includes("--long");
 const saveAt = process.argv.indexOf("--save");
 const saveDir = saveAt >= 0 ? process.argv[saveAt + 1] : undefined;
 const stopWith = (text: string): never => {
   console.error(text);
   process.exit(2);
 };
+if (tokenCap !== undefined && !(Number.isInteger(tokenCap) && tokenCap > 0)) stopWith("--token-cap needs a whole number of tokens above 0, for example --token-cap 100000");
 if (saveAt >= 0 && (!saveDir || saveDir.startsWith("--"))) stopWith("--save needs a folder, for example --save ~/vigil-evals");
 // The owner's vault, read before the temp folders replace it: results never go into it.
 const ownerVault = process.env.VAULT_DIR ?? path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../../vault");
@@ -43,7 +50,7 @@ const { closeDb } = await import("../index-db");
 const { closeState } = await import("../state-db");
 const { ASK_CASES } = await import("./fixtures");
 const { runAgentEval } = await import("./agent-eval");
-const { AGENT_CASES } = await import("./agent-cases");
+const { AGENT_CASES, LONG_CASES } = await import("./agent-cases");
 
 /** With `--save`: compare with the last saved run, save this one, print what newly fails. Returns how many cases newly fail. */
 async function keep(now: EvalRecord): Promise<number> {
@@ -63,13 +70,15 @@ try {
   setRunDeps({ makeModel: modelFactoryFromEnv() });
   const model = process.env.VIGIL_LLM_MODEL ?? "(not set)";
   if (agentMode) {
-    if (!json) console.log(`Agent evals, ${AGENT_CASES.length} cases x ${trials} trial(s), model ${model}\n`);
-    const out = await runAgentEval({ trials, onTrial: (r) => { if (!json) console.log(`${r.pass ? "pass" : "FAIL"}  ${r.caseId.padEnd(28)} #${r.trial} ${r.status.padEnd(16)} ${r.seconds.toFixed(1).padStart(5)} s  ${r.reason}`); } });
+    const cases = long ? [...AGENT_CASES, ...LONG_CASES] : AGENT_CASES;
+    if (!json) console.log(`Agent evals, ${cases.length} cases x ${trials} trial(s), model ${model}${tokenCap ? `, token cap ${tokenCap}` : ""}\n`);
+    const out = await runAgentEval({ cases, trials, ...(tokenCap ? { tokenCap } : {}), onTrial: (r) => { if (!json) console.log(`${r.skipped ? "skip" : r.pass ? "pass" : "FAIL"}  ${r.caseId.padEnd(28)} #${r.trial} ${r.status.padEnd(16)} ${r.seconds.toFixed(1).padStart(5)} s ${String(r.tokens).padStart(7)} tok ${String(r.modelCalls).padStart(3)} calls  ${r.reason}`); } });
     await waitForRuns();
     if (json) console.log(JSON.stringify({ model, trials, summary: out.summary, results: out.results }, null, 2));
     else {
       const s = out.summary;
-      console.log(`\n${Math.round(s.trialPassRate * 100)}% of trials passed. ${s.passAllCount} of ${s.cases.length} cases passed every trial (pass^${trials}).${s.regressionFailures.length > 0 ? ` Regression failures: ${s.regressionFailures.join(", ")}.` : ""}`);
+      console.log(`\nTotal: ${s.totals.tokens} tokens, ${s.totals.modelCalls} model calls, ${s.totals.seconds.toFixed(1)} s.${s.skipped > 0 ? ` ${s.skipped} trial(s) skipped: the token cap was reached.` : ""}`);
+      console.log(`${Math.round(s.trialPassRate * 100)}% of trials passed. ${s.passAllCount} of ${s.cases.length} cases passed every trial (pass^${trials}).${s.regressionFailures.length > 0 ? ` Regression failures: ${s.regressionFailures.join(", ")}.` : ""}`);
     }
     const fresh = await keep({ at: new Date().toISOString(), suite: "agent", model, trials, cases: out.summary.cases.map((c) => ({ caseId: c.caseId, pass: c.passAll })) });
     process.exitCode = out.summary.regressionFailures.length === 0 && fresh === 0 ? 0 : 1;

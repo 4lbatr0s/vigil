@@ -2,6 +2,7 @@
 
 ## Unreleased: UI v2 (ADR-0016), then design system v3 (ADR-0029)
 
+- Evals: `--token-cap N` (or `VIGIL_EVAL_TOKEN_CAP`) keeps an agent eval run inside a token budget, each trial shows its tokens and model calls, and `--long` adds a long-reading case that shows whether facts survive when old tool results are cleared.
 - Agents: a strict agent with "Only write notes tagged" can be allowed to add to those notes without asking ("Let it add to these notes without asking", off by default). Only an addition to a note that already carries one of the tags skips Approvals; a changed or new note still waits. See the ADR-0011 amendment.
 - MCP: a named client can get a write scope when you make it ("Only write notes tagged" in Settings). It may then change only notes with one of those tags, like an agent with a write scope. See the ADR-0033 amendment.
 - Tests: a strict fake model endpoint checks that the answers Vigil makes up for tool calls that did not run (a stopped turn, a server restart) are sent in the order OpenAI and DeepSeek require, and that DeepSeek's reasoning text is kept.

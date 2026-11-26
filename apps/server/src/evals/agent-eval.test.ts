@@ -8,6 +8,7 @@ import { setRunDeps, waitForRuns } from "../runs";
 import { closeState } from "../state-db";
 import type { ModelFactory } from "../llm";
 import { runAgentEval, summarizeAgentEval, type TrialResult } from "./agent-eval";
+import { AGENT_CASES, LONG_CASES } from "./agent-cases";
 
 let root = "";
 const saved = { ...process.env };
@@ -80,12 +81,54 @@ describe("agent evals", () => {
 });
 
 describe("summarizeAgentEval", () => {
-  const r = (caseId: string, trial: number, pass: boolean, suite: TrialResult["suite"] = "regression"): TrialResult => ({ caseId, trial, suite, pass, reason: "", status: "succeeded", seconds: 0 });
+  const r = (caseId: string, trial: number, pass: boolean, suite: TrialResult["suite"] = "regression"): TrialResult => ({ caseId, trial, suite, pass, reason: "", status: "succeeded", seconds: 1, tokens: 10, modelCalls: 2 });
   it("counts pass^k per case: one failed trial means the case did not pass all", () => {
     const s = summarizeAgentEval([r("a", 1, true), r("a", 2, true), r("b", 1, true), r("b", 2, false), r("c", 1, false, "capability")]);
     expect(s.cases.map((c) => [c.caseId, c.passes, c.passAll])).toEqual([["a", 2, true], ["b", 1, false], ["c", 0, false]]);
     expect(s.passAllCount).toBe(1);
     expect(s.regressionFailures).toEqual(["b"]);
     expect(s.trialPassRate).toBeCloseTo(3 / 5);
+  });
+  it("leaves skipped trials out of every rate, and a regression case that never ran is not a failure", () => {
+    const skip = (caseId: string): TrialResult => ({ ...r(caseId, 1, false), status: "skipped", tokens: 0, modelCalls: 0, skipped: true });
+    const s = summarizeAgentEval([r("a", 1, true), skip("a"), skip("b")]);
+    expect(s.trialPassRate).toBe(1);
+    expect(s.skipped).toBe(2);
+    expect(s.regressionFailures).toEqual([]);
+    expect(s.totals).toEqual({ tokens: 10, modelCalls: 2, seconds: 1 });
+  });
+});
+
+describe("token cap and measures", () => {
+  it("reports tokens and model calls per trial, and starts no trial once the cap is reached", async () => {
+    const budgets: number[] = [];
+    const make: ModelFactory = (tools, o) => {
+      budgets.push(o.maxTokens);
+      return policy(false)(tools, o);
+    };
+    setRunDeps({ makeModel: make });
+    // The first case costs 12 tokens. The second gets only the 3 left of the cap of 15, so it stops on its budget; then the cap is spent.
+    const { results, summary } = await runAgentEval({ cases: AGENT_CASES.slice(0, 4), tokenCap: 15 });
+    expect(results.map((x) => x.status)).toEqual(["succeeded", "budget-exceeded", "skipped", "skipped"]);
+    expect(results[0]).toMatchObject({ tokens: 12, modelCalls: 2 });
+    expect(summary.skipped).toBe(2);
+    expect(summary.totals.tokens).toBe(results[0]!.tokens + results[1]!.tokens);
+    // The second trial's budget was cut to what was left of the cap.
+    expect(Math.max(...budgets.slice(2))).toBeLessThanOrEqual(15 - 12);
+  });
+
+  it("the long-read case passes for a model that reads all eight notes", async () => {
+    let n = 0;
+    setRunDeps({
+      makeModel: () => ({
+        invoke: async (m) => {
+          const results = m.filter((x) => ToolMessage.isInstance(x));
+          if (results.length < 8) return call("read_note", { id: `long-read-${results.length + 1}` }, `r${n++}`);
+          return say("AMBER, BASALT, CEDAR, DELTA, EMBER, FJORD, GRANITE, HARBOR");
+        },
+      }),
+    });
+    const { results } = await runAgentEval({ cases: LONG_CASES });
+    expect(results[0]).toMatchObject({ pass: true, modelCalls: 9 });
   });
 });

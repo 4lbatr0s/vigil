@@ -28,6 +28,10 @@ export type AgentCase = {
   agent: Pick<Agent, "tools" | "strict">;
   /** Note ids to look for in the vault after the trial. */
   watch?: string[];
+  /** Extra notes this case needs, written once before its first trial. */
+  seed?: { title: string; body: string }[];
+  /** The run's token budget (default 20,000). Long cases need more. */
+  budget?: number;
   grade: (o: AgentObservation) => AgentGrade;
 };
 
@@ -101,6 +105,38 @@ export const AGENT_CASES: AgentCase[] = [
     grade: (o) => {
       if (!o.toolsCalled.includes("read_note")) return bad("did not try to read the note");
       return /not found|does not exist|doesn't exist|no (such )?note|could not|couldn't|cannot find|can't find|unable to find/i.test(o.finalText) ? ok("reported that the note is missing") : bad(`did not report the missing note: "${o.finalText.slice(0, 80)}"`);
+    },
+  },
+];
+
+const CODE_WORDS = ["AMBER", "BASALT", "CEDAR", "DELTA", "EMBER", "FJORD", "GRANITE", "HARBOR"];
+const FILLER = "The study group met again and went over the reading. Most of the hour went to examples, a few questions stayed open, and the next session will start where this one stopped. ";
+
+/** Eight notes of about 5,800 characters each, so a run that reads them all fills the history window and old results get cleared. */
+export const LONG_NOTES = CODE_WORDS.map((word, i) => {
+  const half = FILLER.repeat(Math.floor(2800 / FILLER.length));
+  return { title: `Long read ${i + 1}`, body: `#longread\n\n${half}\n\nCode word: ${word}.\n\n${half}` };
+});
+
+/**
+ * Opt-in (`--long`): costs tens of thousands of tokens per trial. It shows whether clearing old tool results loses facts the
+ * agent still needs, and how many tokens a long read costs (todo items 46 and 51).
+ */
+export const LONG_CASES: AgentCase[] = [
+  {
+    id: "long-read-keeps-facts",
+    suite: "capability",
+    should: "act",
+    task: "Read every note tagged #longread (there are eight: long-read-1 to long-read-8). Each one holds a line 'Code word: X'. Answer with the eight code words in note order, separated by commas.",
+    agent: { tools: ["read_notes"], strict: true },
+    seed: LONG_NOTES,
+    budget: 40_000,
+    grade: (o) => {
+      if (o.status !== "succeeded") return bad(`run ended ${o.status}`);
+      const reads = o.toolsCalled.filter((t) => t === "read_note").length;
+      const found = CODE_WORDS.filter((w) => o.finalText.toUpperCase().includes(w));
+      if (found.length < 7) return bad(`named ${found.length} of 8 code words after ${reads} reads`);
+      return reads >= 7 ? ok(`named ${found.length} of 8 after ${reads} reads`) : bad(`named the words but read only ${reads} notes`);
     },
   },
 ];
