@@ -91,6 +91,24 @@ export function clearOldToolResults(messages: BaseMessage[], maxChars: number = 
   return out;
 }
 
+/** Added to the newest tool result when old results will soon be cleared (Anthropic's context editing warns the same way). */
+export const CLEAR_WARNING =
+  "[Vigil note: the conversation is getting long, so older tool results will soon be replaced by a short marker. Before you call more tools, write down in a line or two the facts from them you still need.]";
+
+/**
+ * When the history is past three quarters of `maxChars` but not yet cleared, returns a copy whose newest tool result ends
+ * with `CLEAR_WARNING`, so the model can keep what it needs in its own words. The run's messages are not changed, and the
+ * same array comes back when no warning is due.
+ */
+export function warnBeforeClearing(messages: BaseMessage[], maxChars: number = DEFAULT_HISTORY_CHARS): BaseMessage[] {
+  const total = messages.reduce((n, m) => n + size(m), 0);
+  const last = messages.at(-1);
+  if (total <= maxChars * 0.75 || !ToolMessage.isInstance(last)) return messages;
+  const content = typeof last.content === "string" ? `${last.content}\n\n${CLEAR_WARNING}` : last.content;
+  if (content === last.content) return messages;
+  return [...messages.slice(0, -1), new ToolMessage({ content, tool_call_id: last.tool_call_id, ...(last.name ? { name: last.name } : {}) })];
+}
+
 /** What `trimHistory` left out: the messages between the system message and the first kept one, oldest first. */
 export function droppedMessages(all: BaseMessage[], sent: BaseMessage[]): BaseMessage[] {
   const body = all[0] instanceof SystemMessage ? all.slice(1) : all;

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { AIMessage, HumanMessage, SystemMessage, ToolMessage } from "@langchain/core/messages";
-import { clearOldToolResults, repairDangling, trimHistory } from "./history";
+import { CLEAR_WARNING, clearOldToolResults, repairDangling, trimHistory, warnBeforeClearing } from "./history";
 
 const turn = (n: number, pad = 100) => [new HumanMessage(`q${n} ${"x".repeat(pad)}`), new AIMessage(`a${n} ${"y".repeat(pad)}`)];
 
@@ -88,5 +88,26 @@ describe("clearOldToolResults", () => {
     expect(tools[0]?.tool_call_id).toBe("t0");
     expect(String(tools[5]?.content)).toContain("result 5");
     expect(String(tools[4]?.content)).toContain("result 4");
+  });
+});
+
+describe("warnBeforeClearing", () => {
+  const big = (id: string, n: number) => [
+    new AIMessage({ content: "", tool_calls: [{ id, name: "read_note", args: { id }, type: "tool_call" }] }),
+    new ToolMessage({ content: "x".repeat(n), tool_call_id: id, name: "read_note" }),
+  ];
+  it("adds the note to the newest tool result once the history passes three quarters of the limit, and not before", () => {
+    const small = [new HumanMessage("go"), ...big("a", 100)];
+    expect(warnBeforeClearing(small, 1000)).toBe(small);
+    const near = [new HumanMessage("go"), ...big("a", 400), ...big("b", 400)];
+    const warned = warnBeforeClearing(near, 1000);
+    expect(String(warned.at(-1)?.content)).toContain(CLEAR_WARNING);
+    expect(String(warned[2]?.content)).not.toContain(CLEAR_WARNING);
+    expect(near.at(-1)?.content).toBe("x".repeat(400)); // the run's own messages are not changed
+    expect((warned.at(-1) as ToolMessage).tool_call_id).toBe("b");
+  });
+  it("does nothing when the newest message is not a tool result", () => {
+    const m = [...big("a", 900), new AIMessage("done")];
+    expect(warnBeforeClearing(m, 1000)).toBe(m);
   });
 });

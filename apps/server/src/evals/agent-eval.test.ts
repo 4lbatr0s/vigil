@@ -9,6 +9,7 @@ import { closeState } from "../state-db";
 import type { ModelFactory } from "../llm";
 import { runAgentEval, summarizeAgentEval, type TrialResult } from "./agent-eval";
 import { AGENT_CASES, LONG_CASES } from "./agent-cases";
+import { CLEAR_WARNING } from "../history";
 
 let root = "";
 const saved = { ...process.env };
@@ -117,11 +118,13 @@ describe("token cap and measures", () => {
     expect(Math.max(...budgets.slice(2))).toBeLessThanOrEqual(15 - 12);
   });
 
-  it("the long-read case passes for a model that reads all eight notes", async () => {
+  it("the long-read case passes for a model that reads all eight notes, and the model is warned before old results are cleared", async () => {
     let n = 0;
+    let warned = 0;
     setRunDeps({
       makeModel: () => ({
         invoke: async (m) => {
+          if (m.some((x) => ToolMessage.isInstance(x) && String(x.content).includes(CLEAR_WARNING))) warned += 1;
           const results = m.filter((x) => ToolMessage.isInstance(x));
           if (results.length < 8) return call("read_note", { id: `long-read-${results.length + 1}` }, `r${n++}`);
           return say("AMBER, BASALT, CEDAR, DELTA, EMBER, FJORD, GRANITE, HARBOR");
@@ -130,5 +133,6 @@ describe("token cap and measures", () => {
     });
     const { results } = await runAgentEval({ cases: LONG_CASES });
     expect(results[0]).toMatchObject({ pass: true, modelCalls: 9 });
+    expect(warned).toBeGreaterThan(0);
   });
 });

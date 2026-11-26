@@ -10,7 +10,7 @@ import { getCheckpointer } from "./checkpoints";
 import { configVersion } from "./harness-config";
 import { taintProblem } from "./taint";
 import { cleanStateNote } from "./untrusted";
-import { MIN_BUDGET_FOR_SUMMARY, RESUMMARIZE_AFTER_CHARS, SUMMARY_MAX_TOKENS, SUMMARY_PROMPT, clearOldToolResults, droppedMessages, repairDangling, RESTART_ANSWER, summaryNote, transcriptOf, trimHistory } from "./history";
+import { MIN_BUDGET_FOR_SUMMARY, RESUMMARIZE_AFTER_CHARS, SUMMARY_MAX_TOKENS, SUMMARY_PROMPT, clearOldToolResults, droppedMessages, repairDangling, RESTART_ANSWER, summaryNote, transcriptOf, trimHistory, warnBeforeClearing } from "./history";
 import { addEvent, createApproval, createRun, finishRun, getAgent, getAgentState, getChatSummary, getRun, hasRunning, putChatSummary, setTokensUsed } from "./state-db";
 import { getNote as vaultGetNote, slugify, validateId } from "./vault";
 
@@ -182,7 +182,8 @@ export const runAgent: AgentRunner = async ({ agent, task, runId, makeModel, dep
       stop = "failed";
       return {};
     }
-    let sent = trimHistory(clearOldToolResults(state.messages));
+    // Old tool results are cleared when the history is long; just before that, the model is told so it can keep what it needs.
+    let sent = trimHistory(warnBeforeClearing(clearOldToolResults(state.messages)));
     // A long chat loses its oldest turns from the prompt; a short summary of them goes in their place, made when
     // enough has slid out since the last one and the run can afford it.
     if (chat && sent.length < state.messages.length) {
