@@ -601,7 +601,7 @@
     border: 0;
     border-radius: var(--r-control);
     background: none;
-    font: var(--weight-strong) var(--type-title-size) / var(--type-title-lh) var(--font-ui);
+    font: var(--weight-strong) var(--type-title-size) / var(--type-title-lh) var(--font-prose);
     letter-spacing: var(--type-title-tracking);
     color: var(--text);
   }

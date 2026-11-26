@@ -46,7 +46,7 @@
 
   h1 {
     margin: 0;
-    font: var(--weight-strong) var(--type-title-size) / var(--type-title-lh) var(--font-ui);
+    font: var(--weight-strong) var(--type-title-size) / var(--type-title-lh) var(--font-prose);
     letter-spacing: var(--type-title-tracking);
   }
 

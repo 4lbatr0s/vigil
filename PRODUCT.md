@@ -35,7 +35,7 @@ Single-user web app served from the learner's own computer or server, installabl
 
 - Amber means agent life only (activity, authorship, pending approval). It is never decoration.
 - Warm, kind second-person voice; short plain sentences. No exclamation marks, no hype.
-- Serif for the learner's own words, grotesk for interface chrome, monospace for machine text (ADR-0005, ADR-0018). Whether this pairing survives the redesign is decided in DESIGN.md, not here.
+- Warm paper, and a serif for the learner's own words and titles; the system sans for interface chrome; monospace for machine text (ADR-0035).
 
 ## Evidence on Hand
 

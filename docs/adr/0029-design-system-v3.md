@@ -1,7 +1,7 @@
 # ADR-0029: Design system v3, "Quiet paper", built from own tokens and Bits UI
 
 ## Status
-Accepted (2026-11-22), after the owner reviewed the `/design` page and the migrated Notes screen. It supersedes the parts of ADR-0005, ADR-0016 and ADR-0018 listed below and section 0 and the controls table of `docs/design/ux-spec.md`. Every screen is migrated; `ui-lint.test.ts` now checks every `.svelte` file.
+Accepted (2026-11-22), after the owner reviewed the `/design` page and the migrated Notes screen. It supersedes the parts of ADR-0005, ADR-0016 and ADR-0018 listed below and section 0 and the controls table of `docs/design/ux-spec.md`. Every screen is migrated; `ui-lint.test.ts` now checks every `.svelte` file. Decision 4 (one system sans, the neutral palette) is superseded by ADR-0035 (2026-11-26).
 
 ## Context
 The owner finds the UI amateur and machine-made, and far from current note apps. A screenshot review (`docs/design/research/README.md`) and a code audit found:
