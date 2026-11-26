@@ -153,3 +153,11 @@ describe("extractCards", () => {
     expect(extractCards("Q2? :: A")[0]?.id).not.toBe(a[0]?.id);
   });
 });
+
+describe("agent write tags", () => {
+  it("says which characters a tag may hold when one is wrong", () => {
+    const r = AgentSchema.safeParse({ name: "a", systemPrompt: "x", writeTags: ["bad!tag"] });
+    expect(r.success).toBe(false);
+    expect(r.error?.issues[0]?.message).toBe("A tag uses only lowercase letters, digits, -, _ and /, and starts with a letter or digit");
+  });
+});

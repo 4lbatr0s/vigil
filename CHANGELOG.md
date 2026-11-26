@@ -2,6 +2,7 @@
 
 ## Unreleased: UI v2 (ADR-0016), then design system v3 (ADR-0029)
 
+- Agents: a wrong tag in "Only write notes tagged" now says which characters a tag may hold (it used to say "Use a tag without the #" for any wrong tag).
 - Runs: a run that a server restart cut off now continues where it stopped, once, instead of ending as `interrupted` (runs started by you, a schedule or a note change; not chat, MCP or child runs). A tool call that was running at the restart is never run again: the agent is told it may have happened and to check. See ADR-0034.
 - Runs: "Download as JSON Lines" on the run page (and `GET /api/runs/:id/trace`) saves the run, its child runs and every log entry as one JSON object per line, for scripts or other tools.
 - Agents: `write_note` and `append_note` refuse text that holds an API key or a bearer token, and write nothing. The agent gets a message that says to remove it.
