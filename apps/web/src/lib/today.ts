@@ -61,3 +61,14 @@ export function trackUnseen(): () => void {
     started = false;
   };
 }
+
+/** How many things wait in the Inbox note: each non-empty body line once (frontmatter left out). */
+export function inboxItems(body: string): number {
+  const text = body.startsWith("---\n") ? body.slice(body.indexOf("\n---", 4) + 4) : body;
+  return text.split("\n").filter((l) => l.trim() !== "").length;
+}
+
+/** The day in plain words for the top of Today: "Thursday, 26 November". */
+export function dateLine(now: Date = new Date()): string {
+  return now.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" }).replace(/^(\w+) /, "$1, ");
+}

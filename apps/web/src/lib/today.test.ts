@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Run } from "@vigil/shared";
 import { DEFAULT_APPEARANCE, applyAppearance, parseAppearance } from "./appearance";
-import { sinceVisit } from "./today";
+import { dateLine, inboxItems, sinceVisit } from "./today";
 
 const run = (id: string, startedAt: string, over: Partial<Run> = {}): Run => ({ id, agent: "digest", status: "succeeded", startedAt, finishedAt: null, tokensUsed: 0, tokenBudget: 1, error: null, trigger: "cron", parentRunId: null, touched: [], undone: false, ...over }) as Run;
 
@@ -32,5 +32,17 @@ describe("appearance", () => {
     applyAppearance({ theme: "system", size: "medium" }, root);
     expect(root.hasAttribute("data-theme")).toBe(false);
     expect(root.style.getPropertyValue("--text-prose")).toBe("");
+  });
+});
+
+describe("Today page helpers", () => {
+  it("counts the items waiting in the Inbox note: each non-empty line once, list markers or not", () => {
+    expect(inboxItems("")).toBe(0);
+    expect(inboxItems("- Look up Born-Haber\n\n- [ ] Lab deadline\nA loose thought\n   \n")).toBe(3);
+    expect(inboxItems("---\ntags: [inbox]\n---\n- one\n")).toBe(1);
+  });
+
+  it("names the day in plain words", () => {
+    expect(dateLine(new Date(2026, 10, 26))).toBe("Thursday, 26 November");
   });
 });
