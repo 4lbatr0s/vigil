@@ -129,6 +129,7 @@ export const createConnection = (c: ConnectionInput) => request<Connection>("/ap
 export const updateConnection = (id: string, c: ConnectionInput) => request<Connection>(`/api/connections/${seg(id)}`, json("PUT", c));
 export const deleteConnection = (id: string) => request<{ id: string }>(`/api/connections/${seg(id)}`, { method: "DELETE" });
 export const setDefaultConnection = (id: string) => request<Connection[]>("/api/connections/default", json("PUT", { id }));
+export const probeConnectionTools = (p: { connectionId: string; model?: string }) => request<{ ok: boolean; message: string }>("/api/connections/probe-tools", json("POST", p));
 export const probeConnection = (p: { kind: Connection["kind"]; baseUrl: string; apiKey?: string; connectionId?: string }) => request<ProbeResult>("/api/connections/probe", json("POST", p));
 export type ImageSettings = { agentsSeePictures: boolean };
 export const getImageSettings = () => request<ImageSettings>("/api/images/settings");
@@ -140,6 +141,11 @@ export const resolveMisconception = (id: string) => request<{ id: string }>(`/ap
 export const startGap = (source: string) => request<{ run: Run; passages: Passage[] }>("/api/gap", json("POST", { source }));
 export type McpSettings = { enabled: boolean; write: boolean };
 export const getMcpSettings = () => request<McpSettings>("/api/mcp/settings");
+export type McpClient = { id: string; name: string; createdAt: string; lastUsedAt: string | null; writeTags: string[] };
+export const listMcpClients = () => request<McpClient[]>("/api/mcp/clients");
+/** The token is in this answer only; it is never sent again. */
+export const createMcpClient = (name: string, writeTags: string[] = []) => request<McpClient & { token: string }>("/api/mcp/clients", json("POST", { name, writeTags }));
+export const revokeMcpClient = (id: string) => request<{ revoked: boolean }>(`/api/mcp/clients/${seg(id)}`, { method: "DELETE" });
 export const putMcpSettings = (s: McpSettings) => request<McpSettings>("/api/mcp/settings", json("PUT", s));
 export type MeaningStatus = { model: string | null; notes: number; embedded: number; working: boolean; error: string | null };
 export const getMeaning = () => request<MeaningStatus>("/api/settings/embeddings");
@@ -179,6 +185,11 @@ export type Schedule = {
 export const listAgents = () => request<Agent[]>("/api/agents");
 export const getAgent = (name: string) => request<Agent>(`/api/agents/${seg(name)}`);
 export const putAgent = (agent: Agent) => request<Agent>(`/api/agents/${seg(agent.name)}`, json("PUT", agent));
+export const getAgentState = (name: string) => request<{ text: string; updatedAt: string } | null>(`/api/agents/${seg(name)}/state`);
+export const clearAgentState = (name: string) => request<{ cleared: boolean }>(`/api/agents/${seg(name)}/state`, { method: "DELETE" });
+export type AgentStateVersion = { id: number; text: string; savedAt: string };
+export const getAgentStateHistory = (name: string) => request<AgentStateVersion[]>(`/api/agents/${seg(name)}/state/history`);
+export const restoreAgentState = (name: string, id: number) => request<{ text: string; updatedAt: string } | null>(`/api/agents/${seg(name)}/state/restore`, json("POST", { id }));
 export const getSchedule = (name: string) => request<Schedule>(`/api/agents/${seg(name)}/schedule`);
 export const runAgent = (name: string, task?: string) => request<Run>(`/api/agents/${seg(name)}/run`, json("POST", task === undefined ? {} : { task }));
 export const startAgentDesign = (goal: string, tools: ToolGrant[]) => request<Run>("/api/agents/design", json("POST", { goal, tools }));
@@ -200,6 +211,8 @@ export const getRun = (id: string, after?: number) =>
   request<{ run: Run; events: RunEvent[] }>(`/api/runs/${seg(id)}${after ? `?after=${after}` : ""}`);
 export const getBodyBeforeRun = (runId: string, noteId: string) => request<{ existed: boolean; body: string | null }>(`/api/runs/${seg(runId)}/before/${seg(noteId)}`);
 export const undoRun = (id: string) => request<Run>(`/api/runs/${seg(id)}/undo`, json("POST"));
+/** Stops a run that is executing. The run ends as failed with the error "cancelled". */
+export const cancelRun = (id: string) => request<Run>(`/api/runs/${seg(id)}/cancel`, json("POST"));
 
 // ---- Session ----
 
@@ -210,7 +223,22 @@ export const logout = () => request<{ ok: boolean }>("/api/logout", json("POST")
 
 // ---- Graph ----
 
-export const getGraph = () => request<import("./graph-model").GraphApi>("/api/graph");
+/** The whole vault, or with `focus` the local graph around one note (`hops` 1 to 3 links away). */
+export const getGraph = (opts: { focus?: string; hops?: number } = {}) => {
+  const q = new URLSearchParams();
+  if (opts.focus) q.set("focus", opts.focus);
+  if (opts.hops) q.set("hops", String(opts.hops));
+  const qs = q.toString();
+  return request<import("./graph-model").GraphApi>(`/api/graph${qs ? `?${qs}` : ""}`);
+};
+
+export type NoteLinks = {
+  outgoing: { id: string; title: string; ghost: boolean }[];
+  backlinks: Backlink[];
+  /** Notes that mention this note's title without linking to it. */
+  mentions: Backlink[];
+};
+export const getNoteLinks = (id: string) => request<NoteLinks>(`/api/notes/${seg(id)}/links`);
 
 // ---- Chat ----
 
@@ -263,6 +291,8 @@ export type ApprovalItem = {
   /** The note as it is on disk now; null when it does not exist. */
   currentBody: string | null;
   proposedBody: string;
+  /** For fetch_url and call_agent: the address, or the agent and its message. Empty for note writes. */
+  target: string;
   /** The note changed (or appeared) after the agent proposed this write. */
   stale: boolean;
 };
@@ -276,6 +306,15 @@ export type Usage = { month: string; tokens: number; cap: number | null; level: 
 export type LlmStatus = { provider: string; baseUrl: string; model: string | null; hasKey: boolean; reachable: boolean | null; connection: { id: string; name: string } | null };
 
 export const getUsage = () => request<Usage>("/api/usage");
+/** What a model can do (tools, pictures, window size). With no arguments: the default connection's default model. */
+export const getModelCaps = (opts: { connection?: string; model?: string } = {}) => {
+  const q = new URLSearchParams();
+  if (opts.connection) q.set("connection", opts.connection);
+  if (opts.model) q.set("model", opts.model);
+  const qs = q.toString();
+  return request<import("./model-caps").ModelCaps>(`/api/llm/capabilities${qs ? `?${qs}` : ""}`);
+};
+
 export const getLlmStatus = (probe = false) => request<LlmStatus>(`/api/llm/status${probe ? "?probe=1" : ""}`);
 export const getPermissions = () => request<PermissionSettings>("/api/settings/permissions");
 export const putPermissions = (settings: PermissionSettings) => request<PermissionSettings>("/api/settings/permissions", json("PUT", settings));

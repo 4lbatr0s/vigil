@@ -1,8 +1,9 @@
 <script lang="ts">
-  import { onDestroy, tick } from "svelte";
+  import { onDestroy } from "svelte";
   import { ApiError, createFromTemplate, getNote, getNoteCards, getRun, getRunResult, listAgents, putAgent, putNote, startCardProposals } from "$lib/api";
   import { extractCards, groundingHint, lintCard } from "@vigil/shared";
   import { appendCards, isCardLine, proposalsFrom, type Proposal } from "$lib/card-review";
+  import { Badge, Button, Checkbox, Dialog, Stack, Textarea } from "$lib/ui";
 
   let { open = $bindable(false), noteId, onsaved }: { open: boolean; noteId: string; onsaved: () => void } = $props();
 
@@ -11,8 +12,6 @@
   let proposals = $state<Proposal[]>([]);
   let message = $state("");
   let busy = $state(false);
-  let dialogEl = $state<HTMLDivElement | undefined>();
-  let opener: Element | null = null;
   let timer: ReturnType<typeof setTimeout> | undefined;
   let cancelled = false;
 
@@ -21,12 +20,10 @@
 
   $effect(() => {
     if (!open) return;
-    opener = document.activeElement;
     cancelled = false;
     step = "checking";
     message = "";
     proposals = [];
-    void tick().then(() => dialogEl?.focus());
     void begin();
     return () => {
       cancelled = true;
@@ -102,7 +99,6 @@
 
   function close(): void {
     open = false;
-    if (opener instanceof HTMLElement) opener.focus();
   }
 
   async function save(): Promise<void> {
@@ -122,188 +118,81 @@
   }
 </script>
 
-{#if open}
-  <button type="button" class="scrim" aria-label="Close" onclick={close}></button>
-  <div
-    class="dialog"
-    role="dialog"
-    aria-modal="true"
-    aria-labelledby="cm-title"
-    tabindex="-1"
-    bind:this={dialogEl}
-    onkeydown={(e) => {
-      if (e.key === "Escape") {
-        e.stopPropagation();
-        close();
-      }
-    }}
-  >
-    <h2 id="cm-title">Make cards from this note</h2>
-
-    {#if step === "checking" || step === "running"}
-      <p class="muted" role="status">{step === "checking" ? "Getting ready…" : "Reading your note and writing cards. This can take a minute."}</p>
-    {:else if step === "needs-agent"}
-      <p>The Card maker is an agent that reads this note and suggests cards. It can only read: you decide which cards to keep, and nothing is added until you press Save.</p>
-      <div class="actions">
-        <button type="button" class="btn" onclick={close}>Not now</button>
-        <button type="button" class="btn primary" disabled={busy} onclick={() => void turnOn()}>Add and turn on the Card maker</button>
-      </div>
-    {:else if step === "empty"}
-      <p>No cards came back. The note may be too short, or the model could not follow the format. Try again, or write a card yourself as <code>Question :: Answer</code>.</p>
-      <div class="actions"><button type="button" class="btn" onclick={close}>Close</button></div>
-    {:else if step === "review"}
-      <p class="muted">Check each card against your note. Edit the wording, untick what you don't want. Cards you keep are added under “Cards” in this note.</p>
+<Dialog bind:open title="Make cards from this note" wide>
+  {#if step === "checking" || step === "running"}
+    <p class="muted" role="status">{step === "checking" ? "Getting ready…" : "Reading your note and writing cards. This can take a minute."}</p>
+  {:else if step === "needs-agent"}
+    <p>The Card maker is a helper that reads this note and suggests cards. It can only read: you decide which cards to keep, and nothing is added until you press Save.</p>
+  {:else if step === "empty"}
+    <p>No cards came back. The note may be too short, or the model could not follow the format. Try again, or write a card yourself as <code>Question :: Answer</code>.</p>
+  {:else if step === "review"}
+    <Stack gap={3}>
+      <p class="muted">Check each card against your note. Edit the wording and untick what you do not want. Cards you keep are added under “Cards” in this note.</p>
       <ul class="list">
         {#each proposals as p (p.key)}
-          <li class:dup={p.duplicate}>
-            <label class="keep">
-              <input type="checkbox" bind:checked={p.keep} disabled={p.duplicate} aria-label={`Keep this card: ${p.line}`} />
-            </label>
-            <textarea rows="2" bind:value={p.line} disabled={p.duplicate} class:bad={p.keep && !isCardLine(p.line)} aria-label="Card text"></textarea>
-            {#if p.duplicate}<span class="tag">already in this note</span>{/if}
+          <li>
+            <Checkbox label="Keep" bind:checked={p.keep} disabled={p.duplicate} />
+            <Textarea rows={2} bind:value={p.line} disabled={p.duplicate} invalid={p.keep && !isCardLine(p.line)} aria-label="Card text" />
+            {#if p.duplicate}<Badge>already in this note</Badge>{/if}
             {#if !p.duplicate && p.keep}
-              {#each hintsFor(p.line) as h (h.code)}<p class="hint">{h.message}</p>{/each}
+              {#each hintsFor(p.line) as h (h.code)}<p class="muted">{h.message}</p>{/each}
             {/if}
           </li>
         {/each}
       </ul>
       {#if invalid}<p class="error" role="alert">One of the cards is not a single card any more. Use <code>Question :: Answer</code> or put <code>{"{{"}</code>braces<code>{"}}"}</code> around the hidden part.</p>{/if}
       {#if message}<p class="error" role="alert">{message}</p>{/if}
-      <div class="actions">
-        <button type="button" class="btn" onclick={close}>Cancel</button>
-        <button type="button" class="btn primary" disabled={busy || kept.length === 0 || invalid} onclick={() => void save()}>Save {kept.length} {kept.length === 1 ? "card" : "cards"}</button>
-      </div>
+    </Stack>
+  {:else}
+    <p class="error" role="alert">{message}</p>
+  {/if}
+  {#snippet actions()}
+    {#if step === "needs-agent"}
+      <Button variant="ghost" onclick={close}>Not now</Button>
+      <Button variant="primary" disabled={busy} onclick={() => void turnOn()}>Turn on the Card maker</Button>
+    {:else if step === "review"}
+      <Button variant="ghost" onclick={close}>Cancel</Button>
+      <Button variant="primary" disabled={busy || kept.length === 0 || invalid} onclick={() => void save()}>Save {kept.length} {kept.length === 1 ? "card" : "cards"}</Button>
     {:else}
-      <p class="error" role="alert">{message}</p>
-      <div class="actions"><button type="button" class="btn" onclick={close}>Close</button></div>
+      <Button variant="ghost" onclick={close}>Close</Button>
     {/if}
-  </div>
-{/if}
+  {/snippet}
+</Dialog>
 
 <style>
-  .scrim {
-    position: fixed;
-    inset: 0;
-    z-index: 40;
-    background: color-mix(in srgb, var(--bg) 70%, transparent);
-  }
-
-  .dialog {
-    position: fixed;
-    z-index: 41;
-    top: 10vh;
-    left: 50%;
-    display: grid;
-    gap: var(--space-3);
-    width: min(640px, calc(100vw - 2 * var(--space-4)));
-    max-height: 80vh;
-    overflow-y: auto;
-    transform: translateX(-50%);
-    padding: var(--space-6);
-    border: 1px solid var(--hairline);
-    border-radius: var(--radius-lg);
-    background: var(--surface);
-    box-shadow: var(--shadow-pop);
-  }
-
-  h2 {
-    font-family: var(--font-serif);
-    font-size: var(--text-h3);
+  p {
+    margin: 0;
   }
 
   .muted {
-    font-size: var(--text-label);
-    color: var(--ink-muted);
+    color: var(--text-2);
+    font: var(--weight-regular) var(--type-ui-size) / var(--type-ui-lh) var(--font-ui);
+  }
+
+  .error {
+    color: var(--danger);
+    font: var(--weight-regular) var(--type-ui-size) / var(--type-ui-lh) var(--font-ui);
   }
 
   .list {
-    display: grid;
-    gap: var(--space-2);
+    display: flex;
+    flex-direction: column;
+    gap: var(--s-4);
     margin: 0;
     padding: 0;
     list-style: none;
   }
 
-  li {
-    display: grid;
-    grid-template-columns: auto 1fr;
-    align-items: start;
-    gap: var(--space-2);
-  }
-
-  li.dup {
-    opacity: 0.6;
-  }
-
-  .hint {
-    grid-column: 2;
-    margin: 0;
-    font-size: var(--text-label);
-    color: var(--ink-muted);
-  }
-
-  .keep {
-    padding-top: var(--space-2);
-  }
-
-  textarea {
-    padding: var(--space-2) var(--space-3);
-    border: 1px solid var(--hairline);
-    border-radius: var(--radius);
-    background: var(--bg);
-    font: inherit;
-    font-family: var(--font-serif);
-    font-size: var(--text-ui);
-    color: var(--ink);
-    resize: vertical;
-  }
-
-  textarea.bad {
-    border-color: var(--err);
-  }
-
-  .tag {
-    grid-column: 2;
-    font-size: var(--text-label);
-    color: var(--ink-muted);
-  }
-
-  .error {
-    font-size: var(--text-label);
-    color: var(--err-ink);
-  }
-
-  .actions {
+  .list li {
     display: flex;
-    justify-content: flex-end;
-    gap: var(--space-2);
-  }
-
-  .btn {
-    padding: var(--space-2) var(--space-4);
-    border: 1px solid var(--hairline);
-    border-radius: var(--radius);
-  }
-
-  .btn:hover:not(:disabled) {
-    background: var(--surface-hover);
-  }
-
-  .btn.primary {
-    background: var(--ink);
-    border-color: var(--ink);
-    color: var(--bg);
-  }
-
-  .btn:disabled {
-    opacity: 0.5;
-    cursor: default;
+    flex-direction: column;
+    gap: var(--s-1);
   }
 
   code {
-    padding: 0 4px;
-    border-radius: 4px;
-    background: var(--bg);
-    font-size: 0.9em;
+    padding: 0 var(--s-1);
+    border-radius: var(--r-control);
+    background: var(--fill-selected);
+    font: var(--weight-regular) var(--type-ui-size) / 1 var(--font-code);
   }
 </style>

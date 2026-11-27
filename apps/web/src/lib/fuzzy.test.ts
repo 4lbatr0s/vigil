@@ -28,12 +28,12 @@ describe("fuzzyScore", () => {
 describe("buildCommands", () => {
   const base = { noteHits: [{ id: "plan", title: "Launch plan" }], agents: ["morning-digest", "weekly-review"] };
   it("shows only the fixed commands for an empty query", () => {
-    expect(buildCommands({ ...base, query: "" }).map((c) => c.label)).toEqual(["New note", "Today's note", "Study cards", "Open Today", "New lecture note", "New meeting note", "New Cornell note", "New reading note", "Ask your notes", "Gap check", "Open Canvas", "Open Tools", "New chat", "Open Graph", "Open Agents", "Open Settings", "Open Approvals"]);
+    expect(buildCommands({ ...base, query: "" }).map((c) => c.label)).toEqual(["Capture a thought", "Focus mode", "New note", "Today's note", "Study cards", "Open Today", "Open Notes", "New lecture note", "New meeting note", "New Cornell note", "New source note", "Ask your notes", "Gap check", "Open Boards", "New chat", "Open Graph", "Open Helpers", "Open Settings", "Open Approvals"]);
   });
   it("lists notes, agents and matching commands for a query", () => {
     const out = buildCommands({ ...base, query: "digest" });
     expect(out.map((c) => c.id)).toEqual(["note:plan", "agent:morning-digest", "run:morning-digest"]);
-    expect(out[0]?.action).toEqual({ type: "goto", href: "/?note=plan" });
+    expect(out[0]?.action).toEqual({ type: "goto", href: "/notes?note=plan" });
     expect(out.at(-1)?.action).toEqual({ type: "run", agent: "morning-digest" });
   });
   it("typing run offers a Run command per agent, and set offers Settings", () => {
@@ -42,6 +42,6 @@ describe("buildCommands", () => {
   });
   it("encodes ids placed in links", () => {
     const out = buildCommands({ query: "x", noteHits: [{ id: "a/b", title: "x" }], agents: [] });
-    expect(out[0]?.action).toEqual({ type: "goto", href: "/?note=a%2Fb" });
+    expect(out[0]?.action).toEqual({ type: "goto", href: "/notes?note=a%2Fb" });
   });
 });

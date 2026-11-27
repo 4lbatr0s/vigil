@@ -57,29 +57,29 @@
     box-sizing: border-box;
     width: 100%;
     height: 100%;
-    border: 1.5px dashed var(--accent, var(--ink-muted));
-    border-radius: var(--radius-lg);
-    background: color-mix(in srgb, var(--accent, var(--ink-muted)) 7%, transparent);
+    border: 1.5px dashed var(--accent, var(--text-2));
+    border-radius: var(--r-surface);
+    background: color-mix(in srgb, var(--accent, var(--text-2)) 7%, transparent);
   }
   .label {
-    margin: var(--space-2);
-    padding: 0 var(--space-2);
+    margin: var(--s-2);
+    padding: 0 var(--s-2);
     border: 0;
-    border-radius: var(--radius);
-    background: color-mix(in srgb, var(--accent, var(--ink-muted)) 18%, var(--bg));
-    color: var(--ink);
+    border-radius: var(--r-control);
+    background: color-mix(in srgb, var(--accent, var(--text-2)) 18%, var(--paper));
+    color: var(--text);
     font: inherit;
-    font-size: var(--text-label);
+    font-size: var(--type-meta-size);
     cursor: text;
   }
   input {
-    margin: var(--space-2);
-    padding: 0 var(--space-2);
-    border: 1px solid var(--hairline);
-    border-radius: var(--radius);
-    background: var(--bg);
-    color: var(--ink);
+    margin: var(--s-2);
+    padding: 0 var(--s-2);
+    border: 1px solid var(--line-soft);
+    border-radius: var(--r-control);
+    background: var(--paper);
+    color: var(--text);
     font: inherit;
-    font-size: var(--text-label);
+    font-size: var(--type-meta-size);
   }
 </style>

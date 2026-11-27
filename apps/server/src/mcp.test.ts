@@ -138,3 +138,21 @@ describe("MCP over HTTP", () => {
     expect(res.status).toBe(403);
   });
 });
+
+describe("mcp tool schemas", () => {
+  it("every tool says whether it only reads, may replace text, and reaches outside the vault", async () => {
+    await on(true);
+    const tools = (await rpc("tools/list")).body.result.tools as { name: string; annotations?: Record<string, boolean> }[];
+    expect(tools.map((t) => t.name).sort()).toEqual(["learner_status", "list_notes", "read_note", "search_notes", "write_note"]);
+    for (const t of tools.filter((x) => x.name !== "write_note")) expect(t.annotations).toEqual({ readOnlyHint: true, openWorldHint: false });
+    expect(tools.find((t) => t.name === "write_note")?.annotations).toEqual({ readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false });
+  });
+
+  it("read_note and list_notes advertise the concise format", async () => {
+    await on();
+    const tools = (await rpc("tools/list")).body.result.tools as { name: string; inputSchema: { properties: Record<string, { enum?: string[] }> } }[];
+    for (const name of ["read_note", "list_notes"]) {
+      expect(tools.find((t) => t.name === name)?.inputSchema.properties["format"]?.enum).toEqual(["concise", "detailed"]);
+    }
+  });
+});

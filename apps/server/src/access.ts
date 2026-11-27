@@ -1,6 +1,7 @@
 import { timingSafeEqual } from "node:crypto";
 import type { IncomingMessage } from "node:http";
 import { AppError } from "./errors";
+import { clientForToken } from "./mcp-clients";
 import { hasValidSession } from "./session";
 
 /** Who may reach the API (ADR-0007). */
@@ -40,6 +41,12 @@ export function accessFromEnv(overrides: Partial<Access> = {}): Access {
     );
   }
   return access;
+}
+
+/** Lines to print at start when the access settings are legal but weak. Empty means nothing to say. */
+export function accessWarnings(access: Access): string[] {
+  if (access.token) return [];
+  return ["vigil-server has no VIGIL_TOKEN: any program on this machine can call the API (notes, agents, settings). Set VIGIL_TOKEN if other people or programs share this machine."];
 }
 
 export function hostNameOf(hostHeader: string): string {
@@ -82,6 +89,8 @@ export function checkAccess(req: IncomingMessage, access: Access, pathname: stri
     const auth = req.headers.authorization ?? "";
     const given = auth.startsWith("Bearer ") ? auth.slice(7) : "";
     if (!sameToken(given, access.token) && !hasValidSession(req, access.token)) {
+      // A named MCP client token (ADR-0033) opens the MCP route and nothing else.
+      if (pathname === "/api/mcp" && clientForToken(given) !== null) return;
       throw new AppError("unauthorized", "Missing or wrong token", 401);
     }
   }

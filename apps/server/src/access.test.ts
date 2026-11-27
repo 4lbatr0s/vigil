@@ -3,7 +3,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { request } from "node:http";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { accessFromEnv } from "./access";
+import { accessFromEnv, accessWarnings } from "./access";
 import { closeDb } from "./index-db";
 import { start, type RunningServer } from "./server";
 
@@ -96,5 +96,12 @@ describe("access control", () => {
     expect((await call(port, { host: "localhost" }, "/api/health")).status).toBe(200);
     const res = await call(port, { host: "notes.example.com", authorization: "Bearer s3cret" });
     expect(res.status).toBe(200);
+  });
+});
+
+describe("accessWarnings", () => {
+  it("warns when there is no token and stays quiet when there is one", () => {
+    expect(accessWarnings({ host: "127.0.0.1", token: undefined, allowedHosts: [] }).join(" ")).toContain("no VIGIL_TOKEN");
+    expect(accessWarnings({ host: "127.0.0.1", token: "t", allowedHosts: [] })).toEqual([]);
   });
 });

@@ -33,6 +33,8 @@ vigil-server could not start: Refusing to listen on 0.0.0.0 without VIGIL_TOKEN:
 | `VIGIL_LLM_API_KEY` | Endpoint key. Environment only: never stored, shown or logged. |
 | `VIGIL_LLM_MODEL` | Default model; an agent may override it. |
 | `VIGIL_MONTHLY_TOKEN_CAP` | Optional monthly token total that only shows a warning. |
+| `VIGIL_MONTHLY_TOKEN_HARD_CAP` | Optional monthly token total at which no new run or chat turn starts (ADR-0032). |
+| `VIGIL_WEBHOOK_URL` | Optional address that gets one JSON POST when a run needs approval, fails, or a cron or heartbeat run finishes. Works with ntfy, Slack-style hooks and similar. No note text is sent. |
 | `VIGIL_ALLOWED_HOSTS` | Extra host names the server accepts (your domain behind a reverse proxy). |
 | `VIGIL_COOKIE_SECURE` | `1` to always mark the login cookie `Secure`. |
 | `VIGIL_TRUSTED_PROXIES` | Extra proxy addresses whose `X-Forwarded-For` is believed (private and loopback proxies already are). |

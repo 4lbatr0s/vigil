@@ -2,6 +2,7 @@
   import { onMount } from "svelte";
   import { ApiError, getGoals, listNotes, removeGoal, setGoal, type Goal } from "$lib/api";
   import { goalLine } from "$lib/goals";
+  import { Button, Field, Input, Select } from "$lib/ui";
 
   let { initialNote = null, onchange }: { initialNote?: string | null; onchange?: () => void } = $props();
 
@@ -65,117 +66,88 @@
       {#each goals as g (`${g.kind}:${g.value}`)}
         <li>
           <span>{goalLine(g)}</span>
-          <button type="button" class="linkbtn" aria-label={`Remove the exam date for ${g.value}`} onclick={() => void remove(g)}>Remove</button>
+          <Button variant="ghost" size="sm" aria-label={`Remove the exam date for ${g.value}`} onclick={() => void remove(g)}>Remove</Button>
         </li>
       {/each}
     </ul>
   {:else if !adding}
-    <p class="muted">Have a test coming? Set a date and Vigil will pace your reviews so they land before it.</p>
+    <p class="muted">Set a date and Vigil paces your reviews to land before it.</p>
   {/if}
   {#if adding}
     <form onsubmit={save}>
-      <label>
-        <span class="muted">What is it for</span>
-        <select bind:value={scope}>
-          <option value="" disabled>Choose a note or tag</option>
-          <optgroup label="Notes">
-            {#each noteIds as n (n.id)}<option value={`note:${n.id}`}>{n.title}</option>{/each}
-          </optgroup>
-          {#if tagNames.length > 0}
-            <optgroup label="Tags (every note with the tag)">
-              {#each tagNames as t (t)}<option value={`tag:${t}`}>#{t}</option>{/each}
+      <Field label="What is it for">
+        {#snippet children({ id })}
+          <Select {id} bind:value={scope}>
+            <option value="" disabled>Choose a note or tag</option>
+            <optgroup label="Notes">
+              {#each noteIds as n (n.id)}<option value={`note:${n.id}`}>{n.title}</option>{/each}
             </optgroup>
-          {/if}
-        </select>
-      </label>
-      <label>
-        <span class="muted">Date</span>
-        <input type="date" bind:value={day} min={minDay} />
-      </label>
-      <button type="submit" class="btn primary">Save</button>
-      <button type="button" class="btn" onclick={() => (adding = false)}>Cancel</button>
+            {#if tagNames.length > 0}
+              <optgroup label="Tags (every note with the tag)">
+                {#each tagNames as t (t)}<option value={`tag:${t}`}>#{t}</option>{/each}
+              </optgroup>
+            {/if}
+          </Select>
+        {/snippet}
+      </Field>
+      <Field label="Date">
+        {#snippet children({ id })}
+          <Input {id} type="date" bind:value={day} min={minDay} />
+        {/snippet}
+      </Field>
+      <span class="buttons">
+        <Button variant="primary" type="submit">Save date</Button>
+        <Button variant="ghost" onclick={() => (adding = false)}>Cancel</Button>
+      </span>
     </form>
   {:else}
-    <button type="button" class="btn" onclick={() => (adding = true)}>Set an exam date</button>
+    <Button onclick={() => (adding = true)}>Set an exam date</Button>
   {/if}
   {#if error}<p class="error" role="alert">{error}</p>{/if}
 </section>
 
 <style>
-  .exams h2 {
-    margin-bottom: var(--space-2);
-    font-size: var(--text-label);
-    letter-spacing: 0.09em;
-    text-transform: uppercase;
-    font-weight: 500;
-    color: var(--ink-muted);
+  h2 {
+    margin: 0 0 var(--s-2);
+    font: var(--weight-strong) var(--type-heading-size) / var(--type-heading-lh) var(--font-ui);
   }
+
   ul {
-    margin: 0 0 var(--space-3);
+    margin: 0 0 var(--s-3);
     padding: 0;
     list-style: none;
   }
+
   li {
     display: flex;
-    gap: var(--space-3);
+    gap: var(--s-3);
     justify-content: space-between;
-    align-items: baseline;
-    padding: var(--space-2) 0;
-    border-bottom: 1px solid var(--hairline);
+    align-items: center;
+    padding: var(--s-1) 0;
+    font: var(--weight-regular) var(--type-ui-size) / var(--type-ui-lh) var(--font-ui);
   }
+
   form {
     display: flex;
     flex-wrap: wrap;
-    align-items: end;
-    gap: var(--space-3);
+    align-items: flex-end;
+    gap: var(--s-3);
   }
-  label {
-    display: grid;
-    gap: var(--space-1);
-  }
-  select,
-  input {
-    padding: var(--space-2) var(--space-3);
-    border: 1px solid var(--hairline);
-    border-radius: var(--radius);
-    background: var(--bg);
-    color: var(--ink);
-    font: inherit;
-  }
-  .btn {
+
+  .buttons {
     display: inline-flex;
-    align-items: center;
-    padding: var(--space-2) var(--space-4);
-    border: 1px solid var(--hairline);
-    border-radius: var(--radius);
-    background: transparent;
-    color: var(--ink);
-    font: inherit;
-    font-size: var(--text-ui);
-    cursor: pointer;
+    gap: var(--s-2);
   }
-  .btn:hover {
-    background: var(--surface-hover);
-  }
-  .btn.primary {
-    background: var(--ink);
-    border-color: var(--ink);
-    color: var(--bg);
-  }
-  .linkbtn {
-    border: 0;
-    background: transparent;
-    color: var(--ink-muted);
-    text-decoration: underline;
-    cursor: pointer;
-    font: inherit;
-    font-size: var(--text-label);
-  }
+
   .muted {
-    color: var(--ink-muted);
-    font-size: var(--text-label);
+    margin: 0 0 var(--s-3);
+    color: var(--text-2);
+    font: var(--weight-regular) var(--type-ui-size) / var(--type-ui-lh) var(--font-ui);
   }
+
   .error {
-    color: var(--err-ink);
+    margin: var(--s-2) 0 0;
+    color: var(--danger);
+    font: var(--weight-regular) var(--type-ui-size) / var(--type-ui-lh) var(--font-ui);
   }
 </style>

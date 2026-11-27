@@ -1,4 +1,6 @@
 <script lang="ts">
+import { noteHref } from "$lib/links";
+  import { plainSnippet } from "$lib/snippet";
   import { getBacklinks, type Backlink } from "$lib/api";
 
   let { noteId, signature = "" }: { noteId: string; /** changes when notes change, to refresh the list */ signature?: string } = $props();
@@ -27,60 +29,56 @@
   });
 </script>
 
-<details class="backlinks">
-  <summary>Linked from <span class="count">{links.length}</span></summary>
-  {#if failed}
-    <p class="muted">Could not load the links.</p>
-  {:else if links.length === 0}
-    <p class="muted">No other note links here yet.</p>
-  {:else}
+<!-- Always open under the note (2026-11-26): the links into a note are how a learner finds where an idea is used. Nothing shows when no note links here. -->
+{#if failed}
+  <p class="backlinks muted">Could not load the notes that link here.</p>
+{:else if links.length > 0}
+  <section class="backlinks" aria-labelledby="backlinks-head">
+    <h2 id="backlinks-head">Linked from <span class="count">{links.length}</span></h2>
     <ul>
       {#each links as l (l.id)}
         <li>
-          <a href={`/?note=${encodeURIComponent(l.id)}`}>{l.title || l.id}</a>
-          {#if l.snippet}<span class="snippet">{l.snippet}</span>{/if}
+          <a href={noteHref(l.id)}>{l.title || l.id}</a>
+          {#if l.snippet}<span class="snippet">{plainSnippet(l.snippet)}</span>{/if}
         </li>
       {/each}
     </ul>
-  {/if}
-</details>
+  </section>
+{/if}
 
 <style>
   .backlinks {
-    padding: var(--space-2) var(--space-6);
-    border-top: 1px solid var(--hairline);
-    font-size: var(--text-label);
+    margin: var(--s-10) 0 0;
+    padding-top: var(--s-4);
+    box-shadow: 0 -1px 0 var(--line-soft);
+    color: var(--text-2);
+    font: var(--weight-regular) var(--type-meta-size) / var(--type-meta-lh) var(--font-ui);
   }
-  summary {
-    cursor: pointer;
-    color: var(--ink-muted);
+  h2 {
+    margin: 0;
+    color: var(--text-3);
+    font: var(--weight-medium) var(--type-meta-size) / var(--type-meta-lh) var(--font-ui);
   }
   .count {
-    font-family: var(--font-mono);
+    margin-left: var(--s-1);
   }
   ul {
     list-style: none;
-    margin: var(--space-2) 0 0;
+    margin: var(--s-3) 0 0;
     padding: 0;
     display: grid;
-    gap: var(--space-2);
-    max-height: 30vh;
-    overflow-y: auto;
+    gap: var(--s-3);
   }
   a {
-    font-family: var(--font-serif);
-    font-size: var(--text-ui);
+    color: var(--text);
+    font: var(--weight-medium) var(--type-ui-size) / var(--type-ui-lh) var(--font-ui);
+    text-underline-offset: 2px;
   }
   .snippet {
     display: block;
-    color: var(--ink-muted);
-    font-family: var(--font-mono);
+    color: var(--text-3);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-  }
-  .muted {
-    color: var(--ink-muted);
-    margin: var(--space-2) 0 0;
   }
 </style>

@@ -1,10 +1,13 @@
 <script lang="ts">
+import { noteHref } from "$lib/links";
+  import { Button, Dialog, Page, Stack, Textarea } from "$lib/ui";
   import { onMount } from "svelte";
   import { page } from "$app/state";
   import type { Run, RunEvent } from "@vigil/shared";
-  import { ApiError, getRun, undoRun } from "$lib/api";
+  import { goto } from "$app/navigation";
+  import { ApiError, cancelRun, getRun, runAgent, undoRun } from "$lib/api";
   import { formatStamp } from "$lib/format";
-  import { budgetShare, canUndo, childRunIdOf, KIND_LABEL, lastSeq, mergeEvents, noteIdOf, noteIdsInMessage, preview } from "$lib/run-log";
+  import { budgetShare, canUndo, childRunIdOf, configOf, KIND_LABEL, lastSeq, mergeEvents, noteIdOf, noteIdsInMessage, preview, stepStats, taskOf } from "$lib/run-log";
   import { refreshOnLive } from "$lib/live";
   import { statusDot } from "$lib/schedule";
   import StatusDot from "$lib/components/StatusDot.svelte";
@@ -16,6 +19,10 @@
   let loadError = $state("");
   let undoError = $state("");
   let undoing = $state(false);
+  let cancelling = $state(false);
+  let rerunning = $state(false);
+  let rerunOpen = $state(false);
+  let rerunTask = $state("");
   let open = $state<Record<number, boolean>>({});
 
   async function load(): Promise<void> {
@@ -50,6 +57,40 @@
     );
   });
 
+  async function cancel(): Promise<void> {
+    undoError = "";
+    cancelling = true;
+    try {
+      await cancelRun(id);
+      await tail();
+    } catch (err) {
+      undoError = err instanceof ApiError ? err.detail : err instanceof Error ? err.message : "Could not cancel";
+    } finally {
+      cancelling = false;
+    }
+  }
+
+  function openRerun(): void {
+    rerunTask = taskOf(events);
+    rerunOpen = true;
+  }
+
+  async function rerun(): Promise<void> {
+    if (!run) return;
+    undoError = "";
+    rerunning = true;
+    try {
+      // An empty task means the agent's own default task. Otherwise the run gets the text as edited here.
+      const next = await runAgent(run.agent, rerunTask.trim() === "" ? undefined : rerunTask.trim());
+      rerunOpen = false;
+      await goto(`/runs/${encodeURIComponent(next.id)}`);
+    } catch (err) {
+      undoError = err instanceof ApiError ? err.detail : err instanceof Error ? err.message : "Could not start the run";
+    } finally {
+      rerunning = false;
+    }
+  }
+
   async function undo(): Promise<void> {
     undoError = "";
     undoing = true;
@@ -65,205 +106,231 @@
 
 <svelte:head><title>Run · Vigil</title></svelte:head>
 
-<main class="page">
+<Page>
   {#if loadError}
     <p class="error" role="alert">{loadError}</p>
   {:else if !run}
     <p class="muted">Loading…</p>
   {:else}
-    <p class="crumb"><a href="/agents">Agents</a> / <a href={`/agents/${run.agent}`}>{run.agent}</a></p>
-    <header class="head">
-      <StatusDot state={statusDot({ enabled: true }, run)} label={run.status} />
-      <h1>{run.status}{run.undone ? " · undone" : ""}</h1>
-    </header>
+    <Stack gap={6}>
+      <header class="head">
+        <Button variant="ghost" size="sm" href={`/agents/${run.agent}`}>{run.agent}</Button>
+        <div class="titlebar">
+          <StatusDot state={statusDot({ enabled: true }, run)} label={run.status} />
+          <h1>{run.status}{run.undone ? " · undone" : ""}</h1>
+          <span class="grow"></span>
+          {#if run.status === "running"}
+            <Button variant="quiet" disabled={cancelling} onclick={() => void cancel()}>{cancelling ? "Cancelling…" : "Cancel run"}</Button>
+          {:else}
+            <Button variant="quiet" disabled={rerunning} onclick={openRerun}>Run again</Button>
+            <Button variant="primary" disabled={!canUndo(run) || undoing} onclick={() => void undo()}>{run.undone ? "Undone" : undoing ? "Undoing…" : "Undo this run"}</Button>
+          {/if}
+        </div>
+      </header>
 
-    <dl class="facts">
-      <dt>Started</dt><dd class="mono">{formatStamp(run.startedAt)}</dd>
-      <dt>Finished</dt><dd class="mono">{run.finishedAt ? formatStamp(run.finishedAt) : "still running"}</dd>
-      <dt>Trigger</dt><dd class="mono">{run.trigger}</dd>
-      {#if run.parentRunId}<dt>Parent</dt><dd><a class="mono" href={`/runs/${encodeURIComponent(run.parentRunId)}`}>parent run</a></dd>{/if}
-      <dt>Tokens</dt>
-      <dd>
-        <span class="mono">{run.tokensUsed} / {run.tokenBudget}</span>
-        <span class="bar" role="img" aria-label={`${Math.round(budgetShare(run) * 100)}% of the token budget used`}>
-          <span class="fill" style:width={`${budgetShare(run) * 100}%`}></span>
-        </span>
-      </dd>
-      {#if run.error}<dt>Error</dt><dd class="mono err">{run.error}</dd>{/if}
-      {#if run.touched.length > 0}
-        <dt>Notes</dt>
-        <dd class="notes">{#each run.touched as n (n)}<a class="mono" href={`/?note=${n}`}>{n}</a>{/each}</dd>
+      {#if undoError}
+        <p class="error" role="alert">
+          {undoError}
+          {#each noteIdsInMessage(undoError) as n (n)} <a href={noteHref(n)}>{n}</a>{/each}
+        </p>
       {/if}
-    </dl>
 
-    <div class="actions">
-      <button type="button" class="primary" disabled={!canUndo(run) || undoing} onclick={() => void undo()}>
-        {run.undone ? "Undone" : undoing ? "Undoing…" : "Undo this run"}
-      </button>
-    </div>
-    {#if undoError}
-      <p class="error" role="alert">
-        {undoError}
-        {#each noteIdsInMessage(undoError) as n (n)} <a href={`/?note=${n}`}>{n}</a>{/each}
-      </p>
-    {/if}
-
-    <h2 class="section">Log</h2>
-    <ol class="log" aria-label="Run log" aria-live={run.status === "running" ? "polite" : "off"}>
-      {#each events as e (e.seq)}
-        {@const p = preview(e.text)}
-        {@const note = noteIdOf(e)}
-        {@const child = childRunIdOf(e)}
-        <li class="line">
-          <span class="kind" class:stop={e.kind === "stop"}>{KIND_LABEL[e.kind]}</span>
-          <span class="text">
-            {#if open[e.seq]}<span class="full">{e.text}</span>{:else}{p.short}{/if}
-            {#if note}<a href={`/?note=${note}`}>open note</a>{/if}
-            {#if child}<a href={`/runs/${encodeURIComponent(child)}`}>open child run</a>{/if}
-            {#if p.long}
-              <button type="button" class="more" onclick={() => (open[e.seq] = !open[e.seq])} aria-expanded={open[e.seq] ?? false}>
-                {open[e.seq] ? "less" : "more"}
-              </button>
-            {/if}
+      <dl class="facts">
+        <dt>Started</dt><dd>{formatStamp(run.startedAt)}</dd>
+        <dt>Finished</dt><dd>{run.finishedAt ? formatStamp(run.finishedAt) : "still running"}</dd>
+        <dt>Trigger</dt><dd>{run.trigger}</dd>
+        {#if configOf(events)}<dt>Setup</dt><dd class="mono" title="A fingerprint of the helper's instructions, tools and limits when this run started">{configOf(events)}</dd>{/if}
+        {#if run.parentRunId}<dt>Parent</dt><dd><a href={`/runs/${encodeURIComponent(run.parentRunId)}`}>parent run</a></dd>{/if}
+        <dt>Tokens</dt>
+        <dd>
+          {run.tokensUsed} of {run.tokenBudget}
+          <span class="bar" role="img" aria-label={`${Math.round(budgetShare(run) * 100)}% of the spending limit used`}>
+            <span class="fill" style:width={`${budgetShare(run) * 100}%`}></span>
           </span>
-        </li>
-      {/each}
-      {#if run.status === "running"}<li class="line running"><span class="kind">…</span><span class="text">running</span></li>{/if}
-    </ol>
+        </dd>
+        <dt>Trace</dt><dd><a href={`/api/runs/${encodeURIComponent(run.id)}/trace`} download>Download as JSON Lines</a></dd>
+        <dt>Eval case</dt><dd><a href={`/api/runs/${encodeURIComponent(run.id)}/eval-case`} download>Download as eval case</a></dd>
+        {#if run.error}<dt>Error</dt><dd class="err">{run.error}</dd>{/if}
+        {#if run.touched.length > 0}
+          <dt>Notes</dt>
+          <dd class="notes">{#each run.touched as n (n)}<a href={noteHref(n)}>{n}</a>{/each}</dd>
+        {/if}
+      </dl>
+
+      <section aria-labelledby="log-title">
+        <h2 id="log-title">Log</h2>
+        <ol class="log" aria-label="Run log" aria-live={run.status === "running" ? "polite" : "off"}>
+          {#each events as e (e.seq)}
+            {@const p = preview(e.text)}
+            {@const note = noteIdOf(e)}
+            {@const child = childRunIdOf(e)}
+            <li class="line">
+              <span class="kind" class:stop={e.kind === "stop"}>{KIND_LABEL[e.kind]}</span>
+              <span class="text">
+                {#if open[e.seq]}<span class="full">{e.text}</span>{:else}{p.short}{/if}
+                {#if stepStats(e)}<span class="stats">{stepStats(e)}</span>{/if}
+                {#if note}<a href={noteHref(note)}>open note</a>{/if}
+                {#if child}<a href={`/runs/${encodeURIComponent(child)}`}>open child run</a>{/if}
+                {#if p.long}
+                  <button type="button" class="more" onclick={() => (open[e.seq] = !open[e.seq])} aria-expanded={open[e.seq] ?? false}>
+                    {open[e.seq] ? "less" : "more"}
+                  </button>
+                {/if}
+              </span>
+            </li>
+          {/each}
+          {#if run.status === "running"}<li class="line running"><span class="kind">…</span><span class="text">running</span></li>{/if}
+        </ol>
+      </section>
+    </Stack>
   {/if}
-</main>
+</Page>
+
+<Dialog bind:open={rerunOpen} title="Run again" description="Change the task if you like. Leave it empty to use the helper's own task.">
+  <Textarea rows={5} bind:value={rerunTask} maxlength={4000} aria-label="Task" />
+  {#snippet actions()}
+    <Button variant="ghost" onclick={() => (rerunOpen = false)}>Cancel</Button>
+    <Button variant="primary" disabled={rerunning} onclick={() => void rerun()}>{rerunning ? "Starting…" : "Start run"}</Button>
+  {/snippet}
+</Dialog>
 
 <style>
-  .page {
-    padding: var(--space-6);
-    max-width: 960px;
-    margin-inline: auto;
+  h1 {
+    margin: 0;
+    font: var(--weight-strong) var(--type-title-size) / var(--type-title-lh) var(--font-ui);
+    letter-spacing: var(--type-title-tracking);
   }
-  .crumb {
-    font-size: var(--text-label);
-    margin-bottom: var(--space-3);
-    color: var(--ink-muted);
+
+  h2 {
+    margin: 0 0 var(--s-2);
+    font: var(--weight-strong) var(--type-heading-size) / var(--type-heading-lh) var(--font-ui);
   }
-  .crumb a {
-    color: var(--ink-muted);
-  }
+
   .head {
     display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--s-2);
+  }
+
+  .titlebar {
+    display: flex;
+    flex-wrap: wrap;
     align-items: center;
-    gap: var(--space-3);
-    margin-bottom: var(--space-3);
+    gap: var(--s-3);
+    width: 100%;
   }
-  h1 {
-    font-family: var(--font-serif);
-    font-size: var(--text-h2);
-    font-weight: 600;
+
+  .grow {
+    flex: 1;
   }
-  h2.section {
-    font-size: var(--text-ui);
-    font-weight: 600;
-    margin: var(--space-6) 0 var(--space-2);
-  }
+
   .muted {
-    color: var(--ink-muted);
+    color: var(--text-2);
+    font: var(--weight-regular) var(--type-ui-size) / var(--type-ui-lh) var(--font-ui);
   }
+
   .error,
   .err {
-    color: var(--err-ink);
+    margin: 0;
+    color: var(--danger);
+    font: var(--weight-regular) var(--type-ui-size) / var(--type-ui-lh) var(--font-ui);
   }
-  .error {
-    margin: var(--space-2) 0;
-  }
+
   .facts {
     display: grid;
-    grid-template-columns: 100px 1fr;
-    gap: var(--space-2) var(--space-4);
-    font-size: var(--text-label);
-    margin: var(--space-4) 0;
+    grid-template-columns: 8rem 1fr;
+    gap: var(--s-2) var(--s-4);
+    margin: 0;
+    font: var(--weight-regular) var(--type-ui-size) / var(--type-ui-lh) var(--font-ui);
   }
+
   dt {
-    color: var(--ink-muted);
+    color: var(--text-2);
   }
+
   dd {
     margin: 0;
   }
-  .mono {
-    font-family: var(--font-mono);
-    font-size: var(--text-label);
-  }
+
   .bar {
     display: block;
-    height: 2px;
+    height: 4px;
     max-width: 240px;
-    background: var(--hairline);
-    margin-top: var(--space-1);
+    margin-top: var(--s-1);
+    border-radius: var(--r-pill);
+    background: var(--fill-selected);
   }
+
   .fill {
     display: block;
     height: 100%;
-    background: var(--ink-muted);
+    border-radius: var(--r-pill);
+    background: var(--text-2);
   }
+
   .notes {
     display: flex;
-    gap: var(--space-3);
+    gap: var(--s-3);
     flex-wrap: wrap;
   }
-  .actions {
-    margin: var(--space-3) 0;
-  }
-  .primary {
-    padding: var(--space-2) var(--space-4);
-    border: 1px solid var(--ink);
-    border-radius: var(--radius);
-    background: var(--ink);
-    color: var(--bg);
-    font-size: var(--text-label);
-  }
-  .primary:disabled {
-    opacity: 0.4;
-    cursor: default;
-  }
+
   .log {
     list-style: none;
-    padding: 0;
     margin: 0;
-    border-top: 1px solid var(--hairline);
-    font-family: var(--font-mono);
-    font-size: var(--text-label);
-    color: var(--ink-muted);
+    padding: var(--s-2) var(--s-3);
+    border-radius: var(--r-surface);
+    background: var(--fill-hover);
+    font: var(--weight-regular) var(--type-meta-size) / var(--type-body-lh) var(--font-code);
+    color: var(--text-2);
   }
+
   .line {
     display: grid;
     grid-template-columns: 72px 1fr;
-    gap: var(--space-3);
-    padding: var(--space-1) var(--space-2);
-    border-bottom: 1px solid var(--hairline);
+    gap: var(--s-3);
   }
+
   .kind {
-    color: var(--ink);
-    letter-spacing: 0.04em;
+    color: var(--text);
   }
+
   .kind.stop {
-    font-weight: 500;
+    font-weight: var(--weight-medium);
   }
+
   .running .kind,
   .running .text {
-    color: var(--amber-ink);
+    color: var(--agent);
   }
+
   .text {
     white-space: pre-wrap;
     overflow-wrap: anywhere;
   }
+
   .full {
     display: block;
-    color: var(--ink);
+    color: var(--text);
   }
+
   .text a {
-    color: var(--ink);
-    margin-left: var(--space-2);
+    margin-left: var(--s-2);
+    color: var(--text);
   }
+
+  .stats {
+    margin-left: var(--s-2);
+    color: var(--text-2);
+  }
+
+  .mono {
+    font-family: var(--font-code);
+  }
+
   .more {
-    margin-left: var(--space-2);
-    color: var(--ink);
+    margin-left: var(--s-2);
+    color: var(--text);
     text-decoration: underline;
     font: inherit;
   }

@@ -50,11 +50,11 @@
     <button type="button" class="todaybtn" onclick={jumpToday}>Today</button>
   </div>
   <div class="grid" role="grid" aria-label={monthLabel(year, month)}>
-    <div class="row head" role="row">
+    <div class="week head" role="row">
       {#each weekdays as w (w)}<span role="columnheader">{w}</span>{/each}
     </div>
     {#each weeks as week, i (i)}
-      <div class="row" role="row">
+      <div class="week" role="row">
         {#each week as c (c.day)}
           <button
             type="button"
@@ -78,27 +78,27 @@
 <style>
   .cal {
     display: grid;
-    gap: var(--space-2);
-    font-size: var(--text-label);
+    gap: var(--s-2);
+    font-size: var(--type-meta-size);
   }
   .bar {
     display: flex;
     align-items: center;
-    gap: var(--space-1);
+    gap: var(--s-1);
   }
   .label {
     flex: 1;
     text-align: center;
-    color: var(--ink);
+    color: var(--text);
     font-weight: 500;
   }
   .nav,
   .todaybtn {
     border: 0;
     background: transparent;
-    color: var(--ink-muted);
-    border-radius: var(--radius);
-    padding: var(--space-1);
+    color: var(--text-2);
+    border-radius: var(--r-control);
+    padding: var(--s-1);
     cursor: pointer;
     font: inherit;
     display: inline-flex;
@@ -106,42 +106,42 @@
   }
   .nav:hover,
   .todaybtn:hover {
-    background: var(--surface-hover);
-    color: var(--ink);
+    background: var(--fill-selected);
+    color: var(--text);
   }
-  .row {
+  .week {
     display: grid;
     grid-template-columns: repeat(7, 1fr);
     gap: 2px;
   }
   .head span {
     text-align: center;
-    color: var(--ink-muted);
-    padding: var(--space-1) 0;
+    color: var(--text-2);
+    padding: var(--s-1) 0;
   }
   .day {
     position: relative;
     aspect-ratio: 1;
     border: 0;
-    border-radius: var(--radius);
+    border-radius: var(--r-control);
     background: transparent;
-    color: var(--ink);
+    color: var(--text);
     font: inherit;
     cursor: pointer;
   }
   .day:hover {
-    background: var(--surface-hover);
+    background: var(--fill-selected);
   }
   .day.out {
-    color: var(--ink-muted);
+    color: var(--text-2);
   }
   .day.today {
     font-weight: 700;
-    outline: 1px solid var(--ink-muted);
+    outline: 1px solid var(--text-2);
     outline-offset: -1px;
   }
   .day.selected {
-    background: var(--surface-hover);
+    background: var(--fill-selected);
   }
   /* A note that exists is a small dot; a study day is a thin underline. Neither uses amber (agent life only). */
   .day.has::after {
@@ -153,7 +153,7 @@
     height: 4px;
     margin-left: -2px;
     border-radius: 50%;
-    background: var(--ink-muted);
+    background: var(--text-2);
   }
   .day.studied {
     box-shadow: inset 0 -2px 0 var(--ok);
@@ -161,7 +161,7 @@
   .nav:focus-visible,
   .todaybtn:focus-visible,
   .day:focus-visible {
-    outline: 2px solid var(--ink);
+    outline: 2px solid var(--text);
     outline-offset: 1px;
   }
 </style>

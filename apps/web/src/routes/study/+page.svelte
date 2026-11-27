@@ -1,6 +1,7 @@
 <script lang="ts">
+import { noteHref, NOTES_PATH } from "$lib/links";
   import ExamDates from "$lib/components/ExamDates.svelte";
-  import Illustration from "$lib/components/Illustration.svelte";
+  import { Button, Cluster, Kbd, Page, Row, Stack, Switch, Textarea } from "$lib/ui";
   import { onMount, tick } from "svelte";
   import { page } from "$app/state";
   import { answerStudyCard, getDecks, getDueCards, getStuckCards, getStudyForecast, getStudyHistory, getStudyStats, undoStudyAnswer, type Answer, type DayCount, type DeckStats, type ForecastDay, type StuckCard, type StudyStats } from "$lib/api";
@@ -133,346 +134,242 @@
 
   const labels: { key: string; answer: Answer; text: string; hint: string }[] = [
     { key: "1", answer: "again", text: "Again", hint: "I didn't know it" },
-    { key: "2", answer: "hard", text: "Hard", hint: "With effort" },
+    { key: "2", answer: "hard", text: "Hard", hint: "with effort" },
     { key: "3", answer: "good", text: "Good", hint: "I knew it" },
-    { key: "4", answer: "easy", text: "Easy", hint: "Right away" },
+    { key: "4", answer: "easy", text: "Easy", hint: "right away" },
   ];
 </script>
 
 <svelte:window onkeydown={onKeydown} />
 <svelte:head><title>Study · Vigil</title></svelte:head>
 
-<div class="page">
-  <header class="head">
-    <h1>Study</h1>
-    {#if session && !finished}<p class="progress" aria-live="polite">{remaining(session)} left</p>{/if}
-    <label class="toggle"><input type="checkbox" bind:checked={typeFirst} /> Type my answer first</label>
-  </header>
+<Page title="Study">
+  {#snippet actions()}
+    {#if session && !finished}<span class="progress" aria-live="polite">{remaining(session)} left</span>{/if}
+    <Switch label="Type my answer first" bind:checked={typeFirst} />
+  {/snippet}
 
-  {#if loadError}
-    <p class="error" role="alert">{loadError}</p>
-  {:else if !session}
-    <p class="muted">Getting your cards…</p>
-  {:else if finished}
-    <div class="done">
-      <Illustration kind="cards" />
-      <h2>{session.done > 0 ? "That's it for now." : "Nothing to study right now."}</h2>
-      {#if session.done > 0}
-        <p>
-          You went through {session.done} {session.done === 1 ? "card" : "cards"}.
-          {session.answers.good + session.answers.easy} felt solid{session.answers.again > 0 ? `, ${session.answers.again} to see again soon` : ""}.
-        </p>
-        <p class="muted">Come back tomorrow: spacing the reviews out is what makes them stick.</p>
-      {:else if stats && stats.total === 0}
-        <p>You have no cards yet. Write one in any note as <code>Question :: Answer</code>, or put <code>{"{{"}</code>double braces<code>{"}}"}</code> around the part to hide.</p>
-      {:else}
-        <p class="muted">Your cards are resting. They will come back when it is time.</p>
-      {/if}
-      {#if before && lastAnswer}<p class="undo">Last answer: {lastAnswer}. <button type="button" class="linkbtn" onclick={() => void undo()}>Take it back <kbd>{inUndoBox ? `${modKey} Z` : "Z"}</kbd></button></p>{/if}
-      <p><a class="btn" href="/">Back to your notes</a></p>
-    </div>
-  {:else if card}
-    <div class="stage" tabindex="-1" bind:this={stage}>
-      <p class="kind">{card.kind === "cloze" ? "Fill in the blank" : "Question"}{card.isNew ? " · new" : ""}</p>
-      {#if card.context}<p class="context">{card.context}</p>{/if}
-      <p class="front">{card.front}</p>
-      {#if !session.revealed}
-        {#if typeFirst}
-          <label class="answer-box">
-            <span class="muted">Say it in your own words first</span>
-            <textarea bind:this={box} rows="3" bind:value={typed} placeholder="Your answer (optional)"></textarea>
-          </label>
+  <Stack gap={8}>
+    {#if loadError}
+      <p class="error" role="alert">{loadError}</p>
+    {:else if !session}
+      <p class="muted">Getting your cards…</p>
+    {:else if finished}
+      <section class="done">
+        <h2>{session.done > 0 ? "That's it for now." : "Nothing to study right now."}</h2>
+        {#if session.done > 0}
+          <p>
+            You went through {session.done} {session.done === 1 ? "card" : "cards"}.
+            {session.answers.good + session.answers.easy} felt solid{session.answers.again > 0 ? `, ${session.answers.again} to see again soon` : ""}.
+          </p>
+        {:else if stats && stats.total === 0}
+          <p>No cards yet. In any note, write <code>Question :: Answer</code>, or put <code>{"{{"}</code>double braces<code>{"}}"}</code> around the part to hide.</p>
+        {:else}
+          <p class="muted">No cards are due.</p>
         {/if}
-        <button type="button" class="btn primary" onclick={() => void show()}>Show the answer <kbd>{typeFirst ? "Enter" : "Space"}</kbd></button>
-      {:else}
-        {#if typed.trim() !== ""}<p class="yours"><span class="muted">You wrote</span> {typed}</p>{/if}
-        <p class="back">{card.back}</p>
-        <div class="answers" role="group" aria-label="How did that go?">
-          {#each labels as l (l.key)}
-            <button type="button" class="btn answer {l.answer}" onclick={() => void give(l.answer)}>
-              <span class="t">{l.text}</span>
-              <span class="h">{l.hint}</span>
-              <kbd>{l.key}</kbd>
-            </button>
+        {#if before && lastAnswer}<p class="muted">Last answer: {lastAnswer}. <button type="button" class="linkbtn" onclick={() => void undo()}>Take it back</button> <Kbd keys={inUndoBox ? `${modKey} Z` : "Z"} /></p>{/if}
+        <div><Button href={NOTES_PATH}>Back to your notes</Button></div>
+      </section>
+    {:else if card}
+      <div class="stage" tabindex="-1" bind:this={stage}>
+        <p class="kind">{card.kind === "cloze" ? "Fill in the blank" : "Question"}{card.isNew ? " · new" : ""}</p>
+        {#if card.context}<p class="context">{card.context}</p>{/if}
+        <p class="front">{card.front}</p>
+        {#if !session.revealed}
+          {#if typeFirst}
+            <label class="answer-box">
+              <span class="muted">Say it in your own words first</span>
+              <Textarea bind:el={box} rows={3} bind:value={typed} placeholder="Your answer (optional)" />
+            </label>
+          {/if}
+          <div><Button variant="primary" onclick={() => void show()}>Show the answer <Kbd keys={typeFirst ? "Enter" : "Space"} /></Button></div>
+        {:else}
+          {#if typed.trim() !== ""}<p class="yours"><span class="muted">You wrote</span> {typed}</p>{/if}
+          <p class="back">{card.back}</p>
+          <div class="answers" role="group" aria-label="How did that go?">
+            {#each labels as l (l.key)}
+              <Button onclick={() => void give(l.answer)}>{l.text} <Kbd keys={l.key} /></Button>
+            {/each}
+          </div>
+          <p class="muted">{labels.map((l) => `${l.key} ${l.hint}`).join(" · ")}</p>
+        {/if}
+        {#if saveError}<p class="error" role="alert">{saveError}</p>{/if}
+        {#if before && lastAnswer}<p class="muted">Answered {lastAnswer}. <button type="button" class="linkbtn" onclick={() => void undo()}>Take it back</button> <Kbd keys={inUndoBox ? `${modKey} Z` : "Z"} /></p>{/if}
+        {#if session.revealed && card.lapses >= STUCK_LAPSES}
+          <aside class="stuck" aria-label="This card keeps slipping">
+            <p><strong>This one keeps slipping.</strong> You have forgotten it {card.lapses} times. A card that is hard to hold usually needs rewording or splitting.</p>
+            {#each lintCard(card) as h (h.code)}<p class="muted">{h.message}</p>{/each}
+            <p><a href={noteHref(card.noteId)}>Open the note to rewrite it</a></p>
+          </aside>
+        {/if}
+        <p class="source"><a href={noteHref(card.noteId)}>From {card.noteId}</a></p>
+      </div>
+    {/if}
+
+    <Cluster gap={2}>
+      <Button variant="ghost" size="sm" href={`/api/study/export${noteId ? `?note=${encodeURIComponent(noteId)}` : ""}`} download>Download cards for Anki</Button>
+      <Button variant="ghost" size="sm" href="/import">Import cards</Button>
+    </Cluster>
+
+    <Cluster gap={2}>
+      <Button variant="ghost" size="sm" href="/recall">Recall check</Button>
+      <Button variant="ghost" size="sm" href="/outline">Outline a text</Button>
+      <Button variant="ghost" size="sm" href="/gap">Gap check</Button>
+    </Cluster>
+
+    <ExamDates initialNote={noteId} onchange={() => void refreshStudyDue()} />
+
+    {#if history.some((d) => d.count > 0)}
+      <section aria-labelledby="recent">
+        <h2 id="recent">Last 14 days</h2>
+        <ol class="bars" aria-label={`${weekTotal} answers in the last 7 days`}>
+          {#each history as d (d.day)}
+            <li title={`${d.day}: ${d.count} ${d.count === 1 ? "answer" : "answers"}`}><span style:height="{Math.max(d.count ? 8 : 2, Math.round((d.count / peak) * 100))}%" class:zero={d.count === 0}></span></li>
+          {/each}
+        </ol>
+        <p class="muted">{weekTotal} {weekTotal === 1 ? "answer" : "answers"} this week</p>
+      </section>
+    {/if}
+
+    {#if stuck.length > 0}
+      <section aria-labelledby="slipping">
+        <h2 id="slipping">Keeps slipping</h2>
+        <p class="muted">Rewording or splitting these usually works better than more drilling.</p>
+        <div class="list">
+          {#each stuck as c (c.id)}
+            <Row title={c.front} meta={`forgotten ${c.lapses} times`} href={noteHref(c.noteId)} />
           {/each}
         </div>
-      {/if}
-      {#if saveError}<p class="error" role="alert">{saveError}</p>{/if}
-      {#if before && lastAnswer}<p class="undo">Answered {lastAnswer}. <button type="button" class="linkbtn" onclick={() => void undo()}>Take it back <kbd>{inUndoBox ? `${modKey} Z` : "Z"}</kbd></button></p>{/if}
-      {#if session.revealed && card.lapses >= STUCK_LAPSES}
-        <aside class="stuck" aria-label="This card keeps slipping">
-          <p><strong>This one keeps slipping.</strong> You have forgotten it {card.lapses} times. A card that is hard to hold usually needs rewording or splitting.</p>
-          {#each lintCard(card) as h (h.code)}<p class="muted">{h.message}</p>{/each}
-          <p><a href={`/?note=${encodeURIComponent(card.noteId)}`}>Open the note to rewrite it</a></p>
-        </aside>
-      {/if}
-      <p class="source"><a href={`/?note=${encodeURIComponent(card.noteId)}`}>From {card.noteId}</a></p>
-    </div>
-  {/if}
+      </section>
+    {/if}
 
-  <p class="muted tools">
-    <a href={`/api/study/export${noteId ? `?note=${encodeURIComponent(noteId)}` : ""}`} download>Download cards</a> as text for Anki ·
-    <a href="/import">Import cards</a>
-  </p>
+    {#if forecastTotal > 0}
+      <section aria-labelledby="coming">
+        <h2 id="coming">Coming up</h2>
+        <ol class="bars" aria-label={`${forecastTotal} reviews due in the next 14 days`}>
+          {#each forecast as d (d.day)}
+            <li title={`${d.day}: ${d.count} ${d.count === 1 ? "review" : "reviews"}`}><span style:height="{Math.max(d.count ? 8 : 2, Math.round((d.count / forecastPeak) * 100))}%" class:zero={d.count === 0}></span></li>
+          {/each}
+        </ol>
+        <p class="muted">{forecastTotal} {forecastTotal === 1 ? "review" : "reviews"} over the next 14 days. Today is the left bar.</p>
+      </section>
+    {/if}
 
-  <ExamDates initialNote={noteId} onchange={() => void refreshStudyDue()} />
-
-  {#if history.some((d) => d.count > 0)}
-    <section class="history" aria-labelledby="recent">
-      <h2 id="recent">Last 14 days</h2>
-      <ol class="bars" aria-label={`${weekTotal} answers in the last 7 days`}>
-        {#each history as d (d.day)}
-          <li title={`${d.day}: ${d.count} ${d.count === 1 ? "answer" : "answers"}`}><span style={`height: ${Math.max(d.count ? 8 : 2, Math.round((d.count / peak) * 100))}%`} class:zero={d.count === 0}></span></li>
-        {/each}
-      </ol>
-      <p class="count">{weekTotal} {weekTotal === 1 ? "answer" : "answers"} this week</p>
-    </section>
-  {/if}
-
-  {#if stuck.length > 0}
-    <section class="decks" aria-labelledby="slipping">
-      <h2 id="slipping">Keeps slipping</h2>
-      <p class="muted">Cards you have forgotten again and again. Rewording or splitting them usually works better than more drilling.</p>
-      <ul>
-        {#each stuck as c (c.id)}
-          <li>
-            <a href={`/?note=${encodeURIComponent(c.noteId)}`}>{c.front}</a>
-            <span class="count">forgotten {c.lapses} times</span>
-          </li>
-        {/each}
-      </ul>
-    </section>
-  {/if}
-
-  {#if forecastTotal > 0}
-    <section class="history" aria-labelledby="coming">
-      <h2 id="coming">Coming up</h2>
-      <ol class="bars" aria-label={`${forecastTotal} reviews due in the next 14 days`}>
-        {#each forecast as d (d.day)}
-          <li title={`${d.day}: ${d.count} ${d.count === 1 ? "review" : "reviews"}`}><span style={`height: ${Math.max(d.count ? 8 : 2, Math.round((d.count / forecastPeak) * 100))}%`} class:zero={d.count === 0}></span></li>
-        {/each}
-      </ol>
-      <p class="count">{forecastTotal} {forecastTotal === 1 ? "review" : "reviews"} over the next 14 days. Today is the left bar.</p>
-    </section>
-  {/if}
-
-  {#if decks.length > 0}
-    <section class="decks" aria-labelledby="by-note">
-      <h2 id="by-note">By note</h2>
-      <ul>
-        {#each decks as d (d.noteId)}
-          <li>
-            <a href={`/study?note=${encodeURIComponent(d.noteId)}`} data-sveltekit-reload>{d.noteId}</a>
-            <span class="count">{d.cards} {d.cards === 1 ? "card" : "cards"}</span>
-            <span class="count">{d.due + d.new > 0 ? `${d.due + d.new} to study` : "all done"}</span>
-            <span class="count" title="Share of your answers that were not Again">{d.recall === null ? "recall: not enough answers yet" : `recall ${d.recall}%`}</span>
-          </li>
-        {/each}
-      </ul>
-    </section>
-  {/if}
-</div>
+    {#if decks.length > 0}
+      <section aria-labelledby="by-note">
+        <h2 id="by-note">By note</h2>
+        <div class="list">
+          {#each decks as d (d.noteId)}
+            <Row
+              title={d.noteId}
+              meta={`${d.cards} ${d.cards === 1 ? "card" : "cards"}`}
+              snippet={`${d.due + d.new > 0 ? `${d.due + d.new} to study` : "all done"} · ${d.recall === null ? "not enough answers for recall yet" : `recall ${d.recall}%`}`}
+              href={`/study?note=${encodeURIComponent(d.noteId)}`}
+              data-sveltekit-reload=""
+            />
+          {/each}
+        </div>
+      </section>
+    {/if}
+  </Stack>
+</Page>
 
 <style>
-  .page {
-    max-width: 680px;
-    margin: 0 auto;
-    padding: var(--space-6);
-    display: grid;
-    gap: var(--space-6);
+  h2 {
+    margin-bottom: var(--s-2);
+    font: var(--weight-strong) var(--type-heading-size) / var(--type-heading-lh) var(--font-ui);
   }
 
-  .head {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: baseline;
-    gap: var(--space-4);
-  }
-
-  h1 {
-    font-family: var(--font-serif);
-    font-size: var(--text-h1);
-    font-weight: 600;
-    margin-right: auto;
+  p {
+    margin: 0;
   }
 
   .progress,
-  .toggle,
   .muted {
-    color: var(--ink-muted);
-    font-size: var(--text-label);
+    color: var(--text-2);
+    font: var(--weight-regular) var(--type-ui-size) / var(--type-ui-lh) var(--font-ui);
   }
 
   .stage {
-    display: grid;
-    gap: var(--space-4);
-    padding: var(--space-8);
-    border: 1px solid var(--hairline);
-    border-radius: var(--radius-lg);
-    background: var(--surface-raised);
+    display: flex;
+    flex-direction: column;
+    gap: var(--s-4);
+    padding: var(--s-6) 0;
     outline: none;
   }
 
   .kind {
-    font-size: var(--text-label);
-    letter-spacing: 0.09em;
-    text-transform: uppercase;
-    color: var(--ink-muted);
+    color: var(--text-3);
+    font: var(--weight-medium) var(--type-meta-size) / var(--type-meta-lh) var(--font-ui);
   }
 
   .context {
-    color: var(--ink-muted);
-    font-size: var(--text-label);
+    color: var(--text-2);
+    font: var(--weight-regular) var(--type-ui-size) / var(--type-ui-lh) var(--font-ui);
   }
+
   .front {
-    font-family: var(--font-serif);
-    font-size: var(--text-h2);
-    line-height: 1.3;
+    font: var(--weight-strong) var(--type-title-size) / var(--type-title-lh) var(--font-prose);
+    letter-spacing: var(--type-title-tracking);
   }
 
   .back {
-    padding-top: var(--space-4);
-    border-top: 1px solid var(--hairline);
-    font-family: var(--font-serif);
-    font-size: var(--text-h3);
-    line-height: 1.4;
+    padding-top: var(--s-4);
+    box-shadow: 0 -1px 0 var(--line-soft);
+    font: var(--weight-regular) var(--type-heading-size) / var(--type-heading-lh) var(--font-prose);
   }
 
   .yours {
-    font-size: var(--text-label);
-    color: var(--ink-muted);
-    font-style: italic;
+    color: var(--text-2);
+    font: var(--weight-regular) var(--type-ui-size) / var(--type-ui-lh) var(--font-ui);
   }
 
   .answer-box {
-    display: grid;
-    gap: var(--space-1);
-  }
-
-  textarea {
-    padding: var(--space-3);
-    border: 1px solid var(--hairline);
-    border-radius: var(--radius);
-    background: var(--bg);
-    font: inherit;
-    font-family: var(--font-serif);
-    font-size: var(--text-prose);
-    color: var(--ink);
-    resize: vertical;
+    display: flex;
+    flex-direction: column;
+    gap: var(--s-1);
   }
 
   .answers {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
-    gap: var(--space-2);
-  }
-
-  .btn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: var(--space-2);
-    padding: var(--space-2) var(--space-4);
-    border: 1px solid var(--hairline);
-    border-radius: var(--radius);
-    color: var(--ink);
-    text-decoration: none;
-    font-size: var(--text-ui);
-  }
-
-  .btn:hover {
-    background: var(--surface-hover);
-  }
-
-  .btn.primary {
-    justify-self: start;
-    background: var(--ink);
-    border-color: var(--ink);
-    color: var(--bg);
-  }
-
-  .btn.primary:hover {
-    background: var(--ink);
-    opacity: 0.9;
-  }
-
-  .answer {
-    flex-direction: column;
-    gap: 2px;
-    padding: var(--space-3) var(--space-2);
-    text-align: center;
-  }
-
-  .answer .t {
-    font-weight: 600;
-  }
-
-  .answer .h {
-    font-size: var(--text-label);
-    color: var(--ink-muted);
-  }
-
-  kbd {
-    font-family: var(--font-mono);
-    font-size: var(--text-label);
-    color: var(--ink-muted);
-  }
-
-  .btn.primary kbd {
-    color: var(--bg);
-    opacity: 0.7;
-  }
-
-  .undo {
-    font-size: var(--text-label);
-    color: var(--ink-muted);
+    gap: var(--s-2);
   }
 
   .linkbtn {
-    color: var(--ink);
+    color: var(--text);
     text-decoration: underline;
     text-underline-offset: 2px;
   }
 
-  .tools a {
-    color: var(--ink-muted);
-  }
-
   .stuck {
-    padding: var(--space-3) var(--space-4);
-    border: 1px solid var(--hairline);
-    border-radius: var(--radius-lg);
-    background: var(--surface-raised);
-    font-size: var(--text-label);
-  }
-
-  .stuck p {
-    margin: 0 0 var(--space-1);
+    display: flex;
+    flex-direction: column;
+    gap: var(--s-1);
+    padding: var(--s-3) var(--s-4);
+    border-radius: var(--r-surface);
+    background: var(--fill-hover);
+    font: var(--weight-regular) var(--type-ui-size) / var(--type-ui-lh) var(--font-ui);
   }
 
   .source {
-    font-size: var(--text-label);
+    font: var(--weight-regular) var(--type-meta-size) / var(--type-meta-lh) var(--font-ui);
   }
 
   .source a {
-    color: var(--ink-muted);
+    color: var(--text-3);
   }
 
-  .history h2 {
-    margin-bottom: var(--space-2);
-    font-size: var(--text-label);
-    letter-spacing: 0.09em;
-    text-transform: uppercase;
-    font-weight: 500;
-    color: var(--ink-muted);
+  .list {
+    margin: 0 calc(var(--s-3) * -1);
   }
 
   .bars {
     display: flex;
     align-items: flex-end;
-    gap: 4px;
+    gap: var(--s-1);
     height: 48px;
-    margin: 0 0 var(--space-2);
+    margin: 0 0 var(--s-2);
     padding: 0;
     list-style: none;
   }
@@ -487,79 +384,42 @@
   .bars span {
     display: block;
     width: 100%;
-    border-radius: 3px;
-    background: var(--ink-muted);
+    border-radius: var(--r-control);
+    background: var(--text-3);
   }
 
   .bars span.zero {
-    background: var(--hairline);
-  }
-
-  .decks h2 {
-    margin-bottom: var(--space-2);
-    font-size: var(--text-label);
-    letter-spacing: 0.09em;
-    text-transform: uppercase;
-    font-weight: 500;
-    color: var(--ink-muted);
-  }
-
-  .decks ul {
-    margin: 0;
-    padding: 0;
-    list-style: none;
-  }
-
-  .decks li {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: baseline;
-    gap: var(--space-4);
-    padding: var(--space-2) 0;
-    border-bottom: 1px solid var(--hairline);
-  }
-
-  .decks a {
-    margin-right: auto;
-    font-family: var(--font-serif);
-    font-size: var(--text-prose);
-    color: var(--ink);
-  }
-
-  .count {
-    font-size: var(--text-label);
-    color: var(--ink-muted);
+    background: var(--fill-selected);
   }
 
   .done {
-    display: grid;
-    gap: var(--space-3);
-    padding: var(--space-8) 0;
-    font-size: var(--text-prose);
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--s-3);
+    padding: var(--s-8) 0;
+    font: var(--weight-regular) var(--type-body-size) / var(--type-body-lh) var(--font-ui);
   }
 
   .done h2 {
-    font-family: var(--font-serif);
-    font-size: var(--text-h2);
-    font-weight: 600;
+    margin: 0;
+    font: var(--weight-strong) var(--type-title-size) / var(--type-title-lh) var(--font-ui);
+    letter-spacing: var(--type-title-tracking);
   }
 
   code {
-    padding: 0 4px;
-    border-radius: 4px;
-    background: var(--surface);
-    font-size: 0.9em;
+    padding: 0 var(--s-1);
+    border-radius: var(--r-control);
+    background: var(--fill-selected);
+    font: var(--weight-regular) var(--type-ui-size) / 1 var(--font-code);
   }
 
   .error {
-    color: var(--err-ink);
-    font-size: var(--text-label);
+    color: var(--danger);
+    font: var(--weight-regular) var(--type-ui-size) / var(--type-ui-lh) var(--font-ui);
   }
 
   @media (max-width: 639px) {
-    .stage {
-      padding: var(--space-4);
-    }
     .answers {
       grid-template-columns: repeat(2, 1fr);
     }

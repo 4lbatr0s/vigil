@@ -310,3 +310,96 @@ describe("stale approvals and the approvals API", () => {
     expect((await call("GET", "/api/approvals?status=rejected")).json.data).toHaveLength(1);
   });
 });
+
+describe("append_note", () => {
+  const appendCall = (title: string, text: string, id: string) =>
+    new AIMessage({ content: "", tool_calls: [{ id, name: "append_note", args: { title, text }, type: "tool_call" }], usage_metadata: usage(10) });
+
+  it("a strict agent's append waits, and the Approvals list shows the old body plus the new text", async () => {
+    await createNote({ title: "Log", body: "first entry" });
+    const { runId } = await startStrict([appendCall("Log", "second entry", "a1"), say("done")]);
+    expect(getRun(runId)?.status).toBe("waiting-approval");
+    expect((await getNote("log")).body).toBe("first entry");
+    const item = (await call("GET", "/api/approvals")).json.data[0];
+    expect(item).toMatchObject({ tool: "append_note", title: "Log", currentBody: "first entry", proposedBody: "first entry\n\nsecond entry" });
+  });
+
+  it("approving it appends to the note, keeps the old text, and the run snapshot lets undo restore the note", async () => {
+    await createNote({ title: "Log", body: "first entry" });
+    const { runId } = await startStrict([appendCall("Log", "second entry", "a1"), say("done")]);
+    const approval = pendingForRun(runId)[0];
+    expect((await call("POST", `/api/approvals/${approval?.id}/decision`, { decision: "approve" })).status).toBe(200);
+    await waitForRuns();
+    expect((await getNote("log")).body).toBe("first entry\n\nsecond entry");
+    expect(listSnapshots(runId)).toMatchObject([{ noteId: "log", existed: true }]);
+  });
+
+  it("creates the note when it does not exist", async () => {
+    const { runId } = await startStrict([appendCall("Fresh", "hello", "a1"), say("done")]);
+    expect((await call("GET", "/api/approvals")).json.data[0]).toMatchObject({ currentBody: null, proposedBody: "hello" });
+    await call("POST", `/api/approvals/${pendingForRun(runId)[0]?.id}/decision`, { decision: "approve" });
+    await waitForRuns();
+    expect((await getNote("fresh")).body).toBe("hello");
+  });
+});
+
+describe("approval for other tools", () => {
+  const fetchCall = (url: string, id: string) => new AIMessage({ content: "", tool_calls: [{ id, name: "fetch_url", args: { url }, type: "tool_call" }], usage_metadata: usage(10) });
+  const agentWithFetch = (over: Partial<Agent> = {}) => strictAgent({ strict: false, tools: ["read_notes", "web_fetch"], allowedHosts: ["example.com"], approveTools: ["fetch_url"], ...over });
+
+  async function startWith(a: Agent, script: AIMessage[]) {
+    putAgent(a);
+    const s = scripted(script);
+    setRunDeps({ makeModel: s.make });
+    const run = startRun(a.name);
+    await waitForRuns();
+    return { runId: run.id, ...s };
+  }
+
+  it("a fetch waits for approval when the agent asks for it, and the list shows the address", async () => {
+    const { runId } = await startWith(agentWithFetch(), [fetchCall("https://example.com/page", "f1"), say("done")]);
+    expect(getRun(runId)?.status).toBe("waiting-approval");
+    expect(listEvents(runId).some((e) => e.kind === "tool-result")).toBe(false);
+    const item = (await call("GET", "/api/approvals")).json.data[0];
+    expect(item).toMatchObject({ tool: "fetch_url", target: "https://example.com/page", stale: false });
+  });
+
+  it("rejecting it gives the agent the rejected text and nothing is fetched", async () => {
+    const { runId, inputs } = await startWith(agentWithFetch(), [fetchCall("https://example.com/page", "f1"), say("done")]);
+    await call("POST", `/api/approvals/${pendingForRun(runId)[0]?.id}/decision`, { decision: "reject" });
+    await waitForRuns();
+    expect(getRun(runId)?.status).toBe("succeeded");
+    const reply = inputs.at(-1)?.filter((m): m is ToolMessage => ToolMessage.isInstance(m)).at(-1);
+    expect(String(reply?.content)).toBe(REJECTED_TEXT);
+  });
+
+  it("approving it runs the tool", async () => {
+    const { runId } = await startWith(agentWithFetch({ allowedHosts: [] }), [fetchCall("https://example.com/page", "f1"), say("done")]);
+    await call("POST", `/api/approvals/${pendingForRun(runId)[0]?.id}/decision`, { decision: "approve" });
+    await waitForRuns();
+    expect(listEvents(runId).some((e) => e.kind === "tool-result")).toBe(true);
+  });
+
+  it("the approval shows the whole address and the whole message, never a cut copy", async () => {
+    const long = `https://example.com/p?d=${"x".repeat(1900)}`;
+    const { runId } = await startWith(agentWithFetch(), [fetchCall(long, "f1"), say("done")]);
+    expect(getRun(runId)?.status).toBe("waiting-approval");
+    expect((await call("GET", "/api/approvals")).json.data[0].target).toBe(long);
+  });
+
+  it("a rejected fetch never runs, even when the owner switches the approval off while it waits", async () => {
+    const a = agentWithFetch({ allowedHosts: [] });
+    const { runId, inputs } = await startWith(a, [fetchCall("https://example.com/page", "f1"), say("done")]);
+    putAgent({ ...a, approveTools: undefined });
+    await call("POST", `/api/approvals/${pendingForRun(runId)[0]?.id}/decision`, { decision: "reject" });
+    await waitForRuns();
+    expect(listEvents(runId).filter((e) => e.kind === "tool-call")).toHaveLength(0);
+    const reply = inputs.at(-1)?.filter((m): m is ToolMessage => ToolMessage.isInstance(m)).at(-1);
+    expect(String(reply?.content)).toBe(REJECTED_TEXT);
+  });
+
+  it("without approveTools a fetch runs at once, even for a strict agent with no write tool", async () => {
+    const { runId } = await startWith(agentWithFetch({ approveTools: undefined, strict: true }), [fetchCall("https://example.com/page", "f1"), say("done")]);
+    expect(getRun(runId)?.status).toBe("succeeded");
+  });
+});

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { ApiError, getMeaning, putMeaning, type MeaningStatus } from "$lib/api";
+  import { Button, Cluster, Input } from "$lib/ui";
 
   let status = $state<MeaningStatus | null>(null);
   let model = $state("");
@@ -42,17 +43,19 @@
 {#if status}
   <section aria-labelledby="meaning-settings">
     <h2 id="meaning-settings">Search by meaning</h2>
-    <p class="muted">Find notes that mean the same thing even when they share no word, in Ask, in "Related notes" and for your agents. It needs a small embedding model on your default connection, for example <code>nomic-embed-text</code> on Ollama (run <code>ollama pull nomic-embed-text</code>). Your notes are sent only to that connection. Off until you name a model.</p>
+    <p class="muted">Find notes that mean the same thing even when they share no word, in Ask, in Related notes and for your helpers. It needs a small embedding model on your default connection, for example <code>nomic-embed-text</code> on Ollama (run <code>ollama pull nomic-embed-text</code>). Your notes go only to that connection. Off until you name a model.</p>
     <form
-      class="row"
+      class="form"
       onsubmit={(e) => {
         e.preventDefault();
         void save(model.trim() === "" ? null : model.trim());
       }}
     >
-      <input id="meaning-model" type="text" bind:value={model} placeholder="Model name, for example nomic-embed-text" aria-label="Embedding model name" />
-      <button type="submit" class="save" disabled={busy}>{status.model === null ? "Turn on" : "Save"}</button>
-      {#if status.model !== null}<button type="button" class="save" disabled={busy} onclick={() => { model = ""; void save(null); }}>Turn off</button>{/if}
+      <Input id="meaning-model" bind:value={model} placeholder="nomic-embed-text" aria-label="Embedding model name" />
+      <Cluster gap={2}>
+        <Button type="submit" variant={status.model === null ? "primary" : "quiet"} disabled={busy}>{status.model === null ? "Turn on" : "Save"}</Button>
+        {#if status.model !== null}<Button variant="ghost" disabled={busy} onclick={() => { model = ""; void save(null); }}>Turn off</Button>{/if}
+      </Cluster>
     </form>
     {#if status.model !== null}
       <p class="muted" aria-live="polite">{status.working ? "Reading your notes…" : "Ready."} {status.embedded} of {status.notes} notes read.</p>
@@ -63,36 +66,31 @@
 {/if}
 
 <style>
-  .row {
+  .form {
     display: flex;
     flex-wrap: wrap;
-    gap: var(--space-2);
-    margin: var(--space-2) 0;
+    gap: var(--s-2);
+    margin: var(--s-3) 0;
   }
-  input {
+
+  .form :global(input) {
     flex: 1 1 14rem;
-    min-width: 0;
-    padding: var(--space-2) var(--space-3);
-    border: 1px solid var(--hairline);
-    border-radius: var(--radius);
-    background: var(--surface);
+    width: auto;
   }
-  .save {
-    padding: var(--space-1) var(--space-3);
-    border: 1px solid var(--hairline);
-    border-radius: var(--radius);
-    background: var(--surface);
-    font-size: var(--text-label);
-  }
+
   code {
-    font-family: var(--font-mono);
-    font-size: var(--text-label);
+    font: var(--weight-regular) var(--type-meta-size) / var(--type-meta-lh) var(--font-code);
   }
+
   .muted {
-    color: var(--ink-muted);
-    font-size: var(--text-label);
+    margin: 0;
+    color: var(--text-2);
+    font: var(--weight-regular) var(--type-ui-size) / var(--type-ui-lh) var(--font-ui);
   }
+
   .error {
-    color: var(--err-ink);
+    margin: 0;
+    color: var(--danger);
+    font: var(--weight-regular) var(--type-ui-size) / var(--type-ui-lh) var(--font-ui);
   }
 </style>

@@ -115,6 +115,36 @@ describe("json api", () => {
     expect(errCode((await req("GET", "/api/notes/..%2Fx/backlinks")).json)).toBeDefined();
   });
 
+  it("lists a note's links: outgoing (with ghosts), backlinks and unlinked mentions", async () => {
+    await req("PUT", "/api/notes/ln-a", { title: "LN A", body: "See [[LN B]] and [[Not written]]." });
+    await req("PUT", "/api/notes/ln-b", { title: "LN B", body: "Back to [[LN A]]." });
+    await req("PUT", "/api/notes/ln-c", { title: "LN C", body: "A line about ln a without a link." });
+    const res = await req("GET", "/api/notes/ln-a/links");
+    expect(res.status).toBe(200);
+    const d = res.json.data as { outgoing: { id: string; ghost: boolean }[]; backlinks: { id: string }[]; mentions: { id: string; snippet: string }[] };
+    expect(d.outgoing.map((o) => [o.id, o.ghost])).toEqual([["ln-b", false], ["not-written", true]]);
+    expect(d.backlinks.map((b) => b.id)).toEqual(["ln-b"]);
+    expect(d.mentions).toEqual([{ id: "ln-c", title: "LN C", snippet: "A line about ln a without a link." }]);
+  });
+
+  it("serves the local graph with ?focus and ?hops, and an empty one for an unknown note", async () => {
+    await req("PUT", "/api/notes/lg-a", { title: "LG A", body: "[[LG B]]" });
+    await req("PUT", "/api/notes/lg-b", { title: "LG B", body: "[[LG C]]" });
+    await req("PUT", "/api/notes/lg-c", { title: "LG C", body: "end" });
+    const one = (await req("GET", "/api/graph?focus=lg-a&hops=1")).json.data as { nodes: { id: string }[] };
+    expect(one.nodes.map((n) => n.id).sort()).toEqual(["lg-a", "lg-b"]);
+    const two = (await req("GET", "/api/graph?focus=lg-a&hops=2")).json.data as { nodes: { id: string }[] };
+    expect(two.nodes.map((n) => n.id).sort()).toEqual(["lg-a", "lg-b", "lg-c"]);
+    expect((await req("GET", "/api/graph?focus=nothing-here")).json.data).toEqual({ nodes: [], edges: [], truncated: false });
+  });
+
+  it("reports model capabilities as unknown when there is no model or the provider does not say", async () => {
+    const res = await req("GET", "/api/llm/capabilities");
+    expect(res.status).toBe(200);
+    expect(res.json.data).toEqual({ known: false, tools: null, vision: null, contextTokens: null });
+    expect((await req("GET", "/api/llm/capabilities?model=gpt-test")).json.data).toMatchObject({ known: false });
+  });
+
   it("caps a long backlink snippet at 160 characters", async () => {
     await req("PUT", "/api/notes/bl-long", { title: "BL Long", body: `[[Cap target]] ${"x".repeat(400)}` });
     const rows = (await req("GET", "/api/notes/cap-target/backlinks")).json.data as Array<{ snippet: string }>;

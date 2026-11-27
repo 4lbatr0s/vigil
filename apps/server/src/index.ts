@@ -1,10 +1,10 @@
-import { accessFromEnv } from "./access";
+import { accessFromEnv, accessWarnings } from "./access";
 import { rebuildAll, isEmpty } from "./index-db";
 import { startSemanticIndex } from "./semantic";
-import { resumeDecidedRuns, startRun } from "./runs";
+import { recoverRuns, resumeDecidedRuns, startRun } from "./runs";
 import { startHousekeeping } from "./housekeeping";
 import { createScheduler } from "./scheduler";
-import { hasRunning, listAgents, markInterruptedRuns } from "./state-db";
+import { hasRunning, hasWaitingApproval, listAgents, markInterruptedRuns } from "./state-db";
 import { shutdown } from "./shutdown";
 import { start } from "./server";
 import { startWatcher } from "./watcher";
@@ -13,16 +13,20 @@ const port = Number(process.env.PORT ?? 3001);
 
 async function main(): Promise<void> {
   // Fail fast on bad access settings (a non-local bind without a token) before touching any data.
-  accessFromEnv();
-  const interrupted = markInterruptedRuns();
-  if (interrupted > 0) console.log(`vigil-server marked ${interrupted} unfinished run(s) as interrupted`);
-  // Runs paused for approval stay paused; one whose writes were all decided just before a crash continues.
-  const resumed = resumeDecidedRuns();
-  if (resumed > 0) console.log(`vigil-server resumed ${resumed} run(s) whose approvals were already decided`);
+  for (const line of accessWarnings(accessFromEnv())) console.warn(line);
   if (isEmpty()) {
     const count = await rebuildAll();
     console.log(`vigil-server indexed ${count} note(s) from the vault`);
   }
+  // Runs a restart cut off continue once where they can, after the rebuild so their tools never see an empty index
+  // (ADR-0034); the rest are marked interrupted below.
+  const recovered = await recoverRuns();
+  if (recovered.length > 0) console.log(`vigil-server continued ${recovered.length} run(s) that a restart cut off`);
+  const interrupted = markInterruptedRuns(recovered);
+  if (interrupted > 0) console.log(`vigil-server marked ${interrupted} unfinished run(s) as interrupted`);
+  // Runs paused for approval stay paused; one whose writes were all decided just before a crash continues.
+  const resumed = resumeDecidedRuns();
+  if (resumed > 0) console.log(`vigil-server resumed ${resumed} run(s) whose approvals were already decided`);
   startSemanticIndex();
   const running = start({ port });
   const { server } = running;
@@ -38,6 +42,7 @@ async function main(): Promise<void> {
     listAgents,
     startRun,
     hasRunning,
+    waitingApproval: hasWaitingApproval,
     catchUpWindowMs: (Number.isFinite(catchUpHours) && catchUpHours > 0 ? catchUpHours : 24) * 3_600_000,
   });
   scheduler.start();

@@ -922,7 +922,7 @@
     <CanvasMenu x={menu.x} y={menu.y} items={menu.items} onclose={() => (menu = null)} />
   {/if}
   {#if nodes.length === 0}
-    <p class="empty">An empty board. Double-click to write a card, right-click for more, paste a link or a picture, or use the note button below to bring in a note. Press the keyboard button for all the keys.</p>
+    <p class="blank">An empty board. Double-click to write a card, right-click for more, paste a link or a picture, or use the note button below to bring in a note. Press the keyboard button for all the keys.</p>
   {/if}
 </div>
 
@@ -963,7 +963,7 @@
   }
   .canvas-wrap :global(.svelte-flow__node > div:not(.svelte-flow__resize-control)) {
     box-shadow: 0 1px 3px color-mix(in srgb, var(--ink) 14%, transparent);
-    transition: box-shadow 120ms ease;
+    transition: box-shadow var(--dur-fast) var(--ease-out);
   }
   .canvas-wrap :global(.svelte-flow__node:hover > div:not(.svelte-flow__resize-control)) {
     box-shadow: 0 2px 8px color-mix(in srgb, var(--ink) 22%, transparent);
@@ -978,7 +978,7 @@
     height: 8px;
     min-width: 0;
     min-height: 0;
-    transition: opacity 120ms ease;
+    transition: opacity var(--dur-fast) var(--ease-out);
   }
   .canvas-wrap :global(.svelte-flow__node:hover .svelte-flow__handle),
   .canvas-wrap :global(.svelte-flow__node.selected .svelte-flow__handle) {
@@ -987,47 +987,44 @@
   .bar {
     display: flex;
     flex-wrap: wrap;
-    gap: var(--space-1);
+    gap: var(--s-1);
     align-items: center;
-    padding: var(--space-1);
-    border: 1px solid var(--hairline);
-    border-radius: var(--radius);
-    background: var(--surface);
-    box-shadow: var(--shadow-pop);
+    padding: var(--s-1);
+    border-radius: var(--r-float);
+    background: var(--paper-float);
+    box-shadow: var(--elev-float);
   }
   .hidden {
     display: none;
   }
   .img-err {
-    margin: var(--space-1) 0 0;
-    padding: var(--space-1) var(--space-2);
-    border: 1px solid var(--err);
-    border-radius: var(--radius);
-    background: var(--surface);
-    color: var(--err-ink);
-    font-size: var(--text-label);
+    margin: var(--s-1) 0 0;
+    padding: var(--s-1) var(--s-2);
+    border-radius: var(--r-control);
+    background: var(--danger-fill);
+    color: var(--danger);
+    font: var(--weight-regular) var(--type-meta-size) / var(--type-meta-lh) var(--font-ui);
   }
   .dock {
-    margin: 0 auto var(--space-3);
+    margin: 0 auto var(--s-3);
     width: max-content;
     max-width: 100%;
-    gap: var(--space-1);
+    gap: var(--s-1);
   }
   .picker {
-    margin: 0 auto var(--space-2);
+    margin: 0 auto var(--s-2);
   }
   .bar button {
-    padding: var(--space-1) var(--space-3);
-    border: 1px solid transparent;
-    border-radius: var(--radius);
+    padding: var(--s-1) var(--s-3);
+    border: 0;
+    border-radius: var(--r-control);
     background: transparent;
-    color: var(--ink);
-    font: inherit;
-    font-size: var(--text-label);
+    color: var(--text);
+    font: var(--weight-medium) var(--type-meta-size) / var(--type-meta-lh) var(--font-ui);
     cursor: pointer;
   }
   .bar button:hover:not(:disabled) {
-    background: var(--surface-hover);
+    background: var(--fill-hover);
   }
   .bar button:disabled {
     opacity: 0.4;
@@ -1035,14 +1032,14 @@
   }
   .bar button[aria-pressed="true"],
   .bar button[aria-expanded="true"] {
-    border-color: var(--ink-muted);
+    background: var(--fill-selected);
   }
   .bar .danger {
-    color: var(--err-ink);
+    color: var(--danger);
   }
   .bar .icon {
     display: inline-flex;
-    padding: var(--space-1) !important;
+    padding: var(--s-1) !important;
   }
   .guide {
     position: absolute;
@@ -1064,43 +1061,48 @@
     width: 20px;
     height: 20px;
     padding: 0 !important;
-    border-radius: 50% !important;
+    border-radius: var(--r-pill) !important;
     background: var(--c) !important;
   }
   .sep {
     width: 1px;
     align-self: stretch;
-    background: var(--hairline);
-    margin: 0 var(--space-1);
+    background: var(--line-soft);
+    margin: 0 var(--s-1);
   }
   .muted {
-    color: var(--ink-muted);
-    font-size: var(--text-label);
-    padding: 0 var(--space-2);
+    color: var(--text-2);
+    font: var(--weight-regular) var(--type-meta-size) / var(--type-meta-lh) var(--font-ui);
+    padding: 0 var(--s-2);
   }
   .label-in,
   .picker input {
-    padding: var(--space-1) var(--space-2);
-    border: 1px solid var(--hairline);
-    border-radius: var(--radius);
-    background: var(--bg);
-    color: var(--ink);
-    font: inherit;
-    font-size: var(--text-label);
+    height: var(--control-h-sm);
+    padding: 0 var(--s-2);
+    border: 0;
+    border-radius: var(--r-control);
+    background: var(--fill-hover);
+    box-shadow: inset 0 0 0 1px var(--line-soft);
+    color: var(--text);
+    font: var(--weight-regular) var(--type-ui-size) / var(--type-ui-lh) var(--font-ui);
+  }
+  .label-in:focus-visible,
+  .picker input:focus-visible {
+    outline: none;
+    box-shadow: inset 0 0 0 1px var(--focus), 0 0 0 3px var(--select-wash);
   }
   .picker,
   .outline {
     display: grid;
-    gap: var(--space-2);
+    gap: var(--s-2);
     max-height: 60vh;
     width: 18rem;
-    margin-top: var(--space-2);
-    padding: var(--space-2);
-    border: 1px solid var(--hairline);
-    border-radius: var(--radius);
-    background: var(--surface);
-    box-shadow: var(--shadow-pop);
-    font-size: var(--text-label);
+    margin-top: var(--s-2);
+    padding: var(--s-2);
+    border-radius: var(--r-float);
+    background: var(--paper-float);
+    box-shadow: var(--elev-float);
+    font: var(--weight-regular) var(--type-ui-size) / var(--type-ui-lh) var(--font-ui);
   }
   .picker ul,
   .outline ul {
@@ -1113,48 +1115,48 @@
   .outline li button {
     width: 100%;
     text-align: left;
-    padding: var(--space-1) var(--space-2);
+    padding: var(--s-1) var(--s-2);
     border: 0;
-    border-radius: var(--radius);
+    border-radius: var(--r-control);
     background: transparent;
-    color: var(--ink);
+    color: var(--text);
     font: inherit;
     cursor: pointer;
   }
   .picker li button:hover,
   .outline li button:hover {
-    background: var(--surface-hover);
+    background: var(--fill-selected);
   }
   .help dl {
     display: grid;
     grid-template-columns: auto 1fr;
-    gap: var(--space-1) var(--space-3);
+    gap: var(--s-1) var(--s-3);
     margin: 0;
     overflow: auto;
   }
   .help dt {
-    font-family: var(--font-mono);
+    font-family: var(--font-code);
   }
   .help dd {
     margin: 0;
-    color: var(--ink-muted);
+    color: var(--text-2);
   }
   .kind {
-    color: var(--ink-muted);
-    margin-right: var(--space-1);
+    color: var(--text-2);
+    margin-right: var(--s-1);
   }
   .none {
-    color: var(--ink-muted);
-    padding: var(--space-1) var(--space-2);
+    color: var(--text-2);
+    padding: var(--s-1) var(--s-2);
   }
-  .empty {
+  .blank {
     position: absolute;
     left: 50%;
     top: 50%;
     transform: translate(-50%, -50%);
     max-width: 24rem;
     text-align: center;
-    color: var(--ink-muted);
+    color: var(--text-2);
     pointer-events: none;
   }
 </style>

@@ -1,4 +1,6 @@
 <script lang="ts">
+import { noteHref } from "$lib/links";
+  import { Button, Cluster, Field, Input, Page, Stack, Textarea } from "$lib/ui";
   import { onDestroy } from "svelte";
   import { goto } from "$app/navigation";
   import { slugify } from "@vigil/shared";
@@ -69,7 +71,7 @@
     try {
       const id = freeId(slugify(name), (await listNotes()).map((n) => n.id));
       const note = await putNote(id, { title: name, body: noteBody });
-      await goto(`/?note=${encodeURIComponent(note.id)}`);
+      await goto(noteHref(note.id));
     } catch (err) {
       message = err instanceof ApiError ? err.detail : err instanceof Error ? err.message : "Could not save the note";
     } finally {
@@ -80,104 +82,56 @@
 
 <svelte:head><title>Study outline · Vigil</title></svelte:head>
 
-<div class="page">
-  <h1>Study outline</h1>
-
-  {#if step === "paste"}
-    <p class="muted">Paste a lecture transcript, an article or your rough notes. You get headings and a question for each, with the answers left empty: writing them in your own words is where the learning happens.</p>
-    <form onsubmit={make}>
-      <textarea rows="12" bind:value={source} aria-label="Text to outline" placeholder="Paste text here…" maxlength="20000"></textarea>
-      <div class="row">
-        <button type="submit" class="btn primary" disabled={busy || source.trim().length < 20}>Make an outline</button>
-        <span class="muted">An agent reads only this text. It will not answer the questions for you.</span>
-      </div>
-    </form>
-  {:else if step === "running"}
-    <p class="muted" aria-live="polite">Reading your text…</p>
-  {:else if step === "review"}
-    <p class="muted">Edit anything you like. Your note is saved only when you press the button.</p>
-    <label class="field"><span class="muted">Note title</span><input type="text" bind:value={title} /></label>
-    <textarea rows="16" bind:value={outline} aria-label="Outline"></textarea>
-    {#if message}<p class="error" role="alert">{message}</p>{/if}
-    <div class="row">
-      <button type="button" class="btn primary" disabled={busy || title.trim() === ""} onclick={() => void create()}>Create the note</button>
-      <button type="button" class="btn" onclick={() => ((step = "paste"), (title = ""))}>Start over</button>
-    </div>
-  {:else}
-    <p class="error" role="alert">{message}</p>
-    <p><button type="button" class="btn" onclick={() => ((step = "paste"), (message = ""))}>Back</button></p>
-  {/if}
-</div>
+<Page title="Study outline" width="prose">
+  <Stack gap={6}>
+    {#if step === "paste"}
+      <p class="muted">Paste a lecture transcript, an article or your rough notes. You get headings and a question for each, with the answers left empty: writing them in your own words is where the learning happens.</p>
+      <form onsubmit={make}>
+        <Textarea rows={12} bind:value={source} aria-label="Text to outline" placeholder="Paste text here…" maxlength={20000} />
+        <Cluster gap={3}>
+          <Button variant="primary" type="submit" disabled={busy || source.trim().length < 20}>Make an outline</Button>
+          <span class="muted">A helper reads only this text. It will not answer the questions for you.</span>
+        </Cluster>
+      </form>
+    {:else if step === "running"}
+      <p class="muted" aria-live="polite">Reading your text…</p>
+    {:else if step === "review"}
+      <p class="muted">Edit anything you like. Your note is saved only when you press the button.</p>
+      <Field label="Note title">
+        {#snippet children({ id })}<Input {id} bind:value={title} />{/snippet}
+      </Field>
+      <Textarea rows={16} bind:value={outline} aria-label="Outline" />
+      {#if message}<p class="error" role="alert">{message}</p>{/if}
+      <Cluster gap={2}>
+        <Button variant="primary" disabled={busy || title.trim() === ""} onclick={() => void create()}>Create the note</Button>
+        <Button variant="ghost" onclick={() => ((step = "paste"), (title = ""))}>Start over</Button>
+      </Cluster>
+    {:else}
+      <p class="error" role="alert">{message}</p>
+      <div><Button onclick={() => ((step = "paste"), (message = ""))}>Back</Button></div>
+    {/if}
+  </Stack>
+</Page>
 
 <style>
-  .page {
-    max-width: 680px;
-    margin: 0 auto;
-    padding: var(--space-6);
-    display: grid;
-    gap: var(--space-4);
+  p {
+    margin: 0;
   }
-  h1 {
-    font-family: var(--font-serif);
-    font-size: var(--text-h2);
-  }
+
   .muted {
-    color: var(--ink-muted);
-    font-size: var(--text-label);
+    color: var(--text-2);
+    font: var(--weight-regular) var(--type-ui-size) / var(--type-ui-lh) var(--font-ui);
   }
-  form {
-    display: grid;
-    gap: var(--space-3);
-  }
-  textarea,
-  input {
-    padding: var(--space-3);
-    border: 1px solid var(--hairline);
-    border-radius: var(--radius-lg);
-    background: var(--surface);
-    color: var(--ink);
-    font: inherit;
-    resize: vertical;
-  }
-  textarea {
-    font-family: var(--font-serif);
-    font-size: var(--text-prose);
-  }
-  .field {
-    display: grid;
-    gap: var(--space-1);
-  }
-  .row {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-3);
-    align-items: center;
-  }
-  .btn {
-    display: inline-flex;
-    align-items: center;
-    padding: var(--space-2) var(--space-4);
-    border: 1px solid var(--hairline);
-    border-radius: var(--radius);
-    background: transparent;
-    color: var(--ink);
-    font: inherit;
-    font-size: var(--text-ui);
-    cursor: pointer;
-  }
-  .btn:hover:not(:disabled) {
-    background: var(--surface-hover);
-  }
-  .btn:disabled {
-    opacity: 0.5;
-    cursor: default;
-  }
-  .btn.primary {
-    background: var(--ink);
-    border-color: var(--ink);
-    color: var(--bg);
-  }
+
   .error {
-    color: var(--err-ink);
+    color: var(--danger);
+    font: var(--weight-regular) var(--type-ui-size) / var(--type-ui-lh) var(--font-ui);
   }
+
+  form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--s-3);
+  }
+
 </style>

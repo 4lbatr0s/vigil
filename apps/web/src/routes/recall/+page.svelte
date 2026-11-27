@@ -1,4 +1,6 @@
 <script lang="ts">
+import { noteHref, NOTES_PATH } from "$lib/links";
+  import { Button, Checkbox, Cluster, Input, Page, Row, Stack, Textarea } from "$lib/ui";
   import { onDestroy, onMount } from "svelte";
   import { page } from "$app/state";
   import { ApiError, addMisconceptions, createFromTemplate, enrollRecall, getRecall, getRun, getRunResult, listAgents, listMisconceptions, listNotes, putAgent, resolveMisconception, recordRecall, startRecallCheck, type Misconception, type RecallItem, type RecallResult } from "$lib/api";
@@ -115,207 +117,142 @@
 
 <svelte:head><title>Recall · Vigil</title></svelte:head>
 
-<div class="page">
-  <h1>Recall</h1>
-
-  {#if step === "pick"}
-    <p class="muted">Put the note away and write what you remember. That effort, not rereading, is what builds memory.</p>
-    {#if due.length > 0}
-      <ul class="list">
-        {#each due as i (i.noteId)}
-          <li><a href={`/recall?note=${encodeURIComponent(i.noteId)}`} data-sveltekit-reload>{titles.get(i.noteId) ?? i.noteId}</a><span class="muted">due {relativeTime(i.due)}</span></li>
-        {/each}
-      </ul>
-    {:else if items.length > 0}
-      <p>Nothing to recall right now. Next one is {untilText(items[0]!.due)}.</p>
-    {:else}
-      <p>Open a note and press <strong>Recall</strong> to start. Vigil will bring it back after a day, then 3, 7 and 21 days.</p>
-    {/if}
-  {:else if step === "write"}
-    <p>Without looking at <a href={`/?note=${encodeURIComponent(noteId ?? "")}`} target="_blank" rel="noopener">“{title}”</a>, write everything you can remember about it. Rough is fine.</p>
-    {#if shaky.length > 0}
-      <section class="shaky" aria-labelledby="shaky-h">
-        <h2 id="shaky-h">You mixed these up before</h2>
-        <ul>
-          {#each shaky as m (m.id)}
-            <li><span>{m.text}</span> <button type="button" class="link" onclick={() => void sorted(m)}>I have this now</button></li>
+<Page title="Recall" width="prose">
+  <Stack gap={6}>
+    {#if step === "pick"}
+      <p class="muted">Put the note away and write what you remember. That effort, not rereading, is what builds memory.</p>
+      {#if due.length > 0}
+        <div class="list">
+          {#each due as i (i.noteId)}
+            <Row title={titles.get(i.noteId) ?? i.noteId} meta={`due ${relativeTime(i.due)}`} href={`/recall?note=${encodeURIComponent(i.noteId)}`} data-sveltekit-reload="" />
           {/each}
-        </ul>
+        </div>
+      {:else if items.length > 0}
+        <p>Nothing to recall right now. The next one is {untilText(items[0]!.due)}.</p>
+      {:else}
+        <p>Open a note and press Recall to start. Vigil brings it back after a day, then 3, 7 and 21 days.</p>
+      {/if}
+    {:else if step === "write"}
+      <p>Without looking at <a href={noteHref(noteId ?? "")} target="_blank" rel="noopener">“{title}”</a>, write everything you can remember about it. Rough is fine.</p>
+      {#if shaky.length > 0}
+        <section class="panel" aria-labelledby="shaky-h">
+          <h2 id="shaky-h">You mixed these up before</h2>
+          <ul class="plain">
+            {#each shaky as m (m.id)}
+              <li><span>{m.text}</span> <Button variant="ghost" size="sm" onclick={() => void sorted(m)}>I have this now</Button></li>
+            {/each}
+          </ul>
+        </section>
+      {/if}
+      <form onsubmit={check}>
+        <Textarea rows={10} bind:value={recall} aria-label="What you remember" placeholder="Write what comes to mind…" maxlength={6000} />
+        <Cluster gap={3}>
+          <Button variant="primary" type="submit" disabled={busy || recall.trim().length === 0}>Check against my note</Button>
+          <span class="muted">A helper compares it with the note only. It will not rewrite what you wrote.</span>
+        </Cluster>
+      </form>
+    {:else if step === "running"}
+      <p class="muted" aria-live="polite">Reading your note and your answer…</p>
+    {:else if step === "feedback"}
+      <section aria-labelledby="fb">
+        <Stack gap={4}>
+          <h2 id="fb">What the checker found</h2>
+          <div class="feedback">{feedback}</div>
+          <div class="panel">
+            <Stack gap={3}>
+              <h3>Anything you got wrong? Keep it to watch for next time.</h3>
+              {#each found as f, i (i)}
+                <Checkbox label={f.text} bind:checked={f.keep} />
+              {/each}
+              <form class="own" onsubmit={addOwn}>
+                <Input bind:value={own} aria-label="Something you got wrong" placeholder="For example: mixed up DNA and RNA" maxlength={300} />
+                <Button type="submit" disabled={own.trim().length < 3}>Add</Button>
+              </form>
+            </Stack>
+          </div>
+          <p class="muted">The checker can be wrong. Open <a href={noteHref(noteId ?? "")} target="_blank" rel="noopener">the note</a> to be sure.</p>
+        </Stack>
       </section>
+      <p>How did it go?</p>
+      <Cluster gap={2}>
+        <Button disabled={busy} onclick={() => void record("most")}>Got most of it</Button>
+        <Button disabled={busy} onclick={() => void record("some")}>Got some</Button>
+        <Button disabled={busy} onclick={() => void record("little")}>Hardly any</Button>
+      </Cluster>
+      {#if message}<p class="error" role="alert">{message}</p>{/if}
+    {:else if step === "done"}
+      <p>Saved. You will be asked again {next ? untilText(next.due) : "later"}.</p>
+      <div><Button variant="primary" href={NOTES_PATH}>Back to your notes</Button></div>
+    {:else}
+      <p class="error" role="alert">{message}</p>
+      <div><Button href="/recall" data-sveltekit-reload="">Start again</Button></div>
     {/if}
-    <form onsubmit={check}>
-      <textarea rows="10" bind:value={recall} aria-label="What you remember" placeholder="Write what comes to mind…" maxlength="6000"></textarea>
-      <div class="row">
-        <button type="submit" class="btn primary" disabled={busy || recall.trim().length === 0}>Check against my note</button>
-        <span class="muted">An agent compares it with the note only. It will not rewrite what you wrote.</span>
-      </div>
-    </form>
-  {:else if step === "running"}
-    <p class="muted" aria-live="polite">Reading your note and your answer…</p>
-  {:else if step === "feedback"}
-    <section aria-labelledby="fb">
-      <h2 id="fb">What the checker found</h2>
-      <div class="feedback">{feedback}</div>
-      <fieldset class="keep">
-        <legend>Anything you got wrong? Keep it to watch for next time.</legend>
-        {#each found as f, i (i)}
-          <label><input type="checkbox" bind:checked={f.keep} /> <span>{f.text}</span></label>
-        {/each}
-        <form class="own" onsubmit={addOwn}>
-          <input type="text" bind:value={own} aria-label="Something you got wrong" placeholder="For example: mixed up DNA and RNA" maxlength="300" />
-          <button type="submit" class="btn" disabled={own.trim().length < 3}>Add</button>
-        </form>
-      </fieldset>
-      <p class="muted">The checker can be wrong. Open <a href={`/?note=${encodeURIComponent(noteId ?? "")}`} target="_blank" rel="noopener">the note</a> to be sure.</p>
-    </section>
-    <p>How did it go?</p>
-    <div class="row">
-      <button type="button" class="btn" disabled={busy} onclick={() => void record("most")}>Got most of it</button>
-      <button type="button" class="btn" disabled={busy} onclick={() => void record("some")}>Got some</button>
-      <button type="button" class="btn" disabled={busy} onclick={() => void record("little")}>Hardly any</button>
-    </div>
-    {#if message}<p class="error" role="alert">{message}</p>{/if}
-  {:else if step === "done"}
-    <p>Saved. You will be asked again {next ? untilText(next.due) : "later"}.</p>
-    <p><a class="btn" href="/">Back to your notes</a></p>
-  {:else}
-    <p class="error" role="alert">{message}</p>
-    <p><a class="btn" href="/recall" data-sveltekit-reload>Start again</a></p>
-  {/if}
-</div>
+  </Stack>
+</Page>
 
 <style>
-  .page {
-    max-width: 680px;
-    margin: 0 auto;
-    padding: var(--space-6);
-    display: grid;
-    gap: var(--space-4);
+  p {
+    margin: 0;
   }
-  h1 {
-    font-family: var(--font-serif);
-    font-size: var(--text-h2);
-  }
+
   h2 {
-    font-size: var(--text-label);
-    letter-spacing: 0.09em;
-    text-transform: uppercase;
-    font-weight: 500;
-    color: var(--ink-muted);
+    margin: 0;
+    font: var(--weight-strong) var(--type-heading-size) / var(--type-heading-lh) var(--font-ui);
   }
+
   .muted {
-    color: var(--ink-muted);
-    font-size: var(--text-label);
+    color: var(--text-2);
+    font: var(--weight-regular) var(--type-ui-size) / var(--type-ui-lh) var(--font-ui);
   }
+
+  .error {
+    color: var(--danger);
+    font: var(--weight-regular) var(--type-ui-size) / var(--type-ui-lh) var(--font-ui);
+  }
+
+  form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--s-3);
+  }
+
   .list {
+    margin: 0 calc(var(--s-3) * -1);
+  }
+
+  h3 {
+    margin: 0;
+    font: var(--weight-medium) var(--type-ui-size) / var(--type-ui-lh) var(--font-ui);
+  }
+
+  .feedback {
+    white-space: pre-wrap;
+    padding: var(--s-4);
+    border-radius: var(--r-surface);
+    background: var(--fill-hover);
+  }
+
+  .panel {
+    padding: var(--s-3) var(--s-4);
+    border-radius: var(--r-surface);
+    background: var(--fill-hover);
+  }
+
+  .panel h2 {
+    font: var(--weight-strong) var(--type-body-size) / var(--type-body-lh) var(--font-ui);
+    margin-bottom: var(--s-2);
+  }
+
+  .plain {
+    display: flex;
+    flex-direction: column;
+    gap: var(--s-2);
     margin: 0;
     padding: 0;
     list-style: none;
   }
-  .list li {
-    display: flex;
-    justify-content: space-between;
-    align-items: baseline;
-    padding: var(--space-2) 0;
-    border-bottom: 1px solid var(--hairline);
-  }
-  form {
-    display: grid;
-    gap: var(--space-3);
-  }
-  textarea {
-    padding: var(--space-3);
-    border: 1px solid var(--hairline);
-    border-radius: var(--radius-lg);
-    background: var(--surface);
-    color: var(--ink);
-    font: inherit;
-    font-family: var(--font-serif);
-    font-size: var(--text-prose);
-    resize: vertical;
-  }
-  .row {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-3);
-    align-items: center;
-  }
-  .feedback {
-    white-space: pre-wrap;
-    padding: var(--space-4);
-    border: 1px solid var(--hairline);
-    border-radius: var(--radius-lg);
-    background: var(--surface-raised);
-  }
-  .btn {
-    display: inline-flex;
-    align-items: center;
-    padding: var(--space-2) var(--space-4);
-    border: 1px solid var(--hairline);
-    border-radius: var(--radius);
-    background: transparent;
-    color: var(--ink);
-    text-decoration: none;
-    font: inherit;
-    font-size: var(--text-ui);
-    cursor: pointer;
-  }
-  .btn:hover:not(:disabled) {
-    background: var(--surface-hover);
-  }
-  .btn:disabled {
-    opacity: 0.5;
-    cursor: default;
-  }
-  .btn.primary {
-    background: var(--ink);
-    border-color: var(--ink);
-    color: var(--bg);
-  }
-  .error {
-    color: var(--err-ink);
-  }
-  .shaky,
-  .keep {
-    padding: var(--space-3);
-    border: 1px solid var(--hairline);
-    border-radius: var(--radius);
-    display: grid;
-    gap: var(--space-2);
-  }
-  .shaky h2 {
-    font-size: var(--text-ui);
-  }
-  .shaky ul {
-    display: grid;
-    gap: var(--space-2);
-    padding-left: var(--space-4);
-  }
-  .keep label {
-    display: flex;
-    gap: var(--space-2);
-    align-items: baseline;
-  }
+
   .own {
-    display: flex;
-    gap: var(--space-2);
-  }
-  .own input {
-    flex: 1;
-    padding: var(--space-2) var(--space-3);
-    border: 1px solid var(--hairline);
-    border-radius: var(--radius);
-    background: var(--surface);
-    color: var(--ink);
-    font: inherit;
-  }
-  .link {
-    border: 0;
-    background: none;
-    color: var(--ink-muted);
-    font: inherit;
-    font-size: var(--text-label);
-    text-decoration: underline;
-    cursor: pointer;
+    flex-direction: row;
   }
 </style>

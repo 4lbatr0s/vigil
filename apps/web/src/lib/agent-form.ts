@@ -51,13 +51,25 @@ export function formToTrigger(f: TriggerForm, timezone?: string): TriggerResult 
   return { ok: true, trigger: { kind: "cron", expression: `${Number(t[2])} ${Number(t[1])} * * ${day}`, ...tz } };
 }
 
+export type ApproveTool = NonNullable<Agent["approveTools"]>[number];
+
 /** What the agent page edits. Strings stay strings until saved, so a half-typed number is not lost. */
 export type AgentForm = {
   description: string;
   systemPrompt: string;
   enabled: boolean;
   strict: boolean;
+  /** The agent keeps a short state note between runs. */
+  keepState: boolean;
+  /** Strict agents with a write scope: appends to its own tagged notes skip approval (item 38). */
+  autoApproveAppends: boolean;
+  /** Ask before this agent reads a web page or calls another agent. */
+  approveTools: ApproveTool[];
+  /** Tags the agent may write, typed as text (commas or spaces); empty means no limit. */
+  writeTags: string;
   tokenBudget: string;
+  /** Tokens per day this agent may use; empty means no limit. */
+  dailyTokenCap: string;
   model: string;
   /** Hosts `fetch_url` may call. */
   allowedHosts: string[];
@@ -74,7 +86,12 @@ export function agentToForm(agent: Agent): AgentForm {
     systemPrompt: agent.systemPrompt,
     enabled: agent.enabled,
     strict: agent.strict,
+    keepState: agent.keepState === true,
+    autoApproveAppends: agent.autoApproveAppends === true,
+    approveTools: [...(agent.approveTools ?? [])],
+    writeTags: (agent.writeTags ?? []).join(", "),
     tokenBudget: String(agent.tokenBudget),
+    dailyTokenCap: agent.dailyTokenCap === undefined ? "" : String(agent.dailyTokenCap),
     model: agent.model ?? "",
     allowedHosts: [...agent.allowedHosts],
     trigger: triggerToForm(agent.trigger),
@@ -84,13 +101,19 @@ export function agentToForm(agent: Agent): AgentForm {
   };
 }
 
+/** Tags typed as text ("#Journal, daily/log journal"): split on commas and spaces, # dropped, lowercase, no repeats. */
+export function parseTagList(text: string): string[] {
+  return [...new Set(text.split(/[\s,]+/).map((t) => t.replace(/^#/, "").toLowerCase()).filter((t) => t !== ""))];
+}
+
 /**
  * The whole definition to PUT: the loaded agent with the form's edits laid over it. Fields the form
  * does not know (trigger, tools, hosts, callable, defaultTask) are carried over untouched, and an
  * empty model is left out rather than sent as an empty string.
  */
 export function formToAgent(base: Agent, form: AgentForm): Agent {
-  const { model: _m, connection: _c, ...rest } = base;
+  const { model: _m, connection: _c, keepState: _k, dailyTokenCap: _d, approveTools: _a, writeTags: _w, autoApproveAppends: _aa, ...rest } = base;
+  const writeTags = parseTagList(form.writeTags);
   const model = form.model.trim();
   const trigger = formToTrigger(form.trigger, base.trigger.kind === "cron" ? base.trigger.timezone : undefined);
   return {
@@ -107,6 +130,12 @@ export function formToAgent(base: Agent, form: AgentForm): Agent {
     tokenBudget: form.tokenBudget.trim() === "" ? Number.NaN : Number(form.tokenBudget),
     ...(model === "" ? {} : { model }),
     ...(form.connection === "" ? {} : { connection: form.connection }),
+    ...(form.keepState ? { keepState: true } : {}),
+    // Counts only for a strict agent with a write scope (ADR-0011), so it is saved only then.
+    ...(form.autoApproveAppends && form.strict && writeTags.length > 0 ? { autoApproveAppends: true } : {}),
+    ...(form.approveTools.length > 0 ? { approveTools: [...form.approveTools] } : {}),
+    ...(writeTags.length > 0 ? { writeTags } : {}),
+    ...(form.dailyTokenCap.trim() === "" ? {} : { dailyTokenCap: Number(form.dailyTokenCap) }),
   };
 }
 
@@ -120,7 +149,7 @@ export const TOOL_LABELS: Record<ToolGrant, { label: string; detail: string }> =
   read_notes: { label: "Read my notes", detail: "It can list, search and read every note." },
   write_notes: { label: "Write notes", detail: "It can create and replace notes. Each write is saved first so you can undo it." },
   web_fetch: { label: "Fetch web pages", detail: "Only from sites you list below. Pages it reads are treated as untrusted text." },
-  call_agents: { label: "Ask other agents", detail: "It can start other agents you allow, one level deep." },
+  call_agents: { label: "Ask other helpers", detail: "It can start other helpers you allow, one level deep." },
 };
 
 export type GrantLine = { tool: ToolGrant; text: string; blocked: boolean };
@@ -131,7 +160,7 @@ export function describeGrants(agent: Agent, settings: PermissionSettings): Gran
     read_notes: "Can read your notes.",
     write_notes: "Can write notes: every write is saved first so you can undo.",
     web_fetch: agent.allowedHosts.length > 0 ? `Can fetch web pages from: ${agent.allowedHosts.join(", ")}.` : "Can fetch web pages, but no sites are allowed yet.",
-    call_agents: agent.callable.length > 0 ? `Can start these agents: ${agent.callable.join(", ")}.` : "Can start other agents, but none are chosen yet.",
+    call_agents: agent.callable.length > 0 ? `Can start these helpers: ${agent.callable.join(", ")}.` : "Can start other helpers, but none are chosen yet.",
   };
   return agent.tools.map((tool) => ({ tool, text: text[tool], blocked: !settings.tools[tool] }));
 }
@@ -154,7 +183,7 @@ export function exposure(agent: Pick<Agent, "tools" | "allowedHosts" | "strict">
   const hosts = agent.allowedHosts.length;
   const lines: Exposure[] = [
     { label: "Sees your notes", on: reads, text: reads ? "It can read every note." : "It cannot read your notes." },
-    { label: "Reads outside text", on: web && hosts > 0, text: web && hosts > 0 ? `It reads pages from ${hosts === 1 ? "1 site" : `${hosts} sites`}. A page can contain tricks aimed at the agent.` : "It reads nothing from the web." },
+    { label: "Reads outside text", on: web && hosts > 0, text: web && hosts > 0 ? `It reads pages from ${hosts === 1 ? "1 site" : `${hosts} sites`}. A page can contain tricks aimed at the helper.` : "It reads nothing from the web." },
     { label: "Can send data out", on: web && hosts > 0, text: web && hosts > 0 ? "Each page it asks for is a request to that site." : "It sends nothing out." },
   ];
   return { lines, all: lines.every((l) => l.on) };
@@ -172,5 +201,5 @@ export function addHost(list: string[], input: string): HostAdd {
 
 /** Warning for an agent that has the web tool but no host it may reach. */
 export function noHostsWarning(agent: Pick<Agent, "tools">, hosts: string[]): string | null {
-  return agent.tools.includes("web_fetch") && hosts.length === 0 ? "This agent can't reach any site until you add a host." : null;
+  return agent.tools.includes("web_fetch") && hosts.length === 0 ? "This helper can't reach any site until you add a host." : null;
 }

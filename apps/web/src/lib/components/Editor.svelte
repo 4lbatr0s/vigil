@@ -14,6 +14,7 @@
   import { wikilinkCompletion } from "$lib/editor/wikilinkComplete";
   import { boldCommand, clozeCommand, codeCommand, headingCommand, indentCommand, italicCommand, lineCommand, linkCommand, outdentCommand, strikeCommand } from "$lib/editor/format";
   import SelectionToolbar from "$lib/components/SelectionToolbar.svelte";
+  import { Button } from "$lib/ui";
   import Code from "@lucide/svelte/icons/code";
   import Focus from "@lucide/svelte/icons/focus";
   import ListTree from "@lucide/svelte/icons/list-tree";
@@ -343,9 +344,9 @@
 
 <div class="wrap" bind:this={wrap}>
   <div class="modes" role="toolbar" aria-label="Writing view">
-    <button type="button" aria-pressed={outlineOpen} onclick={toggleOutline} title="Headings of this note (Ctrl or Cmd + Shift + O)"><ListTree size={15} strokeWidth={1.5} /> Outline</button>
-    <button type="button" aria-pressed={focused} onclick={toggleFocus} title="Dim everything except the paragraph you are writing"><Focus size={15} strokeWidth={1.5} /> Focus</button>
-    <button type="button" aria-pressed={raw} onclick={toggleRaw} title="Show the markdown as it is saved"><Code size={15} strokeWidth={1.5} /> Markdown</button>
+    <Button variant="ghost" size="sm" pressed={outlineOpen} title="Headings of this note (Ctrl or Cmd + Shift + O)" onclick={toggleOutline}>{#snippet icon()}<ListTree size={14} strokeWidth={1.5} />{/snippet}Outline</Button>
+    <Button variant="ghost" size="sm" pressed={focused} title="Dim everything except the paragraph you are writing" onclick={toggleFocus}>{#snippet icon()}<Focus size={14} strokeWidth={1.5} />{/snippet}Focus</Button>
+    <Button variant="ghost" size="sm" pressed={raw} title="Show the markdown as it is saved" onclick={toggleRaw}>{#snippet icon()}<Code size={14} strokeWidth={1.5} />{/snippet}Markdown</Button>
     {#if outlineOpen}
       <div class="outline" role="region" aria-label="Headings">
         {#each outline as item (item.from)}
@@ -376,27 +377,9 @@
   .modes {
     position: relative;
     display: flex;
-    gap: var(--space-1);
+    gap: var(--s-1);
     justify-content: flex-end;
-    margin-bottom: var(--space-1);
-  }
-  .modes > button {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--space-1);
-    padding: 2px var(--space-2);
-    border: 1px solid transparent;
-    border-radius: var(--radius);
-    background: transparent;
-    color: var(--ink-muted);
-    font-family: var(--font-chrome);
-    font-size: var(--text-label);
-    cursor: pointer;
-  }
-  .modes > button:hover,
-  .modes > button[aria-pressed="true"] {
-    color: var(--ink);
-    background: var(--surface-hover);
+    margin-bottom: var(--s-1);
   }
   .outline {
     position: absolute;
@@ -407,30 +390,28 @@
     width: 18rem;
     max-height: 50vh;
     overflow: auto;
-    padding: var(--space-1);
-    border: 1px solid var(--hairline);
-    border-radius: var(--radius);
-    background: var(--surface);
-    box-shadow: var(--shadow-pop);
+    padding: var(--s-1);
+    border-radius: var(--r-float);
+    background: var(--paper-float);
+    box-shadow: var(--elev-float);
   }
   .outline .item {
-    padding: var(--space-1) var(--space-2);
+    padding: var(--s-1) var(--s-2);
     border: 0;
-    border-radius: var(--radius);
+    border-radius: var(--r-control);
     background: transparent;
-    color: var(--ink);
-    font-family: var(--font-chrome);
-    font-size: var(--text-ui);
+    color: var(--text);
+    font: var(--weight-regular) var(--type-ui-size) / var(--type-ui-lh) var(--font-ui);
     text-align: left;
     cursor: pointer;
   }
   .outline .item:hover {
-    background: var(--surface-hover);
+    background: var(--fill-selected);
   }
   .outline .none {
     margin: 0;
-    padding: var(--space-2);
-    color: var(--ink-muted);
-    font-size: var(--text-label);
+    padding: var(--s-2);
+    color: var(--text-2);
+    font: var(--weight-regular) var(--type-ui-size) / var(--type-ui-lh) var(--font-ui);
   }
 </style>

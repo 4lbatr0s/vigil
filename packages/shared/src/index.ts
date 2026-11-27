@@ -88,6 +88,9 @@ export function normalizeHost(input: string): string | null {
   return host.length <= 253 && HOST_PATTERN.test(host) ? host : null;
 }
 
+/** Tags that limit what an agent or an MCP client may write (ADR-0033 amendment, todo items 35 and 45). Empty means any note. */
+export const WriteTagsSchema = z.array(z.string().trim().toLowerCase().regex(/^[a-z0-9][a-z0-9/_-]*$/, "A tag uses only lowercase letters, digits, -, _ and /, and starts with a letter or digit")).max(20);
+
 export const AgentSchema = z.object({
   name: AgentNameSchema,
   description: z.string().max(280).default(""),
@@ -121,6 +124,16 @@ export const AgentSchema = z.object({
   archetypeHint: z.string().optional(),
   /** Up to five sample tasks the owner keeps to re-run after changing the agent's instructions. */
   testTasks: z.array(z.string().trim().min(1).max(2000)).max(5).optional(),
+  /** The agent keeps a short state note between runs (`update_state`) and reads it first on the next run. */
+  keepState: z.boolean().optional(),
+  /** Tools besides the writes that wait for the owner's approval before they run. */
+  approveTools: z.array(z.enum(["fetch_url", "call_agent"])).optional(),
+  /** The agent may change only notes that carry one of these tags (a nested tag such as `journal/2026` counts for `journal`). A new note needs one in its body. Absent or empty means no limit. */
+  writeTags: WriteTagsSchema.optional(),
+  /** Strict agents with `writeTags` only: an append to an existing note inside the scope skips approval (ADR-0011 amendment, item 38). */
+  autoApproveAppends: z.boolean().optional(),
+  /** The most tokens this agent's runs may use per day (UTC). Absent means no daily limit. */
+  dailyTokenCap: z.number().int().positive().max(100_000_000).optional(),
 });
 export type Agent = z.infer<typeof AgentSchema>;
 
@@ -189,6 +202,7 @@ export const PermissionSettingsSchema = z.object({
 });
 export type PermissionSettings = z.infer<typeof PermissionSettingsSchema>;
 
+export * from "./citations";
 export * from "./templates";
 export * from "./skill";
 
@@ -301,4 +315,16 @@ export function lintCard(card: Pick<Card, "kind" | "front" | "back">): CardHint[
   if (/^(yes|no|true|false)\b/i.test(card.back.trim())) hints.push({ code: "yes-no", message: "Yes or no is easy to guess. Ask what or why instead." });
   if (!card.front.trim().endsWith("?")) hints.push({ code: "not-a-question", message: "Phrase the front as a question." });
   return hints;
+}
+
+/** The note without its card lines: they are question and answer pairs, and a tutor that sees the answers gives them away. */
+export function withoutCards(body: string): string {
+  const card = new Set(extractCards(body).map((c) => c.line));
+  return body
+    .split("\n")
+    .filter((_, i) => !card.has(i + 1))
+    .join("\n")
+    .replace(/^##\s+Cards\s*$\n?/m, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }

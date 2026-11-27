@@ -63,7 +63,7 @@ async function runTemplate(t: AgentTemplate, script: AIMessage[]) {
 
 const GRANTED: Record<string, string[]> = {
   read_notes: ["list_notes", "read_note", "search_notes", "learner_status"],
-  write_notes: ["write_note"],
+  write_notes: ["write_note", "append_note"],
   web_fetch: ["fetch_url"],
   call_agents: ["call_agent"],
 };

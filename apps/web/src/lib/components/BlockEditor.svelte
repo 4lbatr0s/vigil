@@ -1,4 +1,7 @@
 <script lang="ts">
+  import ListTree from "@lucide/svelte/icons/list-tree";
+  import Code from "@lucide/svelte/icons/code";
+  import { Button } from "$lib/ui";
   import { untrack } from "svelte";
   import { Editor, Extension } from "@tiptap/core";
   import { Selection } from "@tiptap/pm/state";
@@ -424,8 +427,8 @@
 
 <div class="block-editor" bind:this={wrap}>
   <div class="strip">
-    <button type="button" onclick={toggleOutline} aria-expanded={outline !== null} title="Headings of this note (Ctrl/Cmd+Shift+O)">Outline</button>
-    {#if onSwitch}<button type="button" onclick={onSwitch} title="Edit the plain markdown text">Markdown</button>{/if}
+    <Button variant="ghost" size="sm" pressed={outline !== null} aria-expanded={outline !== null} title="Headings of this note (Ctrl/Cmd+Shift+O)" onclick={toggleOutline}>{#snippet icon()}<ListTree size={14} strokeWidth={1.5} />{/snippet}Outline</Button>
+    {#if onSwitch}<Button variant="ghost" size="sm" title="Edit the plain markdown text" onclick={onSwitch}>{#snippet icon()}<Code size={14} strokeWidth={1.5} />{/snippet}Markdown</Button>{/if}
     {#if outline !== null}
       <div class="outline" role="menu" aria-label="Outline">
         {#if outline.length === 0}
@@ -475,7 +478,7 @@
           </button>
         {/each}
         {#if onAsk}
-          <button type="button" aria-label="Ask an agent" title="Ask an agent (Ctrl/Cmd+J)" onmousedown={(ev) => ev.preventDefault()} onclick={() => editor && onAsk(selectedText(editor))}><Icon name="bot" size={15} /></button>
+          <button type="button" aria-label="Ask a helper" title="Ask a helper (Ctrl/Cmd+J)" onmousedown={(ev) => ev.preventDefault()} onclick={() => editor && onAsk(selectedText(editor))}><Icon name="bot" size={15} /></button>
         {/if}
       {/if}
     </div>
@@ -484,7 +487,7 @@
 
 {#if popup}
   <div class="popup" role="listbox" aria-label="Blocks" style={popupStyle}>
-    {#each popupGroups as g (g.name)}
+    {#each popupGroups as g, gi (`${gi}:${g.name}`)}
       {#if g.name}<div class="group">{g.name}</div>{/if}
       {#each g.rows as { i, item } (item.key)}
         <button type="button" role="option" aria-selected={i === popup.index} class:sel={i === popup.index} onmousedown={(ev) => ev.preventDefault()} onclick={() => popup?.choose(i)}>
@@ -525,54 +528,37 @@
     position: relative;
     display: flex;
     justify-content: flex-end;
-    gap: var(--space-1);
-    min-height: 28px;
-    font-family: var(--font-chrome);
-    font-size: var(--text-label);
-  }
-  .strip > button {
-    border: 1px solid transparent;
-    border-radius: var(--radius);
-    background: transparent;
-    color: var(--ink-muted);
-    font: inherit;
-    padding: 2px var(--space-2);
-    cursor: pointer;
-  }
-  .strip > button:hover,
-  .strip > button:focus-visible,
-  .strip > button[aria-expanded="true"] {
-    background: var(--surface-hover);
-    color: var(--ink);
+    gap: var(--s-1);
+    min-height: var(--control-h-sm);
   }
   .outline {
     position: absolute;
-    top: 30px;
+    top: calc(var(--control-h-sm) + var(--s-1));
     right: 0;
     z-index: 6;
     width: 260px;
     max-height: 320px;
     overflow-y: auto;
-    padding: var(--space-1);
-    border: 1px solid var(--hairline);
-    border-radius: var(--radius);
-    background: var(--surface);
-    box-shadow: var(--shadow-pop);
+    padding: var(--s-1);
+    border-radius: var(--r-float);
+    background: var(--paper-float);
+    box-shadow: var(--elev-float);
   }
   .outline p {
     margin: 0;
-    padding: var(--space-2);
-    color: var(--ink-muted);
+    padding: var(--s-2);
+    color: var(--text-2);
+    font: var(--weight-regular) var(--type-ui-size) / var(--type-ui-lh) var(--font-ui);
   }
   .outline button {
     display: block;
     width: 100%;
-    padding: var(--space-1) var(--space-2);
+    padding: var(--s-1) var(--s-2);
     border: 0;
-    border-radius: var(--radius);
+    border-radius: var(--r-control);
     background: transparent;
-    color: var(--ink);
-    font: inherit;
+    color: var(--text);
+    font: var(--weight-regular) var(--type-ui-size) / var(--type-ui-lh) var(--font-ui);
     text-align: left;
     cursor: pointer;
     overflow: hidden;
@@ -581,75 +567,77 @@
   }
   .outline button:hover,
   .outline button:focus-visible {
-    background: var(--surface-hover);
+    background: var(--fill-selected);
   }
   .bubble {
     position: absolute;
     z-index: 5;
     display: flex;
     align-items: center;
-    gap: 2px;
-    padding: var(--space-1);
-    border: 1px solid var(--hairline);
-    border-radius: var(--radius);
-    background: var(--surface);
-    box-shadow: var(--shadow-pop);
-    font-family: var(--font-chrome);
+    gap: var(--s-1);
+    padding: var(--s-1);
+    border-radius: var(--r-float);
+    background: var(--paper-float);
+    box-shadow: var(--elev-float);
+    font-family: var(--font-ui);
   }
   .bubble button {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 30px;
-    height: 28px;
+    width: var(--control-h-sm);
+    height: var(--control-h-sm);
     padding: 0;
     border: 0;
-    border-radius: var(--radius);
+    border-radius: var(--r-control);
     background: transparent;
-    color: var(--ink);
+    color: var(--text);
     cursor: pointer;
   }
   .bubble button:hover,
   .bubble button:focus-visible {
-    background: var(--surface-hover);
+    background: var(--fill-selected);
   }
   .bubble button.on {
-    background: var(--surface-hover);
-    color: var(--canvas-5);
+    background: var(--fill-pressed);
   }
   .bubble.tablebar button {
     width: auto;
-    padding: 0 var(--space-2);
-    font-size: var(--text-label);
+    padding: 0 var(--s-2);
+    font: var(--weight-medium) var(--type-meta-size) / 1 var(--font-ui);
     white-space: nowrap;
   }
   .bubble.tablebar button.danger {
-    color: var(--ink-muted);
+    color: var(--text-2);
   }
   .bubble.tablebar button.danger:hover {
-    color: var(--ink);
+    color: var(--danger);
   }
   .glyph {
-    font-family: var(--font-serif);
-    font-size: 15px;
-    font-weight: 700;
+    font-family: var(--font-prose);
+    font-size: var(--type-ui-size);
+    font-weight: var(--weight-strong);
   }
   .g-I {
     font-style: italic;
-    font-weight: 600;
   }
   .g-S {
     text-decoration: line-through;
   }
   .link-input {
     width: 280px;
-    padding: 4px var(--space-2);
-    border: 1px solid var(--hairline);
-    border-radius: var(--radius);
-    background: var(--bg);
-    color: var(--ink);
-    font: inherit;
-    font-size: var(--text-label);
+    height: var(--control-h-sm);
+    padding: 0 var(--s-2);
+    border: 0;
+    border-radius: var(--r-control);
+    background: var(--fill-hover);
+    box-shadow: inset 0 0 0 1px var(--line-soft);
+    color: var(--text);
+    font: var(--weight-regular) var(--type-ui-size) / var(--type-ui-lh) var(--font-ui);
+  }
+  .link-input:focus-visible {
+    outline: none;
+    box-shadow: inset 0 0 0 1px var(--focus), 0 0 0 3px var(--select-wash);
   }
   .popup {
     position: fixed;
@@ -657,42 +645,38 @@
     width: 288px;
     max-height: 320px;
     overflow-y: auto;
-    padding: var(--space-1);
-    border: 1px solid var(--hairline);
-    border-radius: var(--radius);
-    background: var(--surface);
-    box-shadow: var(--shadow-pop);
-    font-family: var(--font-chrome);
-    font-size: var(--text-ui);
+    padding: var(--s-1);
+    border-radius: var(--r-float);
+    background: var(--paper-float);
+    box-shadow: var(--elev-float);
+    font: var(--weight-regular) var(--type-ui-size) / var(--type-ui-lh) var(--font-ui);
   }
   .popup .group {
-    padding: var(--space-2) var(--space-2) var(--space-1);
-    color: var(--ink-muted);
-    font-size: var(--text-label);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
+    padding: var(--s-2) var(--s-2) var(--s-1);
+    color: var(--text-3);
+    font: var(--weight-medium) var(--type-meta-size) / var(--type-meta-lh) var(--font-ui);
   }
   .popup button {
     display: flex;
     align-items: center;
-    gap: var(--space-2);
+    gap: var(--s-2);
     width: 100%;
-    padding: var(--space-1) var(--space-2);
+    padding: var(--s-1) var(--s-2);
     border: 0;
-    border-radius: var(--radius);
+    border-radius: var(--r-control);
     background: transparent;
-    color: var(--ink);
+    color: var(--text);
     font: inherit;
     text-align: left;
     cursor: pointer;
   }
   .popup button :global(svg) {
     flex: none;
-    color: var(--ink-muted);
+    color: var(--text-2);
   }
   .popup button.sel,
   .popup button:hover {
-    background: var(--surface-hover);
+    background: var(--fill-selected);
   }
   .popup .label {
     flex: 1;
@@ -702,9 +686,8 @@
     white-space: nowrap;
   }
   .popup .detail {
-    color: var(--ink-muted);
-    font-family: var(--font-mono);
-    font-size: var(--text-label);
+    color: var(--text-3);
+    font: var(--weight-regular) var(--type-meta-size) / var(--type-meta-lh) var(--font-code);
   }
   .block-editor :global(.bh) {
     position: absolute;
@@ -829,7 +812,7 @@
     font-family: var(--font-mono);
     font-size: 0.86em;
     background: var(--surface-hover);
-    border-radius: 4px;
+    border-radius: var(--r-control);
     padding: 1px 5px;
   }
   .block-editor :global(hr) {
@@ -839,9 +822,10 @@
   }
   .block-editor :global(blockquote) {
     margin: var(--space-2) 0;
-    padding-left: var(--space-4);
-    border-left: 3px solid var(--hairline);
-    color: var(--ink-muted);
+    padding: var(--space-2) var(--space-4);
+    border-radius: var(--r-control);
+    background: var(--fill-hover);
+    color: var(--text-2);
   }
   .block-editor :global(ul),
   .block-editor :global(ol) {
@@ -857,7 +841,7 @@
     font-family: var(--font-chrome);
     font-size: 0.85em;
     background: var(--surface-hover);
-    border-radius: 999px;
+    border-radius: var(--r-pill);
     padding: 1px 8px;
   }
   .block-editor :global(li > p) {
@@ -895,7 +879,7 @@
     width: 1.05em;
     height: 1.05em;
     border: 1.5px solid var(--ink-muted);
-    border-radius: 4px;
+    border-radius: var(--r-control);
     background: transparent;
     cursor: pointer;
     display: grid;
@@ -1011,7 +995,7 @@
     color: var(--ink);
     background: var(--surface-hover);
     border-bottom: 1px solid var(--ink-muted);
-    border-radius: 3px;
+    border-radius: var(--r-control);
     padding: 0 3px;
     text-decoration: none;
     cursor: pointer;
@@ -1019,14 +1003,50 @@
   .block-editor :global(.cloze) {
     background: var(--surface-hover);
     border-bottom: 1px dashed var(--ink-muted);
-    border-radius: 4px;
+    border-radius: var(--r-control);
     padding: 0 2px;
+  }
+  .block-editor :global(.toc) {
+    display: flex;
+    flex-direction: column;
+    gap: var(--s-1);
+    margin: var(--s-3) 0;
+    padding: var(--s-3) var(--s-4);
+    border-radius: var(--r-surface);
+    background: var(--fill-hover);
+  }
+  .block-editor :global(.toc.ProseMirror-selectednode) {
+    box-shadow: 0 0 0 2px var(--focus);
+  }
+  .block-editor :global(.toc-title) {
+    margin: 0 0 var(--s-1);
+    color: var(--text-2);
+    font: var(--weight-strong) var(--type-ui-size) / var(--type-ui-lh) var(--font-ui);
+  }
+  .block-editor :global(.toc-none) {
+    margin: 0;
+    color: var(--text-3);
+    font: var(--weight-regular) var(--type-ui-size) / var(--type-ui-lh) var(--font-ui);
+  }
+  .block-editor :global(.toc-item) {
+    padding-block: 2px;
+    border: 0;
+    background: none;
+    color: var(--text);
+    font: var(--weight-regular) var(--type-ui-size) / var(--type-ui-lh) var(--font-ui);
+    text-align: left;
+    text-decoration: underline;
+    text-decoration-color: var(--line);
+    text-underline-offset: 3px;
+    cursor: pointer;
+  }
+  .block-editor :global(.toc-item:hover) {
+    text-decoration-color: var(--text);
   }
   .block-editor :global(.callout) {
     --tone: var(--canvas-5);
     margin: var(--space-3) 0;
-    border-left: 3px solid var(--tone);
-    border-radius: 0 var(--radius) var(--radius) 0;
+    border-radius: var(--r-surface);
     background: color-mix(in srgb, var(--tone) 9%, var(--surface));
     padding: var(--space-2) var(--space-4);
   }
@@ -1077,7 +1097,7 @@
     color: var(--ink-muted);
     cursor: pointer;
     transform: rotate(90deg);
-    transition: transform 0.12s;
+    transition: transform var(--dur-fast);
   }
   .block-editor :global(.callout-fold[hidden]) {
     display: none;

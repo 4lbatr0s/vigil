@@ -5,10 +5,12 @@ import { handleAuth } from "./auth";
 import { serveStatic } from "./static";
 import { ImageSettingsSchema, imageSettings, picturesFor, saveImageSettings } from "./note-images";
 import { CaptureBodySchema, capture } from "./capture";
-import { AddBodySchema, addMisconceptions, resolveOne, shakyBlock } from "./misconceptions";
+import { assembleContext } from "./context";
+import { AddBodySchema, addMisconceptions, resolveOne } from "./misconceptions";
 import { embedModel, setEmbedModel } from "./embeddings";
 import { hybridIds, relatedIds, semanticStatus, syncVectors } from "./semantic";
 import { McpSettingsSchema, handleMcp, mcpSettings, saveMcpSettings } from "./mcp";
+import { bearerOf, clientForToken, createMcpClient, listMcpClients, revokeMcpClient } from "./mcp-clients";
 import { AskBodySchema, GapBodySchema, askTask, findPassages, gapPassages, gapTask, questionWords } from "./ask";
 import { AppError, isAppError } from "./errors";
 import { healthPayload } from "./health";
@@ -17,6 +19,8 @@ import {
   listNotes as indexListNotes,
   listNoteSummaries,
   backlinks as indexBacklinks,
+  mentionsOf,
+  outgoingLinks,
   reindexNote,
   removeNote,
   searchNotes,
@@ -27,13 +31,17 @@ import { chatTurn, chatWithMessages, newChat, removeChat, saveChatAsNote, type C
 import { cronError, nextTickAfter } from "./cron";
 import { buildGraphData } from "./graph";
 import { attachStream } from "./events";
-import { bodyBeforeRun, resumeRun, startRun, undoRun } from "./runs";
+import { bodyBeforeRun, cancelRun, resumeRun, startRun, undoRun } from "./runs";
+import { runTrace } from "./trace";
+import { evalCaseFor } from "./eval-case";
 import { getPermissions, putPermissions } from "./permissions";
 import { planRename, renameNote } from "./rename";
 import { refreshSchedule } from "./scheduler";
 import { llmStatus } from "./llm-status";
 import { SaveBodySchema, createCanvas, listCanvases, readCanvas, removeCanvas, saveCanvas } from "./canvas";
-import { ConnectionInputSchema, ProbeInputSchema, createConnection, listConnections, probeConnection, removeConnection, savedKey, setDefaultConnection, updateConnection } from "./connections";
+import { probeTools } from "./tool-probe";
+import { ConnectionInputSchema, ProbeInputSchema, createConnection, listConnections, probeConnection, removeConnection, resolveConnection, savedKey, setDefaultConnection, updateConnection } from "./connections";
+import { UNKNOWN_CAPS, modelCaps } from "./model-caps";
 import { usage } from "./usage";
 import { getRunResult } from "./state-db";
 import { exportTsv } from "./anki-export";
@@ -42,7 +50,7 @@ import { ResultBodySchema, enroll, recordResult } from "./recall";
 import { GoalBodySchema, goalStatuses, validGoalDay } from "./goals";
 import { StudySettingsSchema, answerCard, deckStats, dueCards, saveStudySettings, studyForecast, stuckCards, studyHistory, studySettings, studyStats, undoAnswer } from "./study";
 import { cardsForNote } from "./index-db";
-import { addPin, approvalsForRun, clearHeartbeat, decideApproval, getApproval, listApprovals, listChatThreads, getAgent, getHeartbeat, getRun, getSchedule, listAgents, listEvents, listPins, listRuns, putAgent, listMisconceptions, listRecall, putSchedule, removeGoal, removePin, removeRecall, setGoal } from "./state-db";
+import { addPin, approvalsForRun, clearHeartbeat, touchMcpClient, decideApproval, deleteAgentState, getAgentState, listAgentStateHistory, restoreAgentState, getApproval, listApprovals, listChatThreads, getAgent, getHeartbeat, getRun, getSchedule, listAgents, listEvents, listPins, listRuns, putAgent, listMisconceptions, listRecall, putSchedule, removeGoal, removePin, removeRecall, setGoal } from "./state-db";
 import { createNote, deleteNote, getNote as vaultGetNote, slugify, updateNote, validateId } from "./vault";
 
 const MAX_BODY_BYTES = 2 * 1024 * 1024;
@@ -117,6 +125,16 @@ const routes: { method: string; pattern: RegExp; keys: string[]; handler: Handle
     keys: ["id"],
     handler: (_req, res, params) => {
       send(res, 200, { data: indexBacklinks(validateId(params["id"] ?? "")) });
+    },
+  },
+  {
+    method: "GET",
+    pattern: /^\/api\/notes\/([^/]+)\/links$/,
+    keys: ["id"],
+    handler: (_req, res, params) => {
+      const id = validateId(params["id"] ?? "");
+      const here = indexGetNote(id);
+      send(res, 200, { data: { outgoing: outgoingLinks(id), backlinks: indexBacklinks(id), mentions: here ? mentionsOf(id, here.title) : [] } });
     },
   },
   {
@@ -299,9 +317,9 @@ const routes: { method: string; pattern: RegExp; keys: string[]; handler: Handle
       if (!agent) throw new AppError("agent-not-found", "Add the Card maker agent first (Agents, then the Card maker template).", 404);
       if (!agent.enabled) throw new AppError("agent-disabled", "The Card maker agent is switched off. Turn it on from the Agents page.", 409);
       // The note travels in the task, so the agent needs no tool at all (and a weak model has no tool call to get wrong).
-      const note = indexGetNote(id);
-      const text = (note?.body ?? "").slice(0, 20_000);
-      const run = startRun("card-maker", `Make study cards from this note (id ${id}, title "${note?.title ?? id}").\n\nNOTE START\n${text}\nNOTE END${shakyBlock(id)}`, "manual", await picturesFor(text));
+      const ctx = assembleContext({ noteId: id, parts: ["note", "shaky"] });
+      if (ctx === null) throw new AppError("note-not-found", `Note not found: ${id}`, 404);
+      const run = startRun("card-maker", `Make study cards from this note.\n\n${ctx.text}`, "manual", await picturesFor(ctx.text));
       send(res, 202, { data: run });
     },
   },
@@ -417,7 +435,10 @@ const routes: { method: string; pattern: RegExp; keys: string[]; handler: Handle
         send(res, 400, { jsonrpc: "2.0", id: null, error: { code: -32700, message: "Parse error" } });
         return;
       }
-      const reply = await handleMcp(body, mcpSettings());
+      // A call made with a named client token is logged under that name (ADR-0033).
+      const client = clientForToken(bearerOf(req));
+      if (client) touchMcpClient(client.id);
+      const reply = await handleMcp(body, mcpSettings(), Date.now(), client ? { name: client.name, writeTags: client.writeTags } : null);
       if (reply.body === undefined) {
         res.writeHead(reply.status).end();
         return;
@@ -430,6 +451,32 @@ const routes: { method: string; pattern: RegExp; keys: string[]; handler: Handle
     pattern: /^\/api\/mcp\/settings$/,
     keys: [],
     handler: async (_req, res) => send(res, 200, { data: mcpSettings() }),
+  },
+  {
+    method: "GET",
+    pattern: /^\/api\/mcp\/clients$/,
+    keys: [],
+    handler: async (_req, res) => send(res, 200, { data: listMcpClients() }),
+  },
+  {
+    // The token is in this answer and nowhere else, ever again.
+    method: "POST",
+    pattern: /^\/api\/mcp\/clients$/,
+    keys: [],
+    handler: async (req, res) => {
+      const parsed = z.object({ name: z.string(), writeTags: z.unknown().optional() }).safeParse(await readJsonBody(req));
+      if (!parsed.success) throw new AppError("invalid-body", "Body must be { name: string, writeTags?: string[] }", 400);
+      send(res, 201, { data: createMcpClient(parsed.data.name, parsed.data.writeTags ?? []) });
+    },
+  },
+  {
+    method: "DELETE",
+    pattern: /^\/api\/mcp\/clients\/([^/]+)$/,
+    keys: ["id"],
+    handler: async (_req, res, params) => {
+      if (!revokeMcpClient(params["id"] ?? "")) throw new AppError("mcp-client-not-found", "No such client", 404);
+      send(res, 200, { data: { revoked: true } });
+    },
   },
   {
     method: "PUT",
@@ -578,8 +625,9 @@ const routes: { method: string; pattern: RegExp; keys: string[]; handler: Handle
       const agent = getAgent("recall-checker");
       if (!agent) throw new AppError("agent-not-found", "Add the Recall checker agent first (Agents, then the Recall checker template).", 404);
       if (!agent.enabled) throw new AppError("agent-disabled", "The Recall checker agent is switched off. Turn it on from the Agents page.", 409);
-      const text = (note.body ?? "").slice(0, 20_000);
-      const run = startRun("recall-checker", `Check what I remember of this note (id ${id}, title "${note.title}").\n\nNOTE START\n${text}\nNOTE END\n\nRECALL START\n${parsed.data.recall}\nRECALL END`, "manual", await picturesFor(text));
+      const ctx = assembleContext({ noteId: id, parts: ["note"] });
+      if (ctx === null) throw new AppError("note-not-found", `Note not found: ${id}`, 404);
+      const run = startRun("recall-checker", `Check what I remember of this note.\n\n${ctx.text}\n\nRECALL START\n${parsed.data.recall}\nRECALL END`, "manual", await picturesFor(ctx.text));
       send(res, 202, { data: run });
     },
   },
@@ -728,6 +776,52 @@ const routes: { method: string; pattern: RegExp; keys: string[]; handler: Handle
     },
   },
   {
+    // The short note an agent keeps for its next run (`keepState`); null when it has saved none.
+    method: "GET",
+    pattern: /^\/api\/agents\/([^/]+)\/state$/,
+    keys: ["name"],
+    handler: (_req, res, params) => {
+      const name = params["name"] ?? "";
+      if (!getAgent(name)) throw new AppError("agent-not-found", `Agent not found: ${name}`, 404);
+      send(res, 200, { data: getAgentState(name) });
+    },
+  },
+  {
+    // Earlier versions of the state note, newest first (todo item 50).
+    method: "GET",
+    pattern: /^\/api\/agents\/([^/]+)\/state\/history$/,
+    keys: ["name"],
+    handler: (_req, res, params) => {
+      const name = params["name"] ?? "";
+      if (!getAgent(name)) throw new AppError("agent-not-found", `Agent not found: ${name}`, 404);
+      send(res, 200, { data: listAgentStateHistory(name) });
+    },
+  },
+  {
+    method: "POST",
+    pattern: /^\/api\/agents\/([^/]+)\/state\/restore$/,
+    keys: ["name"],
+    handler: async (req, res, params) => {
+      const name = params["name"] ?? "";
+      if (!getAgent(name)) throw new AppError("agent-not-found", `Agent not found: ${name}`, 404);
+      const parsed = z.object({ id: z.number().int() }).safeParse(await readJsonBody(req));
+      if (!parsed.success) throw new AppError("invalid-body", "Body must be { id: number }", 400);
+      if (!restoreAgentState(name, parsed.data.id)) throw new AppError("state-version-not-found", "That version of the note is not kept", 404);
+      send(res, 200, { data: getAgentState(name) });
+    },
+  },
+  {
+    method: "DELETE",
+    pattern: /^\/api\/agents\/([^/]+)\/state$/,
+    keys: ["name"],
+    handler: (_req, res, params) => {
+      const name = params["name"] ?? "";
+      if (!getAgent(name)) throw new AppError("agent-not-found", `Agent not found: ${name}`, 404);
+      deleteAgentState(name);
+      send(res, 200, { data: { cleared: true } });
+    },
+  },
+  {
     method: "GET",
     pattern: /^\/api\/settings\/permissions$/,
     keys: [],
@@ -808,6 +902,25 @@ const routes: { method: string; pattern: RegExp; keys: string[]; handler: Handle
     },
   },
   {
+    // What a model can do (tools, pictures, context size), when its provider says. `known: false` means "could not tell".
+    method: "GET",
+    pattern: /^\/api\/llm\/capabilities$/,
+    keys: [],
+    handler: async (req, res) => {
+      const query = new URL(req.url ?? "/", "http://localhost").searchParams;
+      let caps = { ...UNKNOWN_CAPS };
+      try {
+        const conn = resolveConnection(query.get("connection") || undefined);
+        const model = query.get("model") || conn.model || "";
+        if (model !== "") caps = await modelCaps(conn, model);
+      } catch (err) {
+        // No model is connected yet, or the saved connection is gone: nothing to report, not an error.
+        if (!isAppError(err)) throw err;
+      }
+      send(res, 200, { data: caps });
+    },
+  },
+  {
     // Try an address and key that are not saved yet (or a saved connection, by id, without sending its key back) and list its models.
     method: "POST",
     pattern: /^\/api\/connections\/probe$/,
@@ -817,6 +930,20 @@ const routes: { method: string; pattern: RegExp; keys: string[]; handler: Handle
       if (!parsed.success) throw new AppError("invalid-body", `Invalid address: ${parsed.error.issues.map((i) => i.message).join("; ")}`, 400);
       const key = parsed.data.apiKey || (parsed.data.connectionId ? savedKey(parsed.data.connectionId) : undefined);
       send(res, 200, { data: await probeConnection({ kind: parsed.data.kind, baseUrl: parsed.data.baseUrl, apiKey: key }) });
+    },
+  },
+  {
+    // One tiny model call that asks for a tool call: can this connection's model run agents with tools?
+    method: "POST",
+    pattern: /^\/api\/connections\/probe-tools$/,
+    keys: [],
+    handler: async (req, res) => {
+      const parsed = z.object({ connectionId: z.string().min(1).max(60), model: z.string().min(1).max(200).optional() }).safeParse(await readJsonBody(req));
+      if (!parsed.success) throw new AppError("invalid-body", `Invalid request: ${parsed.error.issues.map((i) => i.message).join("; ")}`, 400);
+      const conn = resolveConnection(parsed.data.connectionId);
+      const model = parsed.data.model ?? conn.model;
+      if (!model) throw new AppError("no-model", "This connection has no model chosen. Choose one first.", 400);
+      send(res, 200, { data: await probeTools(conn, model) });
     },
   },
   {
@@ -870,8 +997,12 @@ const routes: { method: string; pattern: RegExp; keys: string[]; handler: Handle
     method: "GET",
     pattern: /^\/api\/graph$/,
     keys: [],
-    handler: (_req, res) => {
-      send(res, 200, { data: buildGraphData() });
+    handler: (req, res) => {
+      // ?focus=<note id>&hops=1..3 asks for the local graph around one note.
+      const query = new URL(req.url ?? "/", "http://localhost").searchParams;
+      const focus = query.get("focus");
+      const hops = Number(query.get("hops") ?? 1);
+      send(res, 200, { data: focus === null ? buildGraphData() : buildGraphData(new Date(), undefined, { focus: validateId(focus), hops: Number.isFinite(hops) ? hops : 1 }) });
     },
   },
   {
@@ -957,18 +1088,24 @@ const routes: { method: string; pattern: RegExp; keys: string[]; handler: Handle
       }
       const rows = await Promise.all(
         listApprovals(raw ?? undefined).map(async (a) => {
+          const agent = getRun(a.runId)?.agent ?? null;
+          if (!isNoteWrite(a.tool)) {
+            // fetch_url and call_agent: there is no note to compare, only what the agent wants to do.
+            return { ...a, agent, noteId: "", title: "", currentBody: null, currentUpdatedAt: null, proposedBody: "", stale: false, target: targetOf(a.tool, a.args) };
+          }
           const title = typeof a.args["title"] === "string" ? a.args["title"] : "";
           const noteId = slugify(title);
           // The current text, so the page can show a diff against what is on disk now (it may have changed since).
           const current = await vaultGetNote(noteId).catch(() => null);
           return {
             ...a,
-            agent: getRun(a.runId)?.agent ?? null,
+            agent,
             noteId,
             title,
+            target: "",
             currentBody: current?.body ?? null,
             currentUpdatedAt: current?.updatedAt ?? null,
-            proposedBody: typeof a.args["body"] === "string" ? a.args["body"] : "",
+            proposedBody: proposedBodyOf(a.tool, a.args, current?.body ?? null),
             stale: current === null ? a.baseUpdatedAt !== null : current.updatedAt !== a.baseUpdatedAt,
           };
         }),
@@ -986,7 +1123,7 @@ const routes: { method: string; pattern: RegExp; keys: string[]; handler: Handle
       const approval = getApproval(params["id"] ?? "");
       if (!approval) throw new AppError("approval-not-found", `Approval not found: ${params["id"]}`, 404);
       if (approval.status !== "pending") throw new AppError("approval-decided", "This write was already decided", 409);
-      if (parsed.data.decision === "approve" && !parsed.data.force) {
+      if (parsed.data.decision === "approve" && !parsed.data.force && isNoteWrite(approval.tool)) {
         const title = typeof approval.args["title"] === "string" ? approval.args["title"] : "";
         const current = await vaultGetNote(slugify(title)).catch(() => null);
         const stale = current === null ? approval.baseUpdatedAt !== null : current.updatedAt !== approval.baseUpdatedAt;
@@ -1129,6 +1266,50 @@ const routes: { method: string; pattern: RegExp; keys: string[]; handler: Handle
     },
   },
   {
+    // The whole run and its child runs as JSON Lines, to keep or to read in another tool (todo item 37).
+    method: "GET",
+    pattern: /^\/api\/runs\/([^/]+)\/trace$/,
+    keys: ["id"],
+    handler: (_req, res, params) => {
+      const id = params["id"] ?? "";
+      const trace = runTrace(id);
+      if (trace === null) throw new AppError("run-not-found", `Run not found: ${id}`, 404);
+      res.writeHead(200, {
+        "content-type": "application/x-ndjson; charset=utf-8",
+        "content-length": Buffer.byteLength(trace),
+        // Run ids are UUIDs; anything else is dropped so the header stays plain.
+        "content-disposition": `attachment; filename="run-${id.replace(/[^A-Za-z0-9-]/g, "")}.jsonl"`,
+      });
+      res.end(trace);
+    },
+  },
+  {
+    // A draft eval case from the run, to check, edit and keep in a cases folder (todo item 49).
+    method: "GET",
+    pattern: /^\/api\/runs\/([^/]+)\/eval-case$/,
+    keys: ["id"],
+    handler: async (_req, res, params) => {
+      const id = params["id"] ?? "";
+      const draft = await evalCaseFor(id);
+      if (draft === null) throw new AppError("run-not-found", `Run not found: ${id}`, 404);
+      const body = `${JSON.stringify(draft, null, 2)}\n`;
+      res.writeHead(200, {
+        "content-type": "application/json; charset=utf-8",
+        "content-length": Buffer.byteLength(body),
+        "content-disposition": `attachment; filename="eval-${id.replace(/[^A-Za-z0-9-]/g, "")}.json"`,
+      });
+      res.end(body);
+    },
+  },
+  {
+    method: "POST",
+    pattern: /^\/api\/runs\/([^/]+)\/cancel$/,
+    keys: ["id"],
+    handler: (_req, res, params) => {
+      send(res, 202, { data: cancelRun(params["id"] ?? "") });
+    },
+  },
+  {
     method: "POST",
     pattern: /^\/api\/runs\/([^/]+)\/undo$/,
     keys: ["id"],
@@ -1206,6 +1387,25 @@ async function readJsonBody(req: IncomingMessage, options: { emptyIs?: unknown }
   } catch {
     throw new AppError("invalid-body", "Request body is not valid JSON", 400);
   }
+}
+
+const isNoteWrite = (tool: string): boolean => tool === "write_note" || tool === "append_note";
+
+/** What an approval for a tool that is not a note write is about: the whole address, or the agent and its whole message. */
+function targetOf(tool: string, args: Record<string, unknown>): string {
+  // Never cut: what the owner approves must be exactly what runs. The tools cap the input length (2,000 and 4,000 characters).
+  if (tool === "fetch_url") return typeof args["url"] === "string" ? args["url"] : "";
+  if (tool === "call_agent") return `${typeof args["name"] === "string" ? args["name"] : "?"}: ${typeof args["message"] === "string" ? args["message"] : ""}`;
+  return tool;
+}
+
+/** The note text a write would leave behind: the new body for `write_note`, the old body plus the added text for `append_note`. */
+function proposedBodyOf(tool: string, args: Record<string, unknown>, old: string | null): string {
+  if (tool === "append_note") {
+    const text = typeof args["text"] === "string" ? args["text"].trim() : "";
+    return old === null || old.trim() === "" ? text : `${old.trimEnd()}\n\n${text}`;
+  }
+  return typeof args["body"] === "string" ? args["body"] : "";
 }
 
 export function createHandler(access: Access): (req: IncomingMessage, res: ServerResponse) => void {

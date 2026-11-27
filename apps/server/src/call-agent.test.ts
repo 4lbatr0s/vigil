@@ -8,7 +8,7 @@ import { closeDb, getNote as indexGet, reindexNote } from "./index-db";
 import type { ModelFactory } from "./llm";
 import { setRunDeps, startRun, undoRun, waitForRuns } from "./runs";
 import { closeState, createRun, finishRun, getRun, listEvents, listRuns, putAgent } from "./state-db";
-import { createNote, getNote, updateNote } from "./vault";
+import { createNote, getNote, readNoteFile, updateNote } from "./vault";
 
 let root = "";
 const saved = { ...process.env };
@@ -159,6 +159,38 @@ describe("call_agent", () => {
     expect(listRuns("child")).toHaveLength(1);
     expect(run.tokensUsed).toBeGreaterThanOrEqual(59);
     expect(["succeeded", "budget-exceeded"]).toContain(run.status);
+  });
+
+  it("a child of a scoped parent writes only inside the parent's scope", async () => {
+    putAgent(agent("parent", { tools: ["call_agents"], callable: ["writer"], writeTags: ["journal"] }));
+    putAgent(agent("writer", { tools: ["write_notes"] }));
+    const { make } = byAgent({
+      parent: [call("call_agent", { name: "writer", message: "w" }), say("ok")],
+      writer: [writeCall("Loose", "no tag here"), say("done")],
+    });
+    await go("parent", make);
+    const child = listRuns("writer")[0]!;
+    expect(listEvents(child.id).find((e) => e.kind === "tool-result")?.text).toMatch(/^error: .*journal/);
+    expect(await readNoteFile("loose")).toBeNull();
+  });
+
+  it("refuses a child that would ask for approval, from any caller, because a called agent cannot pause", async () => {
+    putAgent(agent("asker", { tools: ["read_notes", "web_fetch"], approveTools: ["fetch_url"] }));
+    for (const [name, over] of [["plain", {}], ["scoped", { writeTags: ["journal"] }]] satisfies [string, Partial<Agent>][]) {
+      putAgent(agent(name, { tools: ["call_agents"], callable: ["asker"], ...over }));
+      const { make } = byAgent({ [name]: [call("call_agent", { name: "asker", message: "w" }), say("ok")], asker: [call("fetch_url", { url: "https://example.com/" }), say("done")] });
+      const run = await go(name, make);
+      expect(listEvents(run.id).find((e) => e.kind === "tool-result")?.text).toContain("agent asker asks for approval before fetch_url, which a called agent cannot do");
+    }
+    expect(listRuns("asker")).toHaveLength(0);
+  });
+
+  it("runs a child whose approval list names only tools it does not have", async () => {
+    putAgent(agent("parent", { tools: ["call_agents"], callable: ["reader"] }));
+    putAgent(agent("reader", { approveTools: ["fetch_url"] }));
+    const { make } = byAgent({ parent: [call("call_agent", { name: "reader", message: "r" }), say("ok")], reader: [say("read it")] });
+    await go("parent", make);
+    expect(listRuns("reader")[0]?.status).toBe("succeeded");
   });
 
   it("a strict parent or strict child that writes cannot delegate", async () => {

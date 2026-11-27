@@ -220,6 +220,47 @@ export const MIGRATIONS: readonly string[] = [
     updated_at TEXT NOT NULL
   );
   `,
+  `
+  -- migration 15: the short summary of the older part of a long chat, kept so a restart does not lose it
+  CREATE TABLE chat_summaries (
+    thread_id TEXT PRIMARY KEY,
+    covered INTEGER NOT NULL,
+    text TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+  `,
+  `
+  -- migration 16: a short note an agent keeps for its own next run (opt-in per agent)
+  CREATE TABLE agent_state (
+    agent TEXT PRIMARY KEY,
+    text TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+  `,
+  `
+  -- migration 17: named tokens for MCP clients (ADR-0033). Only a SHA-256 hash of the token is kept.
+  CREATE TABLE mcp_clients (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL UNIQUE COLLATE NOCASE,
+    token_hash TEXT NOT NULL UNIQUE,
+    created_at TEXT NOT NULL,
+    last_used_at TEXT
+  );
+  `,
+  `
+  -- migration 18: an MCP client's write scope, a JSON array of tags (ADR-0033 amendment). NULL means any note.
+  ALTER TABLE mcp_clients ADD COLUMN write_tags TEXT;
+  `,
+  `
+  -- migration 19: earlier versions of an agent's state note (todo item 50), so a bad save or a Clear can be undone
+  CREATE TABLE agent_state_history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    agent TEXT NOT NULL,
+    text TEXT NOT NULL,
+    saved_at TEXT NOT NULL
+  );
+  CREATE INDEX agent_state_history_agent ON agent_state_history (agent, id);
+  `,
 ];
 
 let current: { key: string; db: Database.Database } | null = null;
@@ -249,12 +290,15 @@ export function closeState(): void {
   }
 }
 
-/** Runs left `running` by a crash or restart can never finish: say so. Call once at start. */
-export function markInterruptedRuns(): number {
-  const result = open()
-    .prepare("UPDATE runs SET status = 'interrupted', finished_at = ?, error = 'server restarted during the run' WHERE status = 'running'")
-    .run(new Date().toISOString());
-  return result.changes;
+/** Runs left `running` by a crash or restart can never finish: say so. Call once at start. `keep` are runs that continue (ADR-0034). */
+export function markInterruptedRuns(keep: string[] = []): number {
+  const db = open();
+  const mark = db.prepare("UPDATE runs SET status = 'interrupted', finished_at = ?, error = 'server restarted during the run' WHERE id = ?");
+  const now = new Date().toISOString();
+  const kept = new Set(keep);
+  let changes = 0;
+  for (const id of listRunningRunIds()) if (!kept.has(id)) changes += mark.run(now, id).changes;
+  return changes;
 }
 
 // ---- agents ----
@@ -357,6 +401,11 @@ export function hasRunning(agent: string): boolean {
   // A run waiting for approval still owns its agent: a second run could write the same notes.
   const row = open().prepare("SELECT 1 AS x FROM runs WHERE agent = ? AND status IN ('running', 'waiting-approval') LIMIT 1").get(agent);
   return row !== undefined;
+}
+
+/** True when the agent has a run that stopped to wait for the owner's decision on a write. */
+export function hasWaitingApproval(agent: string): boolean {
+  return open().prepare("SELECT 1 AS x FROM runs WHERE agent = ? AND status = 'waiting-approval' LIMIT 1").get(agent) !== undefined;
 }
 
 export function markUndone(id: string): void {
@@ -480,6 +529,12 @@ export function putSchedule(agent: string, patch: Partial<Omit<ScheduleState, "a
 }
 
 /** Sum of tokens used by runs that started at or after `sinceIso`. */
+/** Tokens used by one agent's runs started at or after `sinceIso`. */
+export function agentTokensSince(agent: string, sinceIso: string): number {
+  const row = open().prepare("SELECT COALESCE(SUM(tokens_used), 0) AS total FROM runs WHERE agent = ? AND started_at >= ?").get(agent, sinceIso) as { total: number };
+  return row.total;
+}
+
 export function tokensSince(sinceIso: string): number {
   const row = open().prepare("SELECT COALESCE(SUM(tokens_used), 0) AS total FROM runs WHERE started_at >= ?").get(sinceIso) as { total: number };
   return row.total;
@@ -652,6 +707,11 @@ export function decideApproval(id: string, decision: "approve" | "reject"): bool
   return true;
 }
 
+/** Ids of runs left `running`, oldest first (at start these were cut off by a restart). */
+export function listRunningRunIds(): string[] {
+  return (open().prepare("SELECT id FROM runs WHERE status = 'running' ORDER BY started_at").all() as { id: string }[]).map((r) => r.id);
+}
+
 /** Runs waiting for the owner. */
 export function listWaitingRunIds(): string[] {
   return (open().prepare("SELECT id FROM runs WHERE status = 'waiting-approval' ORDER BY started_at").all() as { id: string }[]).map((r) => r.id);
@@ -692,8 +752,75 @@ export function setChatTitle(id: string, title: string): void {
   open().prepare("UPDATE chat_threads SET title = ? WHERE id = ?").run(title, id);
 }
 
+/** The summary of the part of a chat that no longer fits the prompt: how many dropped messages it covers, and the text. */
+export type ChatSummary = { covered: number; text: string };
+
+export function getChatSummary(threadId: string): ChatSummary | null {
+  const row = open().prepare("SELECT covered, text FROM chat_summaries WHERE thread_id = ?").get(threadId) as ChatSummary | undefined;
+  return row ?? null;
+}
+
+export function putChatSummary(threadId: string, summary: ChatSummary): void {
+  open()
+    .prepare("INSERT INTO chat_summaries (thread_id, covered, text, updated_at) VALUES (?, ?, ?, ?) ON CONFLICT(thread_id) DO UPDATE SET covered = excluded.covered, text = excluded.text, updated_at = excluded.updated_at")
+    .run(threadId, summary.covered, summary.text, new Date().toISOString());
+}
+
+/** The state note an agent keeps between runs. */
+export type AgentState = { text: string; updatedAt: string };
+
+export function getAgentState(agent: string): AgentState | null {
+  const row = open().prepare("SELECT text, updated_at AS updatedAt FROM agent_state WHERE agent = ?").get(agent) as AgentState | undefined;
+  return row ?? null;
+}
+
+/** How many earlier versions of a state note are kept. */
+export const STATE_HISTORY_KEEP = 10;
+
+/** Puts the current note into the history (when there is one) and keeps only the newest `STATE_HISTORY_KEEP`. */
+function keepOldState(db: Database.Database, agent: string): void {
+  const old = db.prepare("SELECT text, updated_at AS updatedAt FROM agent_state WHERE agent = ?").get(agent) as AgentState | undefined;
+  if (!old) return;
+  db.prepare("INSERT INTO agent_state_history (agent, text, saved_at) VALUES (?, ?, ?)").run(agent, old.text, old.updatedAt);
+  db.prepare("DELETE FROM agent_state_history WHERE agent = ? AND id NOT IN (SELECT id FROM agent_state_history WHERE agent = ? ORDER BY id DESC LIMIT ?)").run(agent, agent, STATE_HISTORY_KEEP);
+}
+
+export function putAgentState(agent: string, text: string): void {
+  const db = open();
+  db.transaction(() => {
+    const current = db.prepare("SELECT text FROM agent_state WHERE agent = ?").get(agent) as { text: string } | undefined;
+    if (current?.text === text) return;
+    keepOldState(db, agent);
+    db.prepare("INSERT INTO agent_state (agent, text, updated_at) VALUES (?, ?, ?) ON CONFLICT(agent) DO UPDATE SET text = excluded.text, updated_at = excluded.updated_at").run(agent, text, new Date().toISOString());
+  })();
+}
+
+export function deleteAgentState(agent: string): boolean {
+  const db = open();
+  return db.transaction(() => {
+    keepOldState(db, agent);
+    return db.prepare("DELETE FROM agent_state WHERE agent = ?").run(agent).changes > 0;
+  })();
+}
+
+export type AgentStateVersion = { id: number; text: string; savedAt: string };
+
+/** Earlier versions of an agent's state note, newest first. */
+export function listAgentStateHistory(agent: string): AgentStateVersion[] {
+  return open().prepare("SELECT id, text, saved_at AS savedAt FROM agent_state_history WHERE agent = ? ORDER BY id DESC").all(agent) as AgentStateVersion[];
+}
+
+/** Makes an earlier version the current note again (the note it replaces goes into the history). False when there is no such version. */
+export function restoreAgentState(agent: string, id: number): boolean {
+  const row = open().prepare("SELECT text FROM agent_state_history WHERE agent = ? AND id = ?").get(agent, id) as { text: string } | undefined;
+  if (!row) return false;
+  putAgentState(agent, row.text);
+  return true;
+}
+
 export function deleteChatThread(id: string): void {
   const db = open();
+  db.prepare("DELETE FROM chat_summaries WHERE thread_id = ?").run(id);
   db.prepare("DELETE FROM chat_messages WHERE thread_id = ?").run(id);
   db.prepare("DELETE FROM chat_threads WHERE id = ?").run(id);
 }
@@ -923,4 +1050,39 @@ export function putConnectionRow(row: ConnectionRow): void {
 
 export function deleteConnectionRow(id: string): boolean {
   return open().prepare("DELETE FROM connections WHERE id = ?").run(id).changes > 0;
+}
+
+// ---- MCP clients (ADR-0033) ----
+
+export type McpClientRow = { id: string; name: string; createdAt: string; lastUsedAt: string | null; writeTags: string[] };
+const CLIENT_COLUMNS = "id, name, created_at AS createdAt, last_used_at AS lastUsedAt, write_tags AS writeTags";
+type RawClientRow = Omit<McpClientRow, "writeTags"> & { writeTags: string | null };
+
+function clientRow(raw: RawClientRow): McpClientRow {
+  const parsed: unknown = raw.writeTags ? JSON.parse(raw.writeTags) : [];
+  return { ...raw, writeTags: Array.isArray(parsed) ? parsed.filter((t): t is string => typeof t === "string") : [] };
+}
+
+export function insertMcpClient(row: { id: string; name: string; tokenHash: string; writeTags?: string[] }): McpClientRow {
+  const now = new Date().toISOString();
+  const tags = row.writeTags ?? [];
+  open().prepare("INSERT INTO mcp_clients (id, name, token_hash, created_at, write_tags) VALUES (?, ?, ?, ?, ?)").run(row.id, row.name, row.tokenHash, now, tags.length > 0 ? JSON.stringify(tags) : null);
+  return { id: row.id, name: row.name, createdAt: now, lastUsedAt: null, writeTags: tags };
+}
+
+export function listMcpClientRows(): McpClientRow[] {
+  return (open().prepare(`SELECT ${CLIENT_COLUMNS} FROM mcp_clients ORDER BY created_at, rowid`).all() as RawClientRow[]).map(clientRow);
+}
+
+export function mcpClientByHash(tokenHash: string): McpClientRow | null {
+  const raw = open().prepare(`SELECT ${CLIENT_COLUMNS} FROM mcp_clients WHERE token_hash = ?`).get(tokenHash) as RawClientRow | undefined;
+  return raw ? clientRow(raw) : null;
+}
+
+export function touchMcpClient(id: string): void {
+  open().prepare("UPDATE mcp_clients SET last_used_at = ? WHERE id = ?").run(new Date().toISOString(), id);
+}
+
+export function deleteMcpClientRow(id: string): boolean {
+  return open().prepare("DELETE FROM mcp_clients WHERE id = ?").run(id).changes > 0;
 }

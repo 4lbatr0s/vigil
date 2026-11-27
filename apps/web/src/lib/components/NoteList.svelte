@@ -1,22 +1,25 @@
 <script lang="ts">
+import { dailyHref, NOTE_VIEWS, NOTES_PATH } from "$lib/links";
   import { onDestroy } from "svelte";
   import { slugify, type Note, type NoteSummary } from "@vigil/shared";
   import Pin from "@lucide/svelte/icons/pin";
-  import Search from "@lucide/svelte/icons/search";
-  import X from "@lucide/svelte/icons/x";
-  import { goto } from "$app/navigation";
+  import Plus from "@lucide/svelte/icons/plus";
+  import ChevronDown from "@lucide/svelte/icons/chevron-down";
   import CalendarIcon from "@lucide/svelte/icons/calendar";
+  import { goto } from "$app/navigation";
   import Calendar from "$lib/components/Calendar.svelte";
   import { getStudyHistory, putNote, searchNotes } from "$lib/api";
   import { parseDay } from "$lib/daily";
   import { hasTag, relativeTime, tagTree, viewNotes, type SortKey } from "$lib/note-list";
   import { ROW_HEIGHT, VIRTUALIZE_ABOVE, visibleWindow } from "$lib/window";
+  import { Button, Dialog, EmptyState, Field, IconButton, Input, Menu, Row, ViewSwitch } from "$lib/ui";
 
   let {
     notes = [],
     pins = [],
     selectedId = null,
     flicker = new Set<string>(),
+    createOpen = $bindable(false),
     onselect,
     oncreated,
     ontogglepin,
@@ -25,8 +28,10 @@
     /** Pinned note ids, most recently pinned first. */
     pins?: string[];
     selectedId?: string | null;
-    /** Ids whose title pulses amber once (an agent just landed them). */
+    /** Ids that get a brief amber wash once (an agent just landed them). */
     flicker?: Set<string>;
+    /** The "New note" dialog; the page opens it from the address (`?new=1`) and its empty state. */
+    createOpen?: boolean;
     onselect: (id: string) => void;
     oncreated: (note: Note) => void;
     ontogglepin: (id: string, pinned: boolean) => void;
@@ -46,7 +51,7 @@
     }
   }
   function openDay(day: string): void {
-    void goto(`/?daily=${day}`);
+    void goto(dailyHref(day));
   }
 
   let newTitle = $state("");
@@ -60,7 +65,6 @@
   // Full-text hits from the server (the body is not in the list payload), merged with the client-side match.
   let hitIds = $state(new Set<string>());
   let searchTimer: ReturnType<typeof setTimeout> | undefined;
-  let searchInput: HTMLInputElement | undefined = $state();
   let listEl: HTMLDivElement | undefined = $state();
 
   function readSort(): SortKey {
@@ -117,9 +121,10 @@
     try {
       const note = await putNote(slugify(title), { title, body: "" });
       newTitle = "";
+      createOpen = false;
       oncreated(note);
     } catch (err) {
-      error = err instanceof Error ? err.message : "Could not create note";
+      error = err instanceof Error ? err.message : "Could not create the note";
     } finally {
       creating = false;
     }
@@ -128,15 +133,15 @@
   function clearFilters(): void {
     query = "";
     tag = null;
-    searchInput?.focus();
+    document.getElementById("note-filter")?.focus();
   }
 
-  /** Up and Down move between rows; N jumps to the new-note box; Escape in the search box clears it. */
+  /** Up and Down move between rows; N opens the new-note dialog; Escape in the filter clears it. */
   function onListKeydown(event: KeyboardEvent): void {
     const target = event.target as HTMLElement;
     if (target.closest("input, select, textarea")) return;
     if (event.key === "ArrowDown" || event.key === "ArrowUp") {
-      const buttons = [...(listEl?.querySelectorAll<HTMLButtonElement>("button.open") ?? [])];
+      const buttons = [...(listEl?.querySelectorAll<HTMLButtonElement>(".item > button") ?? [])];
       const at = buttons.indexOf(target as HTMLButtonElement);
       const next = buttons[at + (event.key === "ArrowDown" ? 1 : -1)];
       if (next) {
@@ -145,50 +150,60 @@
       }
     } else if (event.key.toLowerCase() === "n" && !event.metaKey && !event.ctrlKey && !event.altKey) {
       event.preventDefault();
-      document.getElementById("new-note-title")?.focus();
+      createOpen = true;
     }
   }
+
+  const sortLabel = $derived(sort === "title" ? "Title" : "Recently changed");
 </script>
 
-<aside class="sidebar" style:--row-height={`${ROW_HEIGHT}px`}>
+<aside class="sidebar" style:--item-height="{ROW_HEIGHT}px">
   <header class="head">
-    <label class="find">
-      <Search size={16} strokeWidth={1.5} />
-      <input
-        bind:this={searchInput}
-        class="find-input"
+    <ViewSwitch label="Ways to see your notes" items={NOTE_VIEWS} current={NOTES_PATH} />
+    <div class="find">
+      <Input
+        id="note-filter"
         type="search"
         placeholder="Filter notes"
         aria-label="Filter notes"
         bind:value={query}
         onkeydown={(e) => e.key === "Escape" && query !== "" && ((query = ""), e.stopPropagation())}
       />
-      {#if query !== ""}
-        <button type="button" class="clear" aria-label="Clear the filter" onclick={() => ((query = ""), searchInput?.focus())}><X size={14} strokeWidth={1.5} /></button>
-      {/if}
-    </label>
+      <IconButton label="New note" shortcut="N" onclick={() => (createOpen = true)}><Plus size={16} strokeWidth={1.5} /></IconButton>
+    </div>
     <div class="tools">
       <span class="count" aria-live="polite">{shown.length} {shown.length === 1 ? "note" : "notes"}</span>
-      <button type="button" class="calbtn" aria-expanded={calendarOpen} aria-controls="note-calendar" aria-label="Calendar" title="Calendar of daily notes" onclick={() => void toggleCalendar()}><CalendarIcon size={14} strokeWidth={1.5} /></button>
-      <select class="sort" aria-label="Sort notes" value={sort} onchange={(e) => setSort(e.currentTarget.value === "title" ? "title" : "modified")}>
-        <option value="modified">Recently changed</option>
-        <option value="title">Title</option>
-      </select>
+      <span class="tool-buttons">
+        <IconButton size="sm" label="Calendar of daily notes" pressed={calendarOpen} aria-expanded={calendarOpen} aria-controls="note-calendar" onclick={() => void toggleCalendar()}><CalendarIcon size={14} strokeWidth={1.5} /></IconButton>
+        <Menu
+          label="Sort notes"
+          items={[
+            { label: "Recently changed", onselect: () => setSort("modified") },
+            { label: "Title", onselect: () => setSort("title") },
+          ]}
+        >
+          {#snippet trigger({ props })}
+            <Button variant="ghost" size="sm" {...props}>
+              {sortLabel}<ChevronDown size={14} strokeWidth={1.5} />
+            </Button>
+          {/snippet}
+        </Menu>
+      </span>
     </div>
     {#if calendarOpen}
       <div id="note-calendar"><Calendar {noteDays} {studyDays} {selectedDay} onpick={openDay} /></div>
     {/if}
     {#if tags.length > 0}
-      <div class="chips" role="group" aria-label="Filter by tag">
-        <button type="button" class="chip" class:on={tag === null} aria-pressed={tag === null} onclick={() => (tag = null)}>All</button>
+      <div class="tags" role="group" aria-label="Filter by tag">
+        <Button variant="ghost" size="sm" pressed={tag === null} onclick={() => (tag = null)}>All</Button>
         {#each tags as t (t.tag)}
-          <button type="button" class="chip" class:on={tag === t.tag || (tag?.startsWith(`${t.tag}/`) ?? false)} aria-pressed={tag === t.tag} onclick={() => (tag = tag === t.tag ? null : t.tag)}>#{t.tag}</button>
+          <Button variant="ghost" size="sm" pressed={tag === t.tag || (tag?.startsWith(`${t.tag}/`) ?? false)} onclick={() => (tag = tag === t.tag ? null : t.tag)}>#{t.tag}</Button>
         {/each}
       </div>
       {#if tree.children.length > 0}
-        <div class="chips" role="group" aria-label={`Tags under ${tag}`}>
+        <div class="tags" role="group" aria-label={`Tags under ${tag}`}>
           {#each tree.children as c (c.tag)}
-            <button type="button" class="chip" class:on={tag === c.tag} aria-pressed={tag === c.tag} onclick={() => (tag = c.tag)}>#{c.tag.slice((tag?.length ?? 0) + 1)}</button>
+            <Button variant="ghost" size="sm" pressed={tag === c.tag} onclick={() => (tag = c.tag)}>#{c.tag.slice((tag?.length ?? 0) + 1)}</Button>
           {/each}
         </div>
       {/if}
@@ -196,414 +211,151 @@
   </header>
 
   <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-  <div
-    class="list"
-    role="list"
-    bind:this={listEl}
-    bind:clientHeight={viewport}
-    onscroll={(e) => (scrollTop = e.currentTarget.scrollTop)}
-    onkeydown={onListKeydown}
-  >
-    {#if win.padTop > 0}<div style:height={`${win.padTop}px`} aria-hidden="true"></div>{/if}
+  <div class="list" role="list" bind:this={listEl} bind:clientHeight={viewport} onscroll={(e) => (scrollTop = e.currentTarget.scrollTop)} onkeydown={onListKeydown}>
+    {#if win.padTop > 0}<div style:height="{win.padTop}px" aria-hidden="true"></div>{/if}
     {#each rows as note (note.id)}
-      <div class="row" class:selected={note.id === selectedId} class:pinned={pinSet.has(note.id)} role="listitem">
-        <button type="button" class="open" onclick={() => onselect(note.id)} aria-current={note.id === selectedId ? "true" : undefined}>
-          <span class="line">
-            <span class="title" class:flicker={flicker.has(note.id)}>
-              {#if note.author === "agent"}
-                <span class="agent-dot" role="img" aria-label={`written by ${note.agentName ?? "an agent"}`} title={`written by ${note.agentName ?? "an agent"}`}></span>
-              {/if}{note.title}
-            </span>
-            <span class="date" title={note.updatedAt}>{relativeTime(note.updatedAt)}</span>
-          </span>
-          <span class="line sub">
-            <span class="snippet">{note.snippet ?? ""}</span>
-            {#if note.tags.length > 0}<span class="tag-list">{note.tags.slice(0, 2).map((t) => `#${t}`).join(" ")}</span>{/if}
-          </span>
-        </button>
-        <button
-          type="button"
-          class="pin"
-          class:on={pinSet.has(note.id)}
-          aria-label={pinSet.has(note.id) ? `Unpin ${note.title}` : `Pin ${note.title}`}
-          aria-pressed={pinSet.has(note.id)}
-          title={pinSet.has(note.id) ? "Unpin" : "Pin to the top"}
-          onclick={() => ontogglepin(note.id, !pinSet.has(note.id))}
-        >
-          <Pin size={14} strokeWidth={1.5} />
-        </button>
+      <div class="item" class:flicker={flicker.has(note.id)} role="listitem">
+        <Row title={note.title} meta={relativeTime(note.updatedAt)} snippet={note.snippet ?? ""} selected={note.id === selectedId} onclick={() => onselect(note.id)}>
+          {#snippet lead()}
+            {#if note.author === "agent"}
+              <span class="agent-dot" role="img" aria-label={`written by ${note.agentName ?? "a helper"}`}></span>
+            {/if}
+          {/snippet}
+        </Row>
+        <span class="pin" class:on={pinSet.has(note.id)}>
+          <IconButton size="sm" label={pinSet.has(note.id) ? `Unpin ${note.title}` : `Pin ${note.title}`} pressed={pinSet.has(note.id)} onclick={() => ontogglepin(note.id, !pinSet.has(note.id))}><Pin size={14} strokeWidth={1.5} /></IconButton>
+        </span>
       </div>
     {:else}
       {#if notes.length === 0}
-        <p class="empty">Nothing here yet. Type a title below to start your first note.</p>
+        <EmptyState title="No notes yet.">
+          {#snippet action()}<Button variant="primary" onclick={() => (createOpen = true)}>New note</Button>{/snippet}
+        </EmptyState>
       {:else}
-        <div class="empty">
-          <p>No notes match.</p>
-          <button type="button" class="link" onclick={clearFilters}>Clear the filter</button>
-        </div>
+        <EmptyState title="No notes match.">
+          {#snippet action()}<Button onclick={clearFilters}>Clear the filter</Button>{/snippet}
+        </EmptyState>
       {/if}
     {/each}
-    {#if win.padBottom > 0}<div style:height={`${win.padBottom}px`} aria-hidden="true"></div>{/if}
+    {#if win.padBottom > 0}<div style:height="{win.padBottom}px" aria-hidden="true"></div>{/if}
   </div>
-
-  <form class="create" onsubmit={create}>
-    <input id="new-note-title" class="input" type="text" placeholder="Note title" aria-label="New note title" bind:value={newTitle} />
-    <button type="submit" class="action" disabled={creating || newTitle.trim().length === 0}>New note</button>
-    <a class="fromtext" href="/outline" title="Paste text and get an empty outline to fill in">From text</a>
-  </form>
-  {#if error}
-    <p class="error">{error}</p>
-  {/if}
 </aside>
+
+<Dialog bind:open={createOpen} title="New note">
+  <form id="new-note-form" onsubmit={create}>
+    <Field label="Title" error={error || undefined}>
+      {#snippet children({ id, describedby, invalid })}
+        <Input {id} aria-describedby={describedby} {invalid} placeholder="Untitled" bind:value={newTitle} />
+      {/snippet}
+    </Field>
+  </form>
+  {#snippet actions()}
+    <Button variant="ghost" href="/outline">Start from pasted text</Button>
+    <Button variant="primary" type="submit" form="new-note-form" disabled={creating || newTitle.trim().length === 0}>Create note</Button>
+  {/snippet}
+</Dialog>
 
 <style>
   .sidebar {
     display: flex;
     flex-direction: column;
     height: 100%;
-    border-right: 1px solid var(--hairline);
-    background: var(--bg);
+    background: var(--paper);
+    /* The one line in the screen: it separates two panes that scroll on their own. */
+    box-shadow: inset -1px 0 0 var(--line-soft);
   }
 
   .head {
-    display: grid;
-    gap: var(--space-2);
-    padding: var(--space-3) var(--space-3) var(--space-2);
-    border-bottom: 1px solid var(--hairline);
+    display: flex;
+    flex-direction: column;
+    gap: var(--s-2);
+    padding: var(--s-3) var(--s-3) var(--s-2);
   }
 
   .find {
     display: flex;
     align-items: center;
-    gap: var(--space-2);
-    height: 34px;
-    padding: 0 var(--space-3);
-    border: 1px solid var(--hairline);
-    border-radius: var(--radius);
-    background: var(--surface);
-    color: var(--ink-muted);
-  }
-
-  .find:focus-within {
-    outline: 2px solid var(--ink);
-    outline-offset: 2px;
-  }
-
-  .find-input {
-    flex: 1;
-    min-width: 0;
-    border: none;
-    outline: none;
-    background: none;
-    font-size: var(--text-ui);
-    color: var(--ink);
-  }
-
-  .find-input::placeholder {
-    color: var(--ink-muted);
-  }
-
-  .find-input::-webkit-search-cancel-button {
-    display: none;
-  }
-
-  .clear {
-    display: grid;
-    place-items: center;
-    width: 22px;
-    height: 22px;
-    border-radius: var(--radius);
-    color: var(--ink-muted);
-  }
-
-  .clear:hover {
-    background: var(--surface-hover);
-    color: var(--ink);
-  }
-
-  .fromtext {
-    align-self: center;
-    font-size: var(--text-label);
-    color: var(--ink-muted);
-    white-space: nowrap;
-  }
-
-  .calbtn {
-    margin-left: auto;
-    border: 0;
-    background: transparent;
-    color: var(--ink-muted);
-    border-radius: var(--radius);
-    padding: var(--space-1);
-    cursor: pointer;
-    display: inline-flex;
-  }
-  .calbtn:hover,
-  .calbtn[aria-expanded="true"] {
-    background: var(--surface-hover);
-    color: var(--ink);
+    gap: var(--s-1);
   }
 
   .tools {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: var(--space-2);
-    font-size: var(--text-label);
-    color: var(--ink-muted);
+    gap: var(--s-2);
+    padding-left: var(--s-1);
+    color: var(--text-3);
+    font: var(--weight-regular) var(--type-meta-size) / var(--type-meta-lh) var(--font-ui);
   }
 
-  .sort {
-    max-width: 150px;
-    padding: 2px var(--space-1);
-    border: 1px solid transparent;
-    border-radius: var(--radius);
-    background: none;
-    color: var(--ink-muted);
-    font: inherit;
-    font-size: var(--text-label);
+  .tool-buttons {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--s-1);
   }
 
-  .sort:hover {
-    background: var(--surface-hover);
-    color: var(--ink);
-  }
-
-  .chips {
+  .tags {
     display: flex;
-    gap: var(--space-1);
-    padding-bottom: var(--space-1);
+    gap: var(--s-1);
     overflow-x: auto;
     scrollbar-width: none;
-  }
-
-  .chip {
-    flex: none;
-    height: 24px;
-    padding: 0 var(--space-2);
-    border: 1px solid var(--hairline);
-    border-radius: 12px;
-    font-size: var(--text-label);
-    color: var(--ink-muted);
-    white-space: nowrap;
-  }
-
-  .chip:hover {
-    background: var(--surface-hover);
-    color: var(--ink);
-  }
-
-  .chip.on {
-    background: var(--ink);
-    border-color: var(--ink);
-    color: var(--bg);
   }
 
   .list {
     flex: 1;
     overflow-y: auto;
+    padding: 0 var(--s-2) var(--s-4);
   }
 
-  .row {
+  .item {
     position: relative;
-    height: var(--row-height);
-    border-left: 2px solid transparent;
-    border-bottom: 1px solid var(--hairline);
+    height: var(--item-height);
   }
 
-  .row:hover {
-    background: var(--surface-hover);
-  }
-
-  .row.selected {
-    border-left-color: var(--ink);
-    background: var(--surface-raised);
-  }
-
-  .open {
-    display: grid;
-    align-content: center;
-    gap: 2px;
-    width: 100%;
+  .item :global(.row) {
     height: 100%;
-    padding: 0 var(--space-4) 0 calc(var(--space-4) - 2px);
-    text-align: left;
-  }
-
-  .line {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: var(--space-3);
-    min-width: 0;
-  }
-
-  .title {
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    font-family: var(--font-serif);
-    font-size: var(--text-prose);
-    font-weight: 500;
-    line-height: 1.3;
-    color: var(--ink);
   }
 
   .agent-dot {
     display: inline-block;
     width: 6px;
     height: 6px;
-    margin-right: var(--space-2);
-    border-radius: 50%;
-    background: var(--amber);
-    vertical-align: middle;
+    margin-top: var(--s-1);
+    border-radius: var(--r-pill);
+    background: var(--agent);
   }
 
-  /* The one orchestrated moment: the title pulses amber once. With reduced motion the dot alone stays. */
-  @media (prefers-reduced-motion: no-preference) {
-    .title.flicker {
-      animation: flicker 600ms ease-out 1;
+  /* The one orchestrated moment: a landed agent note washes amber once. Reduced motion drops the wash; the dot stays. */
+  .item.flicker::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: var(--r-control);
+    background: var(--agent-fill);
+    pointer-events: none;
+    animation: land var(--dur-slow) var(--ease-out) 2 alternate;
+  }
+
+  @keyframes land {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
     }
   }
 
-  @keyframes flicker {
-    0%,
-    100% {
-      color: var(--ink);
-    }
-    30% {
-      color: var(--amber-ink);
-    }
-  }
-
-  .date {
-    flex: none;
-    font-size: var(--text-label);
-    color: var(--ink-muted);
-  }
-
-  .sub {
-    justify-content: flex-start;
-  }
-
-  .snippet {
-    flex: 1;
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    font-size: var(--text-label);
-    color: var(--ink-muted);
-  }
-
-  .tag-list {
-    flex: none;
-    max-width: 45%;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    font-size: var(--text-label);
-    color: var(--ink-muted);
-  }
-
+  /* The pin sits over the end of the snippet line: seen on hover or focus, always when pinned. */
   .pin {
     position: absolute;
-    top: var(--space-2);
-    right: var(--space-2);
+    right: var(--s-2);
+    bottom: var(--s-1);
     display: none;
-    place-items: center;
-    width: 24px;
-    height: 24px;
-    border-radius: var(--radius);
-    background: var(--surface-raised);
-    color: var(--ink-muted);
   }
 
-  .row:hover .pin,
-  .row:focus-within .pin,
+  .item:hover .pin,
+  .item:focus-within .pin,
   .pin.on {
-    display: grid;
-  }
-
-  /* A pinned row keeps its pin beside the date; hovering swaps the date for the pin button. */
-  .row.pinned .date {
-    margin-right: var(--space-6);
-  }
-
-  .row:hover .date,
-  .row:focus-within .date {
-    visibility: hidden;
-  }
-
-  .pin.on {
-    color: var(--ink);
-  }
-
-  .pin:hover {
-    background: var(--hairline);
-    color: var(--ink);
-  }
-
-  .empty {
-    display: grid;
-    gap: var(--space-2);
-    padding: var(--space-4);
-    font-size: var(--text-ui);
-    color: var(--ink-muted);
-  }
-
-  .link {
-    justify-self: start;
-    color: var(--ink);
-    text-decoration: underline;
-    text-underline-offset: 2px;
-  }
-
-  .create {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-2);
-    padding: var(--space-3) var(--space-4);
-    border-top: 1px solid var(--hairline);
-  }
-
-  .input {
-    flex: 1 1 100%;
-    min-width: 0;
-    padding: var(--space-2) var(--space-3);
-    background: var(--surface);
-    border: 1px solid var(--hairline);
-    border-radius: var(--radius);
-    font-size: var(--text-ui);
-  }
-
-  .input::placeholder {
-    color: var(--ink-muted);
-  }
-
-  .action {
-    padding: var(--space-2) var(--space-3);
-    border: 1px solid var(--hairline);
-    border-radius: var(--radius);
-    font-size: var(--text-ui);
-    color: var(--ink);
-    white-space: nowrap;
-  }
-
-  .action:hover:not(:disabled) {
-    background: var(--surface-hover);
-  }
-
-  .action:disabled {
-    color: var(--ink-muted);
-    cursor: default;
-  }
-
-  .error {
-    padding: 0 var(--space-4) var(--space-3);
-    font-family: var(--font-mono);
-    font-size: var(--text-label);
-    color: var(--err-ink);
+    display: inline-flex;
   }
 </style>

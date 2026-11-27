@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { Button } from "$lib/ui";
   import "@xyflow/svelte/dist/style.css";
   import { onDestroy, onMount } from "svelte";
   import { page } from "$app/state";
@@ -73,15 +74,15 @@
 
 <div class="page">
   <header>
-    <a class="crumb" href="/canvas">Canvas</a>
+    <Button variant="ghost" size="sm" href="/canvas">Canvas</Button>
     <span class="name">{id}</span>
     <span class="status" class:bad={status === "conflict" || status === "failed"} role="status" aria-live="polite">{statusText}</span>
-    {#if status === "failed"}<button type="button" class="ghost" onclick={() => void flush()}>Try again</button>{/if}
+    {#if status === "failed"}<Button size="sm" onclick={() => void flush()}>Try again</Button>{/if}
   </header>
   {#if status === "conflict" || status === "failed"}
     <p class="notice" role="alert">
       {detail}
-      {#if status === "conflict"}<button type="button" class="ghost" onclick={() => void load()}>Reload the newer version</button>{/if}
+      {#if status === "conflict"}<Button size="sm" onclick={() => void load()}>Reload the newer version</Button>{/if}
     </p>
   {/if}
   <div class="board">
@@ -105,60 +106,57 @@
     inset: 0;
     display: flex;
     flex-direction: column;
+    background: var(--paper);
   }
+
   header {
     display: flex;
-    gap: var(--space-3);
+    gap: var(--s-3);
     align-items: center;
-    padding: var(--space-2) var(--space-4);
-    border-bottom: 1px solid var(--hairline);
-    font-size: var(--text-ui);
+    padding: var(--s-2) var(--s-4);
   }
-  .crumb {
-    color: var(--ink-muted);
-  }
+
   .name {
-    font-family: var(--font-serif);
-    font-weight: 600;
+    font: var(--weight-strong) var(--type-ui-size) / var(--type-ui-lh) var(--font-ui);
   }
+
   .status {
     margin-left: auto;
-    color: var(--ink-muted);
-    font-size: var(--text-label);
+    color: var(--text-2);
+    font: var(--weight-regular) var(--type-meta-size) / var(--type-meta-lh) var(--font-ui);
   }
+
   .status.bad {
-    color: var(--err-ink);
+    color: var(--danger);
   }
+
   .notice {
-    margin: 0;
-    padding: var(--space-2) var(--space-4);
-    border-bottom: 1px solid var(--hairline);
-    color: var(--err-ink);
-    font-size: var(--text-label);
+    display: flex;
+    align-items: center;
+    gap: var(--s-3);
+    margin: 0 var(--s-4);
+    padding: var(--s-2) var(--s-3);
+    border-radius: var(--r-control);
+    background: var(--danger-fill);
+    font: var(--weight-regular) var(--type-ui-size) / var(--type-ui-lh) var(--font-ui);
   }
+
   .board {
     position: relative;
     flex: 1;
     min-height: 0;
   }
+
   .pad,
   .error {
-    padding: var(--space-6);
+    padding: var(--s-6);
   }
+
   .muted {
-    color: var(--ink-muted);
+    color: var(--text-2);
   }
+
   .error {
-    color: var(--err-ink);
-  }
-  .ghost {
-    padding: var(--space-1) var(--space-3);
-    border: 1px solid var(--hairline);
-    border-radius: var(--radius);
-    background: transparent;
-    color: var(--ink);
-    font: inherit;
-    font-size: var(--text-label);
-    cursor: pointer;
+    color: var(--danger);
   }
 </style>

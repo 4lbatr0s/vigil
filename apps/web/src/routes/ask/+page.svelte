@@ -2,6 +2,8 @@
   import { onDestroy } from "svelte";
   import { ApiError, createFromTemplate, getRun, getRunResult, listAgents, putAgent, startAsk, type Passage } from "$lib/api";
   import { NOT_COVERED, splitAnswer, usedPassages, verdict } from "$lib/citations";
+  import CitedAnswer from "$lib/components/CitedAnswer.svelte";
+  import { Button, Input, Page, Stack } from "$lib/ui";
 
   type Step = "ask" | "running" | "done" | "error";
 
@@ -57,7 +59,7 @@
       return;
     }
     if (run.status !== "succeeded") {
-      fail(run.error ?? `The agent stopped: ${run.status}`);
+      fail(run.error ?? `The helper stopped: ${run.status}`);
       return;
     }
     answer = ((await getRunResult(runId)).text ?? "").trim();
@@ -68,150 +70,55 @@
 
 <svelte:head><title>Ask your notes · Vigil</title></svelte:head>
 
-<div class="page">
-  <h1>Ask your notes</h1>
-  <p class="muted">Answers come only from lines of your own notes, and every claim points at the line behind it. If your notes do not cover a question, you are told so.</p>
+<Page title="Ask your notes" width="prose">
+  {#snippet actions()}
+    <Button variant="ghost" href="/chat">Chat with a helper</Button>
+  {/snippet}
+  <Stack gap={6}>
+    <p class="muted">Answers come only from your notes, and each claim points at the line behind it.</p>
 
-  <form onsubmit={ask}>
-    <input type="text" bind:value={question} aria-label="Your question" placeholder="What does my note say about…" maxlength="500" />
-    <button type="submit" class="btn primary" disabled={busy || question.trim().length < 3}>Ask</button>
-  </form>
+    <form onsubmit={ask}>
+      <Input bind:value={question} aria-label="Your question" placeholder="What does my note say about…" maxlength={500} />
+      <Button variant="primary" type="submit" disabled={busy || question.trim().length < 3}>Ask</Button>
+    </form>
 
-  {#if step === "running"}
-    <p class="muted" aria-live="polite">Reading your notes…</p>
-  {:else if step === "error"}
-    <p class="error" role="alert">{message}</p>
-  {:else if step === "done"}
-    <section aria-label="Answer" aria-live="polite">
-      <h2>{asked}</h2>
-      <p class="answer">
-        {#each parts as part}
-          {#if part.kind === "text"}{part.text}{:else if part.passage}<a class="cite" href={`/?note=${encodeURIComponent(part.passage.noteId)}&line=${part.passage.line}`} title={`${part.passage.title}, line ${part.passage.line}`}>{part.n}</a>{:else}<span class="cite bad" title="This mark points at no line">{part.n}</span>{/if}
-        {/each}
-      </p>
-      {#if trust === "no-marks"}
-        <p class="warn" role="note">This answer has no source marks, so nothing in it is backed by your notes. Do not trust it.</p>
-      {:else if trust === "bad-marks"}
-        <p class="warn" role="note">A mark points at a line that was never given. Check the sources below before you trust this.</p>
-      {/if}
-      {#if used.length > 0}
-        <h3>Where it comes from</h3>
-        <ol class="sources">
-          {#each used as p (p.n)}
-            <li value={p.n}>
-              <a href={`/?note=${encodeURIComponent(p.noteId)}&line=${p.line}`}>{p.title}</a> <span class="muted">line {p.line}</span>
-              <blockquote>{p.text}</blockquote>
-            </li>
-          {/each}
-        </ol>
-      {/if}
-    </section>
-  {/if}
-</div>
+    {#if step === "running"}
+      <p class="muted" aria-live="polite">Reading your notes…</p>
+    {:else if step === "error"}
+      <p class="error" role="alert">{message}</p>
+    {:else if step === "done"}
+      <section aria-label="Answer" aria-live="polite">
+        <Stack gap={4}>
+          <h2>{asked}</h2>
+          <CitedAnswer {parts} {used} sourcesTitle="Where it comes from" warning={trust === "no-marks" ? "This answer has no source marks, so nothing in it is backed by your notes. Do not trust it." : trust === "bad-marks" ? "A mark points at a line that was never given. Check the sources below before you trust this." : null} />
+        </Stack>
+      </section>
+    {/if}
+  </Stack>
+</Page>
 
 <style>
-  .page {
-    max-width: 680px;
-    margin: 0 auto;
-    padding: var(--space-6);
-    display: grid;
-    gap: var(--space-4);
-  }
-  h1 {
-    font-family: var(--font-serif);
-    font-size: var(--text-h2);
-  }
   h2 {
-    font-family: var(--font-serif);
-    font-size: var(--text-h3);
+    margin: 0;
+    font: var(--weight-strong) var(--type-heading-size) / var(--type-heading-lh) var(--font-ui);
   }
-  h3 {
-    font-size: var(--text-label);
-    color: var(--ink-muted);
-  }
-  .muted {
-    color: var(--ink-muted);
-    font-size: var(--text-label);
-  }
+
   form {
     display: flex;
-    gap: var(--space-3);
+    gap: var(--s-2);
   }
-  input {
-    flex: 1;
-    padding: var(--space-3);
-    border: 1px solid var(--hairline);
-    border-radius: var(--radius-lg);
-    background: var(--surface);
-    color: var(--ink);
-    font: inherit;
+
+  p {
+    margin: 0;
   }
-  .answer {
-    font-family: var(--font-serif);
-    font-size: var(--text-prose);
-    line-height: 1.6;
+
+  .muted {
+    color: var(--text-2);
+    font: var(--weight-regular) var(--type-ui-size) / var(--type-ui-lh) var(--font-ui);
   }
-  .cite {
-    display: inline-block;
-    min-width: 1.4em;
-    margin: 0 0.15em;
-    padding: 0 var(--space-1);
-    border: 1px solid var(--hairline);
-    border-radius: var(--radius);
-    font-family: var(--font-chrome);
-    font-size: var(--text-label);
-    text-align: center;
-    color: var(--ink);
-    text-decoration: none;
-  }
-  a.cite:hover {
-    background: var(--surface-hover);
-  }
-  .cite.bad {
-    border-color: var(--err);
-    color: var(--err-ink);
-  }
-  .warn {
-    padding: var(--space-3);
-    border: 1px solid var(--err);
-    border-radius: var(--radius);
-    color: var(--err-ink);
-    font-size: var(--text-label);
-  }
-  .sources {
-    display: grid;
-    gap: var(--space-3);
-    padding-left: var(--space-6);
-  }
-  blockquote {
-    margin: var(--space-1) 0 0;
-    padding-left: var(--space-3);
-    border-left: 2px solid var(--hairline);
-    color: var(--ink-muted);
-    font-family: var(--font-serif);
-  }
-  .btn {
-    display: inline-flex;
-    align-items: center;
-    padding: var(--space-2) var(--space-4);
-    border: 1px solid var(--hairline);
-    border-radius: var(--radius);
-    background: transparent;
-    color: var(--ink);
-    font: inherit;
-    font-size: var(--text-ui);
-    cursor: pointer;
-  }
-  .btn:disabled {
-    opacity: 0.5;
-    cursor: default;
-  }
-  .btn.primary {
-    background: var(--ink);
-    border-color: var(--ink);
-    color: var(--bg);
-  }
+
   .error {
-    color: var(--err-ink);
+    color: var(--danger);
+    font: var(--weight-regular) var(--type-ui-size) / var(--type-ui-lh) var(--font-ui);
   }
 </style>

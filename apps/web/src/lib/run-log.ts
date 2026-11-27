@@ -60,3 +60,26 @@ export function childRunIdOf(event: RunEvent): string | null {
   const id = event.data["childRunId"];
   return event.kind === "tool-result" && typeof id === "string" ? id : null;
 }
+
+/** "1,204 tokens · 2.1 s" for a model step, "0.4 s" for a tool step; empty when the log has no numbers for it. */
+export function stepStats(event: Pick<RunEvent, "kind" | "data">): string {
+  const ms = event.data["ms"];
+  const tokens = event.data["tokens"];
+  const parts: string[] = [];
+  if (event.kind === "model" && typeof tokens === "number") parts.push(`${tokens.toLocaleString("en-US")} tokens`);
+  if ((event.kind === "model" || event.kind === "tool-result") && typeof ms === "number") parts.push(ms < 100 ? `${ms} ms` : `${(ms / 1000).toFixed(1)} s`);
+  return parts.join(" · ");
+}
+
+/** The config version the run's agent had, from the prompt event (eight characters), or null for an older run. */
+export function configOf(events: Pick<RunEvent, "kind" | "data">[]): string | null {
+  const v = events.find((e) => e.kind === "prompt")?.data["config"];
+  return typeof v === "string" ? v : null;
+}
+
+/** The task the run was given, read from the prompt event (it is cut at 2,000 characters in the log). Empty when unknown. */
+export function taskOf(events: Pick<RunEvent, "kind" | "text">[]): string {
+  const text = events.find((e) => e.kind === "prompt")?.text ?? "";
+  const at = text.lastIndexOf("\n\nTask: ");
+  return at < 0 ? "" : text.slice(at + "\n\nTask: ".length).trim();
+}

@@ -65,44 +65,44 @@
     position: fixed;
     z-index: 50;
     min-width: 13rem;
-    padding: var(--space-1);
-    border: 1px solid var(--hairline);
-    border-radius: var(--radius);
-    background: var(--surface);
-    box-shadow: var(--shadow-pop);
-    font-size: var(--text-label);
+    padding: var(--s-1);
+    border: 1px solid var(--line-soft);
+    border-radius: var(--r-control);
+    background: var(--paper-float);
+    box-shadow: var(--elev-float);
+    font-size: var(--type-meta-size);
   }
   button {
     display: flex;
     justify-content: space-between;
-    gap: var(--space-4);
+    gap: var(--s-4);
     width: 100%;
-    padding: var(--space-1) var(--space-2);
+    padding: var(--s-1) var(--s-2);
     border: 0;
-    border-radius: var(--radius);
+    border-radius: var(--r-control);
     background: transparent;
-    color: var(--ink);
+    color: var(--text);
     font: inherit;
     text-align: left;
     cursor: pointer;
   }
   button:hover:not(:disabled),
   button:focus-visible {
-    background: var(--surface-hover);
+    background: var(--fill-selected);
   }
   button:disabled {
     opacity: 0.4;
     cursor: default;
   }
   .danger {
-    color: var(--err-ink);
+    color: var(--danger);
   }
   .hint {
-    color: var(--ink-muted);
+    color: var(--text-2);
   }
   .rule {
     height: 1px;
-    margin: var(--space-1) 0;
-    background: var(--hairline);
+    margin: var(--s-1) 0;
+    background: var(--line-soft);
   }
 </style>

@@ -48,3 +48,12 @@ export function addressProblem(raw: string): string | null {
   if (url.pathname.split("/").some((seg) => seg.length > 80)) return "That address has a very long path piece. Page text must not be sent in an address.";
   return null;
 }
+
+/**
+ * A state note is written by an agent that has read notes and web pages, so it can carry what an attacker planted there.
+ * Clean it when it is saved and again when it is loaded: instruction-like lines go, and the words that frame the note
+ * are removed so the text cannot close the frame early.
+ */
+export function cleanStateNote(text: string): string {
+  return scrubUntrusted(text).text.replace(/STATE NOTE (START|END)/gi, "[marker removed]");
+}

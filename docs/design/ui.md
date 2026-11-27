@@ -1,5 +1,8 @@
 # Vigil Design Tokens — "Quiet Instrument" (ADR-0005)
 
+> **Partly superseded (2026-11-22).** Colour, type, radius, shadow, component and copy rules are now in [ADR-0029](../adr/0029-design-system-v3.md), [`ui-rules.md`](ui-rules.md), the root `DESIGN.md` and `apps/web/src/lib/styles/tokens.css`. Where this file disagrees (4 px radius, no shadows, "rows not cards", uppercase labels, serif and mono roles, per-route buttons), those win. Screen lists, states and strings below still describe what each screen does.
+
+
 Single source of truth for all UI. Components may not use raw hex values outside this file.
 
 ## Palette (dark default)

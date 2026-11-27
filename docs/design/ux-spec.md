@@ -1,5 +1,8 @@
 # Vigil UX spec: every screen, state, string and key
 
+> **Partly superseded (2026-11-22).** Colour, type, radius, shadow, component and copy rules are now in [ADR-0029](../adr/0029-design-system-v3.md), [`ui-rules.md`](ui-rules.md), the root `DESIGN.md` and `apps/web/src/lib/styles/tokens.css`. Where this file disagrees (4 px radius, no shadows, "rows not cards", uppercase labels, serif and mono roles, per-route buttons), those win. Screen lists, states and strings below still describe what each screen does.
+
+
 Companion to `ui.md` (tokens, component stances) and ADR-0005 ("Quiet Instrument"). This document is what an implementer builds the web app from; it adds layouts, states, copy, keyboard, motion, accessibility, icons and the app mark. When this and `ui.md` disagree about a token, `ui.md` wins; about anything else, this wins.
 
 ## 0. Principles (applied to every screen)

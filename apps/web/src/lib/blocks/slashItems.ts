@@ -42,6 +42,7 @@ const ITEMS: SlashItem[] = [
   { id: "warning", label: "Warning", group: "Blocks", icon: "triangleAlert", hint: "[!warning]", words: "callout caution danger", run: callout("warning") },
   { id: "code", label: "Code block", group: "Blocks", icon: "code", hint: "```", words: "snippet pre", run: (e) => void e.chain().focus().setCodeBlock().run() },
   { id: "table", label: "Table", group: "Blocks", icon: "table", hint: "grid", words: "grid columns rows", run: (e) => void e.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run() },
+  { id: "toc", label: "Table of contents", group: "Insert", icon: "list", hint: "[TOC]", words: "toc contents outline headings index", run: (e) => void e.chain().focus().insertContent({ type: "toc" }).run() },
   { id: "wikilink", label: "Link to a note", group: "Insert", icon: "link", hint: "[[ ]]", words: "wikilink reference note", run: (e) => void e.chain().focus().insertContent("[[").run() },
   { id: "date", label: "Today's date", group: "Insert", icon: "calendar", hint: "date", words: "day time stamp", run: (e) => void e.chain().focus().insertContent(today()).run() },
   { id: "question", label: "Question card", group: "Study", icon: "brain", hint: "Q :: A", words: "flashcard study qa", run: (e) => void e.chain().focus().insertContent(" :: ").run() },

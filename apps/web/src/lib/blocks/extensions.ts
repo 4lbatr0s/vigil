@@ -207,6 +207,82 @@ export const Callout = Node.create({
   },
 });
 
+/**
+ * `[TOC]` on a line of its own: a table of contents built from the note's headings, always current (edit a heading
+ * and the list follows). The file keeps only the one line `[TOC]`; the list is drawn, never saved.
+ */
+export const TableOfContents = Node.create({
+  name: "toc",
+  group: "block",
+  atom: true,
+  selectable: true,
+  draggable: true,
+  addNodeView() {
+    return ({ editor }) => {
+      const dom = document.createElement("nav");
+      dom.className = "toc";
+      dom.contentEditable = "false";
+      dom.setAttribute("aria-label", "Table of contents");
+      const paint = (): void => {
+        const heads: { level: number; text: string; pos: number }[] = [];
+        editor.state.doc.descendants((n, pos) => {
+          if (n.type.name === "heading" && n.textContent.trim() !== "") heads.push({ level: Number(n.attrs.level), text: n.textContent, pos });
+        });
+        dom.replaceChildren();
+        const title = document.createElement("p");
+        title.className = "toc-title";
+        title.textContent = "Contents";
+        dom.append(title);
+        if (heads.length === 0) {
+          const none = document.createElement("p");
+          none.className = "toc-none";
+          none.textContent = "Add headings and they appear here.";
+          dom.append(none);
+          return;
+        }
+        const top = Math.min(...heads.map((h) => h.level));
+        for (const h of heads) {
+          const item = document.createElement("button");
+          item.type = "button";
+          item.className = "toc-item";
+          item.style.paddingLeft = `${(h.level - top) * 16}px`;
+          item.textContent = h.text;
+          item.addEventListener("click", () => {
+            editor.chain().focus().setTextSelection(h.pos + 1).scrollIntoView().run();
+          });
+          dom.append(item);
+        }
+      };
+      paint();
+      editor.on("update", paint);
+      return {
+        dom,
+        update: (next) => next.type.name === "toc",
+        stopEvent: () => true,
+        ignoreMutation: () => true,
+        destroy: () => editor.off("update", paint),
+      };
+    };
+  },
+  parseHTML() {
+    return [{ tag: "nav[data-toc]" }];
+  },
+  renderHTML() {
+    return ["nav", { "data-toc": "", class: "toc" }];
+  },
+  markdownTokenizer: {
+    name: "toc",
+    level: "block",
+    start: (src: string) => src.search(/^\[TOC\][ \t]*$/m),
+    tokenize: (src: string) => {
+      const m = /^\[TOC\][ \t]*(?:\n|$)/.exec(src);
+      return m ? { type: "toc", raw: m[0] } : undefined;
+    },
+  },
+  parseMarkdown: () => ({ type: "toc" }),
+  renderMarkdown: () => "[TOC]",
+});
+
 /** A picture whose file lives in the vault: the markdown keeps the relative path, the page shows it from the server. */
 const VaultImage = Image.extend({
   renderHTML({ HTMLAttributes }) {
@@ -234,6 +310,7 @@ export function blockExtensions(): Extensions {
     Wikilink,
     Cloze,
     Callout,
+    TableOfContents,
   ];
 }
 

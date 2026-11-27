@@ -6,6 +6,9 @@ export type NoteTemplate = { id: string; label: string; title: (day: string) => 
  * Starting points for a new note. They are plain text, and the lecture one is shaped around what the
  * research says helps: putting ideas in your own words and testing yourself, not copying what you hear.
  */
+/** The Questions section (Cornell cues): each line written as a question, two colons and the answer is a study card. */
+const QUESTIONS = `## Questions\nOne question per line, then two colons (::) and the answer. Each line becomes a study card.\n\n`;
+
 export const NOTE_TEMPLATES: NoteTemplate[] = [
   {
     id: "lecture",
@@ -23,17 +26,20 @@ export const NOTE_TEMPLATES: NoteTemplate[] = [
     id: "cornell",
     label: "New Cornell note",
     title: (day) => `Cornell ${day}`,
-    body: `## Notes\n\n\n## Cue questions\nWrite a question for each part of your notes, then answer it from memory.\n\n\n## Summary in my own words\n\n\n## Cards\n`,
+    body: `## Notes\n\n\n${QUESTIONS}\n## Summary in my own words\n`,
   },
   {
-    id: "reading",
-    label: "New reading note",
-    title: (day) => `Reading ${day}`,
-    body: `## Source\n\n\n## The main claim, in my own words\n\n\n## Quotes worth keeping\n\n\n## Cards\n`,
+    id: "source",
+    label: "New source note",
+    title: (day) => `Source ${day}`,
+    body: `Source: \nPage: \n\n## The main claim, in my own words\n\n\n## Quotes worth keeping\n\n\n${QUESTIONS}`,
   },
 ];
 
-export const templateById = (id: string): NoteTemplate | undefined => NOTE_TEMPLATES.find((t) => t.id === id);
+/** Old template ids that links and bookmarks may still use. */
+const RENAMED: Record<string, string> = { reading: "source" };
+
+export const templateById = (id: string): NoteTemplate | undefined => NOTE_TEMPLATES.find((t) => t.id === (RENAMED[id] ?? id));
 
 /** The id and title for a note from a template on `now`'s day. If that note exists the page just opens it. */
 export function fromTemplate(t: NoteTemplate, now: Date = new Date()): { id: string; title: string; body: string } {

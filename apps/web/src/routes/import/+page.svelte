@@ -1,4 +1,6 @@
 <script lang="ts">
+import { noteHref } from "$lib/links";
+  import { Button, Field, Input, Page, Stack, Textarea } from "$lib/ui";
   import { goto } from "$app/navigation";
   import { slugify } from "@vigil/shared";
   import { freeId } from "$lib/free-id";
@@ -34,7 +36,7 @@
       const body = `## Cards\n\n${result.lines.join("\n\n")}\n`;
       const id = freeId(slugify(name), (await listNotes()).map((n) => n.id));
       const note = await putNote(id, { title: name, body });
-      await goto(`/?note=${encodeURIComponent(note.id)}`);
+      await goto(noteHref(note.id));
     } catch (err) {
       message = err instanceof ApiError ? err.detail : err instanceof Error ? err.message : "Could not save the note";
     } finally {
@@ -45,94 +47,55 @@
 
 <svelte:head><title>Import cards · Vigil</title></svelte:head>
 
-<div class="page">
-  <h1>Import cards</h1>
-  <p class="muted">Bring cards in from Anki: in Anki choose File, Export, “Notes in Plain Text”, then open that file here or paste its text. You review the cards first, and they become a normal note. Review history is not imported, so the cards start fresh.</p>
-
-  <label class="file"><span class="muted">Open an exported text file</span><input type="file" accept=".txt,.tsv,.csv,text/plain,text/tab-separated-values" onchange={pickFile} /></label>
-  <textarea rows="8" bind:value={text} aria-label="Exported text" placeholder="…or paste it here" maxlength={MAX_CHARS}></textarea>
-
-  {#if result}
-    <p aria-live="polite">{result.lines.length} {result.lines.length === 1 ? "card" : "cards"} found{result.skipped > 0 ? `, ${result.skipped} skipped (empty, repeated or one-sided)` : ""}.</p>
-    {#if result.lines.length > 0}
-      <ul class="preview">
-        {#each result.lines.slice(0, 5) as l, i (i)}<li>{l}</li>{/each}
-      </ul>
-      {#if result.lines.length > 5}<p class="muted">…and {result.lines.length - 5} more.</p>{/if}
-      <label class="field"><span class="muted">Note title</span><input type="text" bind:value={title} /></label>
-      <div class="row"><button type="button" class="btn primary" disabled={busy || title.trim() === ""} onclick={() => void create()}>Create the note</button></div>
+<Page title="Import cards" width="prose">
+  <Stack gap={6}>
+    <p class="muted">Bring cards in from Anki: in Anki choose File, Export, “Notes in Plain Text”, then open that file here or paste its text. You review the cards first, and they become a normal note. Review history is not imported, so the cards start fresh.</p>
+    <Field label="Open an exported text file">
+      {#snippet children({ id })}
+        <input {id} type="file" accept=".txt,.tsv,.csv,text/plain,text/tab-separated-values" onchange={pickFile} />
+      {/snippet}
+    </Field>
+    <Textarea rows={8} bind:value={text} aria-label="Exported text" placeholder="…or paste it here" maxlength={MAX_CHARS} />
+    {#if result}
+      <p aria-live="polite">{result.lines.length} {result.lines.length === 1 ? "card" : "cards"} found{result.skipped > 0 ? `, ${result.skipped} skipped (empty, repeated or one-sided)` : ""}.</p>
+      {#if result.lines.length > 0}
+        <ul class="preview">
+          {#each result.lines.slice(0, 5) as l, i (i)}<li>{l}</li>{/each}
+        </ul>
+        {#if result.lines.length > 5}<p class="muted">…and {result.lines.length - 5} more.</p>{/if}
+        <Field label="Note title">
+          {#snippet children({ id })}<Input {id} bind:value={title} />{/snippet}
+        </Field>
+        <div><Button variant="primary" disabled={busy || title.trim() === ""} onclick={() => void create()}>Create the note</Button></div>
+      {/if}
     {/if}
-  {/if}
-  {#if message}<p class="error" role="alert">{message}</p>{/if}
-</div>
+    {#if message}<p class="error" role="alert">{message}</p>{/if}
+  </Stack>
+</Page>
 
 <style>
-  .page {
-    max-width: 680px;
-    margin: 0 auto;
-    padding: var(--space-6);
-    display: grid;
-    gap: var(--space-4);
-  }
-  h1 {
-    font-family: var(--font-serif);
-    font-size: var(--text-h2);
-  }
-  .muted {
-    color: var(--ink-muted);
-    font-size: var(--text-label);
-  }
-  .file,
-  .field {
-    display: grid;
-    gap: var(--space-1);
-  }
-  textarea,
-  input[type="text"] {
-    padding: var(--space-3);
-    border: 1px solid var(--hairline);
-    border-radius: var(--radius-lg);
-    background: var(--surface);
-    color: var(--ink);
-    font: inherit;
-    resize: vertical;
-  }
-  .preview {
+  p {
     margin: 0;
-    padding: 0;
-    list-style: none;
-    font-family: var(--font-serif);
   }
-  .preview li {
-    padding: var(--space-2) 0;
-    border-bottom: 1px solid var(--hairline);
+
+  .muted {
+    color: var(--text-2);
+    font: var(--weight-regular) var(--type-ui-size) / var(--type-ui-lh) var(--font-ui);
   }
-  .row {
-    display: flex;
-    gap: var(--space-3);
-  }
-  .btn {
-    display: inline-flex;
-    align-items: center;
-    padding: var(--space-2) var(--space-4);
-    border: 1px solid var(--hairline);
-    border-radius: var(--radius);
-    background: transparent;
-    color: var(--ink);
-    font: inherit;
-    font-size: var(--text-ui);
-    cursor: pointer;
-  }
-  .btn:disabled {
-    opacity: 0.5;
-    cursor: default;
-  }
-  .btn.primary {
-    background: var(--ink);
-    border-color: var(--ink);
-    color: var(--bg);
-  }
+
   .error {
-    color: var(--err-ink);
+    color: var(--danger);
+    font: var(--weight-regular) var(--type-ui-size) / var(--type-ui-lh) var(--font-ui);
+  }
+
+  .preview {
+    display: flex;
+    flex-direction: column;
+    gap: var(--s-2);
+    margin: 0;
+    padding: var(--s-3) var(--s-4) var(--s-3) var(--s-6);
+    border-radius: var(--r-surface);
+    background: var(--fill-hover);
+    font: var(--weight-regular) var(--type-ui-size) / var(--type-ui-lh) var(--font-ui);
   }
 </style>

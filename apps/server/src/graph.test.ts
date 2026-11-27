@@ -136,3 +136,52 @@ describe("buildGraphData", () => {
     expect(g.edges.every((e) => ids.has(e.source) && ids.has(e.target))).toBe(true);
   });
 });
+
+describe("buildGraphData focus (the local graph)", () => {
+  const now = new Date("2026-11-16T12:00:00.000Z");
+  const links = () => {
+    reindexNote(note("a", "to [[b]] and #topic"));
+    reindexNote(note("b", "to [[c]] and [[missing-idea]]"));
+    reindexNote(note("c", "to [[d]]"));
+    reindexNote(note("d"));
+    reindexNote(note("x", "back to [[a]]"));
+    reindexNote(note("far"));
+  };
+  const ids = (g: ReturnType<typeof buildGraphData>) => g.nodes.map((n) => n.id).sort();
+
+  it("one hop: the note, what it links to and what links to it", () => {
+    links();
+    const g = buildGraphData(now, [], { focus: "a", hops: 1 });
+    expect(ids(g)).toEqual(["a", "b", "x"]);
+    expect(g.edges.map((e) => `${e.source}>${e.target}`).sort()).toEqual(["a>b", "x>a"]);
+  });
+
+  it("two hops reaches one step further, including a link to a note that does not exist", () => {
+    links();
+    const g = buildGraphData(now, [], { focus: "a", hops: 2 });
+    expect(ids(g)).toEqual(["a", "b", "c", "missing-idea", "x"]);
+    expect(g.nodes.find((n) => n.id === "missing-idea")).toMatchObject({ ghost: true });
+    expect(g.edges.some((e) => e.dangling)).toBe(true);
+  });
+
+  it("an unknown focus gives an empty graph, not the whole vault", () => {
+    links();
+    expect(buildGraphData(now, [], { focus: "nope", hops: 1 })).toEqual({ nodes: [], edges: [], truncated: false });
+  });
+
+  it("carries tags, and agent edges only for notes in view (with when and which run)", async () => {
+    links();
+    const { recordTouch } = await import("./state-db");
+    const digest = agent();
+    recordTouch("digest", "a", "read", "run-1");
+    recordTouch("digest", "far", "read", "run-2");
+    const g = buildGraphData(now, [digest], { focus: "a", hops: 1 });
+    expect(g.nodes.find((n) => n.id === "a")?.tags).toEqual(["topic"]);
+    const agentEdges = g.edges.filter((e) => e.kind !== "link");
+    expect(agentEdges).toHaveLength(1);
+    expect(agentEdges[0]).toMatchObject({ source: "agent:digest", target: "a", runId: "run-1" });
+    expect(agentEdges[0]?.at).toBeTruthy();
+    // an agent that touched nothing in view is left out
+    expect(ids(g)).not.toContain("agent:other");
+  });
+});

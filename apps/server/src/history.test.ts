@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { AIMessage, HumanMessage, SystemMessage, ToolMessage } from "@langchain/core/messages";
-import { trimHistory } from "./history";
+import { CLEAR_WARNING, clearOldToolResults, repairDangling, trimHistory, warnBeforeClearing } from "./history";
 
 const turn = (n: number, pad = 100) => [new HumanMessage(`q${n} ${"x".repeat(pad)}`), new AIMessage(`a${n} ${"y".repeat(pad)}`)];
 
@@ -46,5 +46,68 @@ describe("trimHistory", () => {
     const out = trimHistory(m, 250);
     expect(out[0]?._getType()).toBe("human");
     expect(String(out[0]?.content).slice(0, 2)).toBe("q3");
+  });
+});
+
+describe("repairDangling", () => {
+  const ask = (...ids: string[]) => new AIMessage({ content: "", tool_calls: ids.map((id) => ({ id, name: "list_notes", args: {}, type: "tool_call" as const })) });
+
+  it("returns the same array when every call is answered", () => {
+    const m = [new HumanMessage("q"), ask("a"), new ToolMessage({ content: "ok", tool_call_id: "a" }), new AIMessage("done")];
+    expect(repairDangling(m)).toBe(m);
+  });
+
+  it("answers an unanswered call right after the message that asked, and keeps real answers", () => {
+    const m = [new HumanMessage("q"), ask("a", "b"), new ToolMessage({ content: "ok", tool_call_id: "a" }), new HumanMessage("next")];
+    const fixed = repairDangling(m);
+    expect(fixed.map((x) => x._getType())).toEqual(["human", "ai", "tool", "tool", "human"]);
+    expect((fixed[2] as ToolMessage).tool_call_id).toBe("b");
+    expect(String(fixed[2]?.content)).toContain("not run");
+    expect((fixed[3] as ToolMessage).tool_call_id).toBe("a");
+  });
+});
+
+describe("clearOldToolResults", () => {
+  const withTools = (n: number, pad: number) =>
+    Array.from({ length: n }, (_, i) => [
+      new AIMessage({ content: "", tool_calls: [{ id: `t${i}`, name: "read_note", args: {} }] }),
+      new ToolMessage({ content: `result ${i} ${"z".repeat(pad)}`, tool_call_id: `t${i}`, name: "read_note" }),
+    ]).flat();
+
+  it("returns the same array when everything fits", () => {
+    const m = [new HumanMessage("go"), ...withTools(3, 10)];
+    expect(clearOldToolResults(m, 10_000)).toBe(m);
+  });
+
+  it("clears the oldest tool results first, keeps the newest ones, and keeps every message", () => {
+    const m = [new HumanMessage("go"), ...withTools(6, 2000)];
+    const out = clearOldToolResults(m, 6000, 2);
+    expect(out).toHaveLength(m.length);
+    const tools = out.filter((x): x is ToolMessage => ToolMessage.isInstance(x));
+    expect(String(tools[0]?.content)).toContain("cleared");
+    expect(tools[0]?.tool_call_id).toBe("t0");
+    expect(String(tools[5]?.content)).toContain("result 5");
+    expect(String(tools[4]?.content)).toContain("result 4");
+  });
+});
+
+describe("warnBeforeClearing", () => {
+  const big = (id: string, n: number) => [
+    new AIMessage({ content: "", tool_calls: [{ id, name: "read_note", args: { id }, type: "tool_call" }] }),
+    new ToolMessage({ content: "x".repeat(n), tool_call_id: id, name: "read_note" }),
+  ];
+  it("adds the note to the newest tool result once the history passes three quarters of the limit, and not before", () => {
+    const small = [new HumanMessage("go"), ...big("a", 100)];
+    expect(warnBeforeClearing(small, 1000)).toBe(small);
+    const near = [new HumanMessage("go"), ...big("a", 400), ...big("b", 400)];
+    const warned = warnBeforeClearing(near, 1000);
+    expect(String(warned.at(-1)?.content)).toContain(CLEAR_WARNING);
+    expect(String(warned[2]?.content)).not.toContain(CLEAR_WARNING);
+    expect(near.at(-1)?.content).toBe("x".repeat(400)); // the run's own messages are not changed
+    expect((warned.at(-1) as ToolMessage).tool_call_id).toBe("b");
+  });
+  it("does nothing when the newest message is not a tool result", () => {
+    const m = [...big("a", 900), new AIMessage("done")];
+    expect(warnBeforeClearing(m, 1000)).toBe(m);
   });
 });

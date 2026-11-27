@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { ApiError, getStudySettings, putStudySettings, type StudySettings } from "$lib/api";
+  import { Field, Input, Select } from "$lib/ui";
 
   const LEVELS = [
     { value: 0.8, label: "Relaxed (80%): fewest reviews, you will forget more" },
@@ -35,19 +36,21 @@
 
 {#if settings}
   <section aria-labelledby="study-settings">
-    <h2 id="study-settings">Study</h2>
-    <p class="muted">How many new cards you meet each day, and how sure the scheduler should aim to keep you of what you have learned. Higher means more reviews for the same cards; the best balance differs from person to person.</p>
+    <h2 id="study-settings">Cards and reviews</h2>
+    <p class="muted">How many new cards you meet each day, and how sure the scheduler aims to keep you of what you have learned. Higher means more reviews for the same cards.</p>
     <div class="fields">
-      <label>
-        <span>New cards per day</span>
-        <input type="number" min="0" max="50" step="1" value={settings.newPerDay} onchange={(e) => void save({ ...settings!, newPerDay: Math.min(50, Math.max(0, Math.round(Number(e.currentTarget.value) || 0))) })} />
-      </label>
-      <label>
-        <span>Remembering target</span>
-        <select value={settings.retention} onchange={(e) => void save({ ...settings!, retention: Number(e.currentTarget.value) })}>
-          {#each LEVELS as l (l.value)}<option value={l.value}>{l.label}</option>{/each}
-        </select>
-      </label>
+      <Field label="New cards per day">
+        {#snippet children({ id })}
+          <span class="narrow"><Input {id} type="number" min="0" max="50" step="1" value={String(settings!.newPerDay)} onchange={(e) => void save({ ...settings!, newPerDay: Math.min(50, Math.max(0, Math.round(Number(e.currentTarget.value) || 0))) })} /></span>
+        {/snippet}
+      </Field>
+      <Field label="Remembering target">
+        {#snippet children({ id })}
+          <Select {id} value={String(settings!.retention)} onchange={(e) => void save({ ...settings!, retention: Number(e.currentTarget.value) })}>
+            {#each LEVELS as l (l.value)}<option value={String(l.value)}>{l.label}</option>{/each}
+          </Select>
+        {/snippet}
+      </Field>
     </div>
     <p class="muted" aria-live="polite">{notice}</p>
     {#if error}<p class="error" role="alert">{error}</p>{/if}
@@ -58,26 +61,28 @@
   .fields {
     display: flex;
     flex-wrap: wrap;
-    gap: var(--space-4);
+    gap: var(--s-4);
+    margin: var(--s-3) 0;
   }
-  label {
-    display: grid;
-    gap: var(--space-1);
+
+  .fields :global(select) {
+    min-width: 18rem;
   }
-  input,
-  select {
-    padding: var(--space-2) var(--space-3);
-    border: 1px solid var(--hairline);
-    border-radius: var(--radius);
-    background: var(--surface);
-    color: var(--ink);
-    font: inherit;
+
+  .narrow {
+    display: inline-block;
+    width: 6rem;
   }
+
   .muted {
-    color: var(--ink-muted);
-    font-size: var(--text-label);
+    margin: 0;
+    color: var(--text-2);
+    font: var(--weight-regular) var(--type-ui-size) / var(--type-ui-lh) var(--font-ui);
   }
+
   .error {
-    color: var(--err-ink);
+    margin: 0;
+    color: var(--danger);
+    font: var(--weight-regular) var(--type-ui-size) / var(--type-ui-lh) var(--font-ui);
   }
 </style>

@@ -1,4 +1,4 @@
-import { extractCards } from "@vigil/shared";
+import { extractCards, withoutCards } from "@vigil/shared";
 
 /**
  * "Ask an agent about this note": the text for the chat box, and a hand-off through session storage
@@ -51,17 +51,6 @@ export const STUDY_MODES: { id: StudyMode; title: string; blurb: string; opener:
 /** Chat messages are capped at 20,000 characters (server); leave room for the wrapper and the opener. */
 export const STUDY_NOTE_MAX = 15_000;
 
-/** The note without its card lines: they are question and answer pairs, and a tutor that sees the answers gives them away. */
-export function withoutCards(body: string): string {
-  const card = new Set(extractCards(body).map((c) => c.line));
-  return body
-    .split("\n")
-    .filter((_, i) => !card.has(i + 1))
-    .join("\n")
-    .replace(/^##\s+Cards\s*$\n?/m, "")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
-}
 
 /** The first message of a study chat: the note between markers (so the agent needs no tool), then what to do. */
 export function studyMessage(input: { noteId: string; title: string; body: string; mode: StudyMode }): string {

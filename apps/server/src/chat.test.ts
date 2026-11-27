@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { AIMessage, AIMessageChunk, HumanMessage, SystemMessage, type BaseMessage } from "@langchain/core/messages";
+import { AIMessage, AIMessageChunk, HumanMessage, SystemMessage, ToolMessage, type BaseMessage } from "@langchain/core/messages";
 import { mkdtemp, rm } from "node:fs/promises";
 import { createServer, type Server } from "node:http";
 import { tmpdir } from "node:os";
@@ -240,6 +240,19 @@ describe("chat turns", () => {
   });
 });
 
+describe("a chat turn while the agent waits for approval", () => {
+  it("is refused with a message that says what to do", async () => {
+    setRunDeps({ makeModel: scripted([say("ok")]).make });
+    const { createRun, setRunStatus } = await import("./state-db");
+    createRun("waiting-run", "helper", 100);
+    setRunStatus("waiting-run", "waiting-approval");
+    const id = await newChat();
+    const res = await turn(id, "hi");
+    expect(res.json.error.code).toBe("agent-busy");
+    expect(res.json.error.message).toMatch(/waiting for your approval.*Approvals/);
+  });
+});
+
 describe("chat management", () => {
   it("lists, deletes (and forgets the conversation), and saves a transcript as a note", async () => {
     setRunDeps({ makeModel: scripted([say("an answer")]).make });
@@ -271,5 +284,26 @@ describe("chat management", () => {
   it("a chat needs a real agent", async () => {
     const res = await fetch(`${base}/api/chats`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ agent: "nobody" }) });
     expect(res.status).toBe(404);
+  });
+});
+
+/** Tool calls in `messages` that no tool message answers. Providers reject a request that holds one. */
+function unansweredCalls(messages: BaseMessage[]): string[] {
+  const answered = new Set(messages.filter((m): m is ToolMessage => ToolMessage.isInstance(m)).map((m) => m.tool_call_id));
+  return messages.filter((m): m is AIMessage => AIMessage.isInstance(m)).flatMap((m) => (m.tool_calls ?? []).map((c) => c.id ?? "")).filter((id) => !answered.has(id));
+}
+
+describe("a chat turn that stops in the middle of a tool round", () => {
+  it("leaves no unanswered tool call for the next turn (budget used up)", async () => {
+    putAgent(chatAgent({ tokenBudget: 100 }));
+    const askTool = new AIMessage({ content: "", tool_calls: [{ id: "c1", name: "list_notes", args: {}, type: "tool_call" }], usage_metadata: usage(150) });
+    const m = scripted([askTool, say("second answer")]);
+    setRunDeps({ makeModel: m.make });
+    const id = await newChat();
+    await turn(id, "first question");
+    expect(m.inputs).toHaveLength(1);
+    await turn(id, "second question");
+    expect(m.inputs).toHaveLength(2);
+    expect(unansweredCalls(m.inputs[1] ?? [])).toEqual([]);
   });
 });

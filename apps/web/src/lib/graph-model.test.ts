@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { agentsTouching, buildGraph, glowAlpha, groupByConnections, matchesQuery, memoryColor, memoryLine, mixColor, neighborSet, withAlpha, nodeSize, seedPosition, type GraphApi, type GraphColors } from "./graph-model";
+import { NO_FILTERS, agentsTouching, attention, buildGraph, filterGraph, hasTagOrChild, linkDegrees, primaryTag, radialLayout, tagCounts, tagSlot, glowAlpha, groupByConnections, matchesQuery, memoryColor, memoryLine, mixColor, neighborSet, withAlpha, nodeSize, seedPosition, type GraphApi, type GraphColors } from "./graph-model";
 
 const colors: GraphColors = { note: "n", agent: "a", ghost: "g", link: "l", agentEdge: "ae" };
 const data: GraphApi = {
@@ -124,5 +124,103 @@ describe("memory view", () => {
   it("says it in one plain line", () => {
     expect(memoryLine({ cards: 4, reviewed: 3, strength: 0.82, recallDue: true, examDays: 5 })).toBe("about 82% remembered (3 of 4 cards answered) · recall check is due · exam in 5 days");
     expect(memoryLine({ cards: 1, reviewed: 0, strength: null, recallDue: false, examDays: 0 })).toBe("1 card, none answered yet · exam today");
+  });
+});
+
+describe("filters", () => {
+  const tagged: GraphApi = {
+    truncated: false,
+    nodes: [
+      { id: "a", title: "A", kind: "note", tags: ["work/launch"], degree: 2 },
+      { id: "b", title: "B", kind: "note", tags: ["work"], degree: 1 },
+      { id: "c", title: "C", kind: "note", tags: ["home"], degree: 0 },
+      { id: "ghost", title: "ghost", kind: "note", ghost: true, degree: 1 },
+      { id: "agent:d", title: "d", kind: "agent", degree: 1 },
+    ],
+    edges: [
+      { source: "a", target: "b", kind: "link" },
+      { source: "a", target: "ghost", kind: "link", dangling: true },
+      { source: "agent:d", target: "c", kind: "agent-read" },
+    ],
+  };
+
+  it("counts links, not agent visits", () => {
+    expect([...linkDegrees(tagged)].sort()).toEqual([["a", 2], ["b", 1], ["ghost", 1]]);
+  });
+
+  it("keeps everything with no filters", () => {
+    expect(filterGraph(tagged, NO_FILTERS).nodes).toHaveLength(5);
+  });
+
+  it("filters by tag including nested tags, and drops edges and agents that lose an end", () => {
+    const g = filterGraph(tagged, { ...NO_FILTERS, tag: "work" });
+    expect(g.nodes.map((n) => n.id).sort()).toEqual(["a", "b"]);
+    expect(g.edges).toEqual([{ source: "a", target: "b", kind: "link" }]);
+    expect(hasTagOrChild(["work/launch"], "work")).toBe(true);
+    expect(hasTagOrChild(["network"], "work")).toBe(false);
+  });
+
+  it("shows only orphans, hides ghosts, and applies a minimum number of links", () => {
+    // the agent that visited the orphan stays, because it still has an edge
+    expect(filterGraph(tagged, { ...NO_FILTERS, orphansOnly: true }).nodes.map((n) => n.id).sort()).toEqual(["agent:d", "c"]);
+    expect(filterGraph(tagged, { ...NO_FILTERS, hideGhosts: true }).nodes.map((n) => n.id)).not.toContain("ghost");
+    expect(filterGraph(tagged, { ...NO_FILTERS, minLinks: 2 }).nodes.map((n) => n.id)).toEqual(["a"]);
+  });
+
+  it("counts tags and picks a stable colour slot", () => {
+    expect(tagCounts(tagged)[0]).toEqual({ tag: "home", count: 1 });
+    expect(tagSlot("work")).toBe(tagSlot("work"));
+    expect(tagSlot("work")).toBeGreaterThanOrEqual(0);
+    expect(tagSlot("work")).toBeLessThan(6);
+    expect(primaryTag(["work/launch", "x"])).toBe("work");
+    expect(primaryTag([])).toBeNull();
+  });
+});
+
+describe("attention", () => {
+  const now = new Date("2026-11-15T12:00:00Z");
+  const d: GraphApi = {
+    truncated: false,
+    nodes: [
+      { id: "hub", title: "Hub", kind: "note", updatedAt: "2026-11-14T00:00:00Z", degree: 2, memory: { cards: 3, reviewed: 3, strength: 0.6, recallDue: true, examDays: null } },
+      { id: "old", title: "Old", kind: "note", updatedAt: "2026-06-01T00:00:00Z", degree: 1 },
+      { id: "lonely", title: "Lonely", kind: "note", updatedAt: "2026-11-10T00:00:00Z", degree: 0 },
+      { id: "from-agent", title: "From agent", kind: "note", author: "agent", updatedAt: "2026-11-10T00:00:00Z", degree: 0 },
+      { id: "idea", title: "idea", kind: "note", ghost: true, degree: 2 },
+    ],
+    edges: [
+      { source: "hub", target: "old", kind: "link" },
+      { source: "hub", target: "idea", kind: "link", dangling: true },
+    ],
+  };
+
+  it("lists orphans, ghosts, due recall checks, notes with no cards and stale linked notes", () => {
+    const a = attention(d, now);
+    expect(a.orphans.map((n) => n.id)).toEqual(["from-agent", "lonely"]);
+    expect(a.ghosts.map((n) => n.id)).toEqual(["idea"]);
+    expect(a.due.map((n) => n.id)).toEqual(["hub"]);
+    expect(a.noCards.map((n) => n.id)).toEqual(["lonely", "old"]); // the agent's own note is not yours to make cards for
+    expect(a.stale.map((n) => n.id)).toEqual(["old"]);
+  });
+});
+
+describe("radialLayout", () => {
+  const g: GraphApi = {
+    truncated: false,
+    nodes: ["f", "n1", "n2", "far"].map((id) => ({ id, title: id, kind: "note" as const, degree: 1 })),
+    edges: [
+      { source: "f", target: "n1", kind: "link" },
+      { source: "f", target: "n2", kind: "link" },
+      { source: "n1", target: "far", kind: "link" },
+    ],
+  };
+
+  it("puts the focus in the middle and each hop on a wider ring, the same every time", () => {
+    const a = radialLayout(g, "f");
+    expect(a.get("f")).toEqual({ x: 0, y: 0 });
+    const radius = (id: string): number => Math.hypot(a.get(id)!.x, a.get(id)!.y);
+    expect(radius("n1")).toBeCloseTo(radius("n2"), 5);
+    expect(radius("far")).toBeGreaterThan(radius("n1"));
+    expect(radialLayout(g, "f")).toEqual(a);
   });
 });

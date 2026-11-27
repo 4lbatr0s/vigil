@@ -1,4 +1,5 @@
 <script lang="ts">
+import { noteHref } from "$lib/links";
   import { onMount, tick } from "svelte";
   import { goto } from "$app/navigation";
   import { page } from "$app/state";
@@ -6,8 +7,10 @@
     ApiError,
     createChat,
     deleteChat,
+    getAgent,
     getChat,
     getLlmStatus,
+    getModelCaps,
     listAgents,
     listChats,
     saveChat,
@@ -15,10 +18,15 @@
     type ChatMessage,
     type ChatThread,
   } from "$lib/api";
+  import type { Agent } from "@vigil/shared";
   import { takeDraft } from "$lib/chat-draft";
   import { applyLine, emptyLive, lastIsUser, speakerOf, type Live } from "$lib/chat-view";
   import { agoText } from "$lib/format";
   import { refreshOnLive } from "$lib/live";
+  import { capabilityWarnings, type ModelCaps } from "$lib/model-caps";
+  import Ellipsis from "@lucide/svelte/icons/ellipsis";
+  import Plus from "@lucide/svelte/icons/plus";
+  import { Button, Dialog, EmptyState, Field, IconButton, Menu, Row, Select, Textarea } from "$lib/ui";
 
   let { id = null }: { id?: string | null } = $props();
 
@@ -34,8 +42,35 @@
   let pickAgent = $state("");
   let controller: AbortController | null = null;
   let saved = $state<{ id: string } | null>(null);
-  let box = $state<HTMLTextAreaElement | null>(null);
+  let box = $state<HTMLTextAreaElement | undefined>();
   let scroller = $state<HTMLDivElement | null>(null);
+
+  /** What the chat agent's model can do, so a model that cannot use tools is named before the first message. */
+  let caps = $state<ModelCaps | null>(null);
+  let chatAgent = $state<Agent | null>(null);
+  const modelWarnings = $derived(chatAgent ? capabilityWarnings({ tools: chatAgent.tools.length > 0, pictures: false }, caps) : []);
+  $effect(() => {
+    const name = thread?.agent;
+    caps = null;
+    chatAgent = null;
+    if (!name) return;
+    let stale = false;
+    void (async () => {
+      try {
+        const a = await getAgent(name);
+        const c = await getModelCaps({ ...(a.connection ? { connection: a.connection } : {}), ...(a.model ? { model: a.model } : {}) });
+        if (!stale) {
+          chatAgent = a;
+          caps = c;
+        }
+      } catch {
+        // No warning is better than a wrong one.
+      }
+    })();
+    return () => {
+      stale = true;
+    };
+  });
 
   const streaming = $derived(live !== null && !live.done && live.error === null && controller !== null);
   const waiting = $derived(live?.waitingForApproval === true || (!streaming && lastIsUser(messages) && live === null));
@@ -196,64 +231,51 @@
 <div class="chat">
   <aside class="threads" aria-label="Chats">
     <div class="threads-head">
-      {#if !picking}
-        <button type="button" class="act" onclick={() => (picking = true)} disabled={agents.length === 0}>New chat</button>
-      {:else}
-        <form class="pick" onsubmit={(e) => (e.preventDefault(), void startChat())}>
-          <label>
-            <span class="muted">Which agent?</span>
-            <select bind:value={pickAgent}>{#each agents as a (a)}<option value={a}>{a}</option>{/each}</select>
-          </label>
-          <div class="row"><button type="submit" class="act primary">Start</button><button type="button" class="act" onclick={() => (picking = false)}>Cancel</button></div>
-        </form>
-      {/if}
-      {#if agents.length === 0}<p class="muted small">Chat needs an agent. <a href="/agents/new">Create one</a>.</p>{/if}
+      <h2>Chats</h2>
+      <IconButton label="New chat" disabled={agents.length === 0} onclick={() => (picking = true)}><Plus size={16} strokeWidth={1.5} /></IconButton>
     </div>
-    <ul>
+    {#if agents.length === 0}<p class="muted pad">Chat needs a helper. <a href="/agents/new">Create one</a>.</p>{/if}
+    <div class="thread-list">
       {#each threads as t (t.id)}
-        <li>
-          <a class="thread" class:active={t.id === id} href={`/chat/${t.id}`}>
-            <span class="t-title">{t.title}</span>
-            <span class="t-meta">{t.agent} · {agoText(t.updatedAt)}</span>
-          </a>
-        </li>
+        <Row title={t.title} meta={agoText(t.updatedAt)} snippet={t.agent} selected={t.id === id} href={`/chat/${t.id}`} />
       {/each}
-    </ul>
+    </div>
   </aside>
 
   <section class="conversation" aria-label="Conversation">
     {#if !id}
-      <div class="empty">
+      <div class="blank">
         {#if agents.length === 0}
-          <p><strong>Chat talks to an agent.</strong></p>
-          <p class="muted">Create one in a minute: say what you want it to do and a model drafts it.</p>
-          <p><a class="act primary" href="/agents/new">Create an agent</a></p>
+          <EmptyState title="Chat talks to a helper. Create one first.">
+            {#snippet action()}<Button variant="primary" href="/agents/new">Create a helper</Button>{/snippet}
+          </EmptyState>
         {:else}
-          <p><strong>Pick a chat on the left, or start a new one.</strong></p>
-          <p class="muted">A chat is a conversation with one of your agents. Everything it does to your notes can be undone.</p>
+          <EmptyState title="Pick a chat on the left, or start a new one.">
+            {#snippet action()}<Button variant="primary" onclick={() => (picking = true)}>New chat</Button>{/snippet}
+          </EmptyState>
         {/if}
       </div>
     {:else if !thread}
-      <p class="empty muted">{error || "Loading…"}</p>
+      <p class="blank muted">{error || "Loading…"}</p>
     {:else}
       <header class="head">
         <h1>Chat with {thread.agent}</h1>
         <div class="head-actions">
-          {#if saved}<span class="muted">Saved · <a href={`/?note=${saved.id}`}>open note</a></span>{:else}<button type="button" class="act" onclick={() => void save()} disabled={messages.length === 0}>Save as note</button>{/if}
-          {#if !confirmDelete}
-            <button type="button" class="act" onclick={() => (confirmDelete = true)}>Delete</button>
-          {:else}
-            <span class="muted">Delete this chat?</span>
-            <button type="button" class="act danger" onclick={() => void remove()}>Delete</button>
-            <button type="button" class="act" onclick={() => (confirmDelete = false)}>Keep</button>
-          {/if}
+          {#if saved}<span class="muted">Saved · <a href={noteHref(saved.id)}>open note</a></span>{:else}<Button variant="ghost" onclick={() => void save()} disabled={messages.length === 0}>Save as note</Button>{/if}
+          <Menu label="More actions for this chat" items={[{ label: "Delete chat", danger: true, onselect: () => (confirmDelete = true) }]}>
+            {#snippet trigger({ props })}
+              <IconButton label="More actions for this chat" {...props}><Ellipsis size={16} strokeWidth={1.5} /></IconButton>
+            {/snippet}
+          </Menu>
         </div>
       </header>
 
+      {#each modelWarnings as w (w)}<p class="warn" role="note">{w}</p>{/each}
+
       <div class="messages" bind:this={scroller} aria-live="polite">
         {#each messages as m (m.seq)}
-          <article class="msg" class:err={m.role === "error"}>
-            <span class="speaker">{speakerOf(m.role, thread.agent)}</span>
+          <article class="msg" class:user={m.role === "user"} class:err={m.role === "error"}>
+            <span class="speaker" class:agent={m.role !== "user" && m.role !== "error"}>{speakerOf(m.role, thread.agent)}</span>
             <p class="text">{m.content}</p>
             {#if m.runId && m.role !== "user"}<a class="how" href={`/runs/${encodeURIComponent(m.runId)}`}>How it worked</a>{/if}
           </article>
@@ -261,240 +283,206 @@
         {#if live}
           {#each live.tools as tool, i (i)}<p class="tool">{tool}(…)</p>{/each}
           {#if live.text}
-            <article class="msg"><span class="speaker">{thread.agent}</span><p class="text">{live.text}</p></article>
+            <article class="msg"><span class="speaker agent">{thread.agent}</span><p class="text">{live.text}</p></article>
           {:else if streaming}
             <p class="tool">thinking…</p>
           {/if}
           {#if live.error}<p class="err-line" role="alert">{live.error}</p>{/if}
         {/if}
         {#if waiting}
-          <p class="notice">Waiting for your approval in <a href="/approvals">Approvals</a>. The reply will appear here after you decide.</p>
+          <p class="muted">Waiting for your approval in <a href="/approvals">Approvals</a>. The reply appears here after you decide.</p>
         {/if}
       </div>
 
       {#if error}<p class="err-line" role="alert">{error}</p>{/if}
       <form class="composer" onsubmit={(e) => (e.preventDefault(), void send())}>
-        <textarea
-          bind:this={box}
-          bind:value={draft}
-          onkeydown={onKey}
-          rows="2"
-          placeholder={notConfigured || "Message"}
-          aria-label="Message"
-          disabled={Boolean(notConfigured) || waiting}
-        ></textarea>
+        <Textarea bind:el={box} bind:value={draft} onkeydown={onKey} rows={2} placeholder={notConfigured || "Message"} aria-label="Message" disabled={Boolean(notConfigured) || waiting} />
         {#if streaming}
-          <button type="button" class="act" onclick={stop}>Stop</button>
+          <Button onclick={stop}>Stop</Button>
         {:else}
-          <button type="submit" class="act primary" disabled={draft.trim() === "" || Boolean(notConfigured) || waiting}>Send</button>
+          <Button variant="primary" type="submit" disabled={draft.trim() === "" || Boolean(notConfigured) || waiting}>Send</Button>
         {/if}
       </form>
-      {#if notConfigured}<p class="muted small pad">{notConfigured}</p>{/if}
     {/if}
   </section>
 </div>
 
+<Dialog bind:open={picking} title="New chat">
+  <form id="pick-form" onsubmit={(e) => (e.preventDefault(), void startChat())}>
+    <Field label="Which helper?">
+      {#snippet children({ id })}
+        <Select {id} bind:value={pickAgent}>{#each agents as a (a)}<option value={a}>{a}</option>{/each}</Select>
+      {/snippet}
+    </Field>
+  </form>
+  {#snippet actions()}
+    <Button variant="ghost" onclick={() => (picking = false)}>Cancel</Button>
+    <Button variant="primary" type="submit" form="pick-form">Start chat</Button>
+  {/snippet}
+</Dialog>
+
+<Dialog bind:open={confirmDelete} title="Delete this chat?" description="The conversation is removed. Notes a helper wrote in it stay.">
+  {#snippet actions()}
+    <Button variant="ghost" onclick={() => (confirmDelete = false)}>Keep it</Button>
+    <Button variant="danger" onclick={() => void remove()}>Delete chat</Button>
+  {/snippet}
+</Dialog>
+
 <style>
   .chat {
     display: grid;
-    grid-template-columns: 260px 1fr;
+    grid-template-columns: 280px 1fr;
     height: 100%;
     min-height: 0;
   }
+
   .threads {
-    border-right: 1px solid var(--hairline);
     overflow-y: auto;
+    box-shadow: inset -1px 0 0 var(--line-soft);
   }
+
   .threads-head {
-    padding: var(--space-3) var(--space-4);
-    border-bottom: 1px solid var(--hairline);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--s-3) var(--s-3) var(--s-2) var(--s-4);
   }
-  ul {
-    list-style: none;
+
+  h2,
+  h1 {
     margin: 0;
-    padding: 0;
+    font: var(--weight-strong) var(--type-heading-size) / var(--type-heading-lh) var(--font-ui);
   }
-  .thread {
-    display: grid;
-    gap: var(--space-1);
-    padding: var(--space-3) var(--space-4);
-    border-bottom: 1px solid var(--hairline);
-    border-left: 2px solid transparent;
-    text-decoration: none;
+
+  .thread-list {
+    padding: 0 var(--s-2) var(--s-4);
   }
-  .thread.active {
-    border-left-color: var(--ink);
-    background: var(--surface);
-  }
-  .t-title {
-    font-family: var(--font-serif);
-    font-size: var(--text-ui);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .t-meta,
+
   .muted {
-    color: var(--ink-muted);
+    margin: 0;
+    color: var(--text-2);
+    font: var(--weight-regular) var(--type-ui-size) / var(--type-ui-lh) var(--font-ui);
   }
-  .t-meta {
-    font-family: var(--font-mono);
-    font-size: var(--text-label);
-  }
-  .small {
-    font-size: var(--text-label);
-  }
+
   .pad {
-    padding: 0 var(--space-6) var(--space-3);
+    padding: 0 var(--s-4) var(--s-3);
   }
+
   .conversation {
     display: flex;
     flex-direction: column;
     min-width: 0;
     min-height: 0;
   }
-  .empty {
+
+  .blank {
     margin: auto;
     max-width: 28rem;
-    padding: var(--space-4);
-    text-align: center;
-    display: grid;
-    gap: var(--space-2);
+    padding: var(--s-4);
   }
-  .empty .muted {
-    color: var(--ink-muted);
-  }
-  .empty a.act {
-    display: inline-block;
-    text-decoration: none;
-  }
+
   .head {
     display: flex;
     justify-content: space-between;
-    align-items: baseline;
-    gap: var(--space-4);
-    padding: var(--space-3) var(--space-6);
-    border-bottom: 1px solid var(--hairline);
+    align-items: center;
+    gap: var(--s-4);
+    padding: var(--s-3) var(--s-6);
   }
-  h1 {
-    font-family: var(--font-serif);
-    font-size: var(--text-h3);
-    font-weight: 600;
-  }
+
   .head-actions {
     display: flex;
-    gap: var(--space-2);
+    gap: var(--s-1);
     align-items: center;
-    font-size: var(--text-label);
   }
+
   .messages {
     flex: 1;
     min-height: 0;
     overflow-y: auto;
-    padding: var(--space-6);
-    display: grid;
-    align-content: start;
-    gap: var(--space-4);
+    padding: var(--s-4) var(--s-6);
+    display: flex;
+    flex-direction: column;
+    gap: var(--s-5);
   }
+
   .msg {
+    display: flex;
+    flex-direction: column;
+    gap: var(--s-1);
     max-width: var(--measure);
-    display: grid;
-    gap: var(--space-1);
   }
-  .how {
-    align-self: flex-start;
-    font-size: var(--text-label);
-    color: var(--ink-muted);
-  }
+
   .speaker {
-    font-family: var(--font-mono);
-    font-size: var(--text-label);
-    color: var(--ink-muted);
+    color: var(--text-3);
+    font: var(--weight-medium) var(--type-meta-size) / var(--type-meta-lh) var(--font-ui);
   }
+
+  .speaker.agent {
+    color: var(--agent);
+  }
+
   .text {
-    font-family: var(--font-serif);
-    font-size: var(--text-prose);
-    line-height: 1.6;
+    margin: 0;
+    font: var(--weight-regular) var(--type-body-size) / var(--type-body-lh) var(--font-prose);
     white-space: pre-wrap;
     overflow-wrap: anywhere;
   }
+
+  /* Your own messages sit in a soft fill; the agent's read as plain text on the page. */
+  .msg.user .text {
+    align-self: flex-start;
+    padding: var(--s-2) var(--s-3);
+    border-radius: var(--r-surface);
+    background: var(--fill-selected);
+  }
+
   .msg.err .text {
-    color: var(--err-ink);
-    font-family: var(--font-mono);
-    font-size: var(--text-label);
+    color: var(--danger);
+    font: var(--weight-regular) var(--type-ui-size) / var(--type-ui-lh) var(--font-code);
   }
+
+  .how {
+    align-self: flex-start;
+    color: var(--text-3);
+    font: var(--weight-regular) var(--type-meta-size) / var(--type-meta-lh) var(--font-ui);
+  }
+
   .tool {
-    font-family: var(--font-mono);
-    font-size: var(--text-label);
-    color: var(--ink-muted);
+    margin: 0;
+    color: var(--text-3);
+    font: var(--weight-regular) var(--type-meta-size) / var(--type-meta-lh) var(--font-code);
   }
+
   .err-line {
-    color: var(--err-ink);
-    font-size: var(--text-label);
-    padding: 0 var(--space-6);
+    margin: 0;
+    padding: 0 var(--s-6);
+    color: var(--danger);
+    font: var(--weight-regular) var(--type-ui-size) / var(--type-ui-lh) var(--font-ui);
   }
-  .notice {
-    font-size: var(--text-label);
-    color: var(--ink-muted);
+
+  .warn {
+    margin: 0 var(--s-6);
+    padding: var(--s-2) var(--s-3);
+    border-radius: var(--r-control);
+    background: var(--danger-fill);
+    font: var(--weight-regular) var(--type-ui-size) / var(--type-ui-lh) var(--font-ui);
   }
+
   .composer {
     display: flex;
-    gap: var(--space-3);
+    gap: var(--s-3);
     align-items: flex-end;
-    padding: var(--space-3) var(--space-6);
-    border-top: 1px solid var(--hairline);
+    padding: var(--s-3) var(--s-6) var(--s-4);
   }
-  textarea {
-    flex: 1;
-    padding: var(--space-2) var(--space-3);
-    border: 1px solid var(--hairline);
-    border-radius: var(--radius);
-    background: var(--surface);
-    font-family: var(--font-serif);
-    font-size: var(--text-ui);
-    resize: vertical;
-  }
-  select {
-    padding: var(--space-1) var(--space-2);
-    border: 1px solid var(--hairline);
-    border-radius: var(--radius);
-    background: var(--surface);
-    width: 100%;
-  }
-  .pick {
-    display: grid;
-    gap: var(--space-2);
-    font-size: var(--text-label);
-  }
-  .row {
-    display: flex;
-    gap: var(--space-2);
-  }
-  .act {
-    padding: var(--space-1) var(--space-3);
-    border: 1px solid var(--hairline);
-    border-radius: var(--radius);
-    background: var(--surface);
-    font-size: var(--text-label);
-  }
-  .act.primary {
-    background: var(--ink);
-    color: var(--bg);
-    border-color: var(--ink);
-  }
-  .act.danger {
-    border-color: var(--err);
-    color: var(--err-ink);
-  }
-  .act:disabled {
-    opacity: 0.5;
-  }
+
   @media (max-width: 800px) {
     .chat {
       grid-template-columns: 1fr;
+      grid-template-rows: auto 1fr;
     }
     .threads {
       max-height: 30vh;
+      box-shadow: inset 0 -1px 0 var(--line-soft);
     }
   }
 </style>

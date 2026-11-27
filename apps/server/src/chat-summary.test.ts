@@ -7,7 +7,7 @@ import path from "node:path";
 import { AgentSchema } from "@vigil/shared";
 import { accessFromEnv } from "./access";
 import { closeCheckpoints } from "./checkpoints";
-import { RESUMMARIZE_AFTER_CHARS, SUMMARY_PROMPT, droppedMessages, summaries, transcriptOf, trimHistory } from "./history";
+import { RESUMMARIZE_AFTER_CHARS, SUMMARY_PROMPT, droppedMessages, transcriptOf, trimHistory } from "./history";
 import { createHandler } from "./http";
 import { closeDb } from "./index-db";
 import type { ModelFactory } from "./llm";
@@ -52,7 +52,6 @@ beforeEach(async () => {
   const a = server.address();
   base = `http://127.0.0.1:${typeof a === "object" && a ? a.port : 0}`;
   putAgent(AgentSchema.parse({ name: "helper", systemPrompt: "You help.", tools: [], tokenBudget: 50000, strict: false }));
-  summaries.clear();
 });
 afterEach(async () => {
   await waitForRuns();

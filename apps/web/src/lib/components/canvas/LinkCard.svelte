@@ -32,7 +32,7 @@
 </script>
 
 <NodeResizer isVisible={selected} minWidth={140} minHeight={50} onResizeEnd={() => board.commit()} />
-<div class="card" style:--accent={color} ondblclick={() => ((draft = data.url ?? ""), (editing = true))} role="group" aria-label="Link card">
+<div class="node" style:--accent={color} ondblclick={() => ((draft = data.url ?? ""), (editing = true))} role="group" aria-label="Link card">
   {#if editing}
     <!-- svelte-ignore a11y_autofocus -->
     <input
@@ -57,33 +57,33 @@
 <Handles />
 
 <style>
-  .card {
+  .node {
     box-sizing: border-box;
     width: 100%;
     height: 100%;
     overflow: hidden;
-    padding: var(--space-3);
+    padding: var(--s-3);
     display: grid;
     align-content: center;
-    border: 1.5px solid var(--accent, var(--hairline));
-    border-radius: var(--radius);
-    background: color-mix(in srgb, var(--surface) 90%, var(--accent, var(--surface)));
-    font-size: var(--text-label);
+    border: 1.5px solid var(--accent, var(--line-soft));
+    border-radius: var(--r-control);
+    background: color-mix(in srgb, var(--paper-float) 90%, var(--accent, var(--paper-float)));
+    font-size: var(--type-meta-size);
     overflow-wrap: anywhere;
   }
   a {
-    color: var(--ink);
+    color: var(--text);
   }
   span {
-    color: var(--ink-muted);
+    color: var(--text-2);
   }
   input {
     width: 100%;
-    padding: var(--space-1) var(--space-2);
-    border: 1px solid var(--hairline);
-    border-radius: var(--radius);
-    background: var(--bg);
-    color: var(--ink);
+    padding: var(--s-1) var(--s-2);
+    border: 1px solid var(--line-soft);
+    border-radius: var(--r-control);
+    background: var(--paper);
+    color: var(--text);
     font: inherit;
   }
 </style>

@@ -6,7 +6,7 @@ import path from "node:path";
 import { closeDb } from "./index-db";
 import { setRunDeps, waitForRuns } from "./runs";
 import { start, type RunningServer } from "./server";
-import { closeState } from "./state-db";
+import { closeState, putAgentState } from "./state-db";
 
 let root = "";
 let running: RunningServer;
@@ -216,5 +216,18 @@ describe("agents and runs api", () => {
     expect(res.json.data.truncated).toBe(false);
     expect(res.json.data.nodes.some((n: { id: string; kind: string }) => n.id === "agent:g1" && n.kind === "agent")).toBe(true);
     expect(Array.isArray(res.json.data.edges)).toBe(true);
+  });
+});
+
+describe("agent state note api", () => {
+  it("shows the saved note and clears it", async () => {
+    await req("PUT", "/api/agents/keeper", { name: "keeper", systemPrompt: "Keep.", tools: ["read_notes"], keepState: true });
+    expect((await req("GET", "/api/agents/keeper/state")).json.data).toBeNull();
+    expect((await req("GET", "/api/agents/nobody/state")).status).toBe(404);
+    putAgentState("keeper", "next: note 4");
+    expect((await req("GET", "/api/agents/keeper/state")).json.data).toMatchObject({ text: "next: note 4" });
+    expect((await req("DELETE", "/api/agents/keeper/state")).status).toBe(200);
+    expect((await req("GET", "/api/agents/keeper/state")).json.data).toBeNull();
+    expect((await req("DELETE", "/api/agents/nobody/state")).status).toBe(404);
   });
 });

@@ -10,7 +10,7 @@ A self-hosted, single-user notes app where AI agents keep vigil: they read notes
 
 - **Runtime and tooling:** Node 24, pnpm 11 workspaces, TypeScript 5.7 (`strict`, `noUncheckedIndexedAccess`), ESM only, vitest.
 - **Server (`apps/server`):** plain `node:http` with a hand-written router (`http.ts`), `better-sqlite3` (plain SQL, no ORM, ADR-0008), `chokidar` (watcher), `gray-matter` (frontmatter), `zod` 4.
-- **Agents:** LangGraph JS `@langchain/langgraph` 1.7.4, `@langchain/core` 1.4.1, `@langchain/openai` 1.8.4, `@langchain/ollama` 1.3.0, all pinned exactly (ADR-0009). Models are bring-your-own-key: any OpenAI-compatible endpoint or Ollama.
+- **Agents:** LangGraph JS `@langchain/langgraph` 1.7.4, `@langchain/core` 1.4.1, `@langchain/openai` 1.8.4, `@langchain/ollama` 1.3.0, `@langchain/anthropic` 1.6.1, `@langchain/langgraph-checkpoint-sqlite` 1.1.0, all pinned exactly (ADR-0009, ADR-0031). Models are bring-your-own-key: any OpenAI-compatible endpoint, Anthropic or Ollama. Model calls retry on 429, 5xx and dropped connections; Anthropic calls use prompt caching. No coding-agent harness runs inside the app (ADR-0031).
 - **Web (`apps/web`):** SvelteKit 2 + Svelte 5, Vite 7, CodeMirror 6, `marked` + DOMPurify, jsdom for tests. Becomes a static SPA served by the API server (ADR-0014).
 - **Shared (`packages/shared`):** zod schemas and `slugify`; the only place cross-boundary types live.
 - **Later packages (pin exact versions when added):** `cron-parser` (WP2), `@langchain/langgraph-checkpoint-sqlite` (WP8), `sigma` + `graphology` (WP11), `@sveltejs/adapter-static`, `esbuild`, Lucide icons for Svelte (WP4, WP12).
@@ -52,7 +52,7 @@ A self-hosted, single-user notes app where AI agents keep vigil: they read notes
 - **State migrations are append-only** (`apps/server/src/state-db.ts`). The index is disposable: bump `SCHEMA_VERSION` instead of writing a migration.
 - **Persist the "I did it" marker before the side effect** for scheduled work (at most once), and never put a side effect before an `interrupt()`.
 - **No `any`, no `@ts-ignore`, no silent `catch`, no weakened or deleted tests, no `skip`/`only`.**
-- **UI:** colors and spacing only from tokens in `apps/web/src/app.css`; Lucide icons, no emoji; keyboard reachable; visible focus; contrast >= 4.5:1; `prefers-reduced-motion` honored. Amber is reserved for agent life.
+- **UI:** read `docs/design/ui-rules.md` and `PRODUCT.md` first and use the `vigil-ui-build` skill. Compose from `apps/web/src/lib/ui/` (never write a button, field, row, card, dialog or empty state in a route); colors, spacing, radius, shadow and motion only from `apps/web/src/lib/styles/tokens.css` (legacy tokens in `app.css` stay until a screen is migrated); Lucide icons, no emoji; keyboard reachable; visible focus; contrast >= 4.5:1; `prefers-reduced-motion` honored. Amber is reserved for agent life. Run `vigil-ui-review` before calling UI work done.
 - **Pin exact dependency versions** for the LangChain family, `cron-parser`, `sigma`, `graphology` and adapters. Check the installed version's typings or docs before coding against it; do not trust memory of an API.
 - **Contradicting an ADR needs a new or amended ADR first.**
 
@@ -69,6 +69,6 @@ Model settings for manual runs (environment only): `VIGIL_LLM_PROVIDER=ollama|op
 
 ## Where things stand
 
-See `docs/spec/progress.md` (the single source of truth for status) and `docs/spec/roadmap.md` (milestones M0 to M6). M0 (notes) and M1 (agent runtime, server only) are built. Everything else is planned in detail.
+See `docs/spec/progress.md` (the single source of truth for status) and `docs/spec/roadmap.md` (milestones M0 to M6). The agent runtime, the web app, study, chat, approvals, MCP and the design system v3 are built; check `CHANGELOG.md` and `docs/adr/` for what shipped and why.
 
 Open work is split in two: `docs/todo-agent.md` (what you can do alone: take the first unchecked item) and `docs/todo-owner.md` (what needs the owner; do not do these).

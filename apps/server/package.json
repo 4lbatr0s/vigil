@@ -9,7 +9,8 @@
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run",
     "build": "node ../../scripts/build-server.mjs",
-    "start:dev": "tsx src/index.ts"
+    "start:dev": "tsx src/index.ts",
+    "eval": "tsx src/evals/run.ts"
   },
   "dependencies": {
     "@langchain/anthropic": "1.6.1",

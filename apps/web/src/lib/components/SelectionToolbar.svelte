@@ -43,7 +43,7 @@
   {/each}
   {#if onask}
     <span class="sep" aria-hidden="true"></span>
-    <button type="button" aria-label="Ask an agent" title={`Ask an agent (${mod}J)`} onclick={onask}>
+    <button type="button" aria-label="Ask a helper" title={`Ask a helper (${mod}J)`} onclick={onask}>
       <Bot size={16} strokeWidth={1.5} />
     </button>
   {/if}
@@ -55,11 +55,11 @@
     z-index: 5;
     display: flex;
     gap: 2px;
-    padding: var(--space-1);
-    border: 1px solid var(--hairline);
-    border-radius: var(--radius);
-    background: var(--surface);
-    box-shadow: var(--shadow-pop);
+    padding: var(--s-1);
+    border: 1px solid var(--line-soft);
+    border-radius: var(--r-control);
+    background: var(--paper-float);
+    box-shadow: var(--elev-float);
   }
 
   button {
@@ -67,17 +67,17 @@
     place-items: center;
     width: 30px;
     height: 30px;
-    border-radius: var(--radius);
-    color: var(--ink);
+    border-radius: var(--r-control);
+    color: var(--text);
   }
 
   .sep {
     width: 1px;
     margin: 4px 2px;
-    background: var(--hairline);
+    background: var(--line-soft);
   }
 
   button:hover {
-    background: var(--surface-hover);
+    background: var(--fill-selected);
   }
 </style>

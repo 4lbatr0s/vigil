@@ -17,6 +17,44 @@ describe("agent form", () => {
     expect(formToAgent(base, agentToForm(base))).toEqual(base);
   });
 
+  it("autoApproveAppends is saved only when switched on", () => {
+    const on = formToAgent(base, { ...agentToForm(base), strict: true, writeTags: "journal", autoApproveAppends: true });
+    expect(on.autoApproveAppends).toBe(true);
+    expect(agentToForm(on).autoApproveAppends).toBe(true);
+    expect("autoApproveAppends" in formToAgent(on, { ...agentToForm(on), autoApproveAppends: false })).toBe(false);
+    // It counts only for a strict agent with a write scope, so it is dropped otherwise.
+    expect("autoApproveAppends" in formToAgent(on, { ...agentToForm(on), strict: false })).toBe(false);
+    expect("autoApproveAppends" in formToAgent(on, { ...agentToForm(on), writeTags: "" })).toBe(false);
+  });
+
+  it("keepState is saved only when switched on", () => {
+    const on = formToAgent(base, { ...agentToForm(base), keepState: true });
+    expect(on.keepState).toBe(true);
+    expect(agentToForm(on).keepState).toBe(true);
+    expect("keepState" in formToAgent(on, { ...agentToForm(on), keepState: false })).toBe(false);
+  });
+
+  it("writeTags round-trips as typed text, drops # and blanks, and is left out when empty", () => {
+    const scoped = formToAgent(base, { ...agentToForm(base), writeTags: "#Journal, daily/log  journal" });
+    expect(scoped.writeTags).toEqual(["journal", "daily/log"]);
+    expect(agentToForm(scoped).writeTags).toBe("journal, daily/log");
+    expect("writeTags" in formToAgent(scoped, { ...agentToForm(scoped), writeTags: " , " })).toBe(false);
+  });
+
+  it("dailyTokenCap round-trips and is left out when empty", () => {
+    const withCap = formToAgent(base, { ...agentToForm(base), dailyTokenCap: "50000" });
+    expect(withCap.dailyTokenCap).toBe(50000);
+    expect(agentToForm(withCap).dailyTokenCap).toBe("50000");
+    expect("dailyTokenCap" in formToAgent(withCap, { ...agentToForm(withCap), dailyTokenCap: " " })).toBe(false);
+  });
+
+  it("approveTools round-trips and is left out when empty", () => {
+    const on = formToAgent(base, { ...agentToForm(base), approveTools: ["fetch_url"] });
+    expect(on.approveTools).toEqual(["fetch_url"]);
+    expect(agentToForm(on).approveTools).toEqual(["fetch_url"]);
+    expect("approveTools" in formToAgent(on, { ...agentToForm(on), approveTools: [] })).toBe(false);
+  });
+
   it("applies edits and keeps every field the form does not know", () => {
     const form = { ...agentToForm(base), systemPrompt: "New.", tokenBudget: "5000", strict: true, enabled: false, model: " gpt-x " };
     const out = formToAgent(base, form);
@@ -95,7 +133,7 @@ describe("allowed hosts", () => {
     expect(addHost(["a.com"], "A.com")).toEqual({ ok: false, message: "a.com is already on the list." });
   });
   it("warns when the web tool has no hosts, and only then", () => {
-    expect(noHostsWarning({ tools: ["web_fetch"] }, [])).toBe("This agent can't reach any site until you add a host.");
+    expect(noHostsWarning({ tools: ["web_fetch"] }, [])).toBe("This helper can't reach any site until you add a host.");
     expect(noHostsWarning({ tools: ["web_fetch"] }, ["a.com"])).toBeNull();
     expect(noHostsWarning({ tools: ["read_notes"] }, [])).toBeNull();
   });

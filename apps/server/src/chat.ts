@@ -5,7 +5,6 @@ import { getCheckpointer } from "./checkpoints";
 import { withNoteLock } from "./lock";
 import { reindexNote } from "./index-db";
 import { effectiveAgent } from "./permissions";
-import { summaries } from "./history";
 import { picturesFor } from "./note-images";
 import { runChatTurn } from "./runs";
 import {
@@ -16,12 +15,14 @@ import {
   getAgent,
   getChatThread,
   hasRunning,
+  hasWaitingApproval,
   listChatMessages,
   pendingForRun,
   setChatTitle,
   type ChatMessage,
   type ChatThread,
 } from "./state-db";
+import { assertAgentUnderDailyCap, assertUnderHardCap } from "./usage";
 import { createNote, slugify, validateId } from "./vault";
 
 export const MAX_CHAT_TEXT = 20_000;
@@ -50,7 +51,6 @@ export async function removeChat(id: string): Promise<void> {
   if (!getChatThread(id)) throw new AppError("chat-not-found", `Chat not found: ${id}`, 404);
   await getCheckpointer().deleteThread(id);
   deleteChatThread(id);
-  summaries.delete(id);
 }
 
 /**
@@ -67,8 +67,11 @@ export async function chatTurn(threadId: string, text: string, begin: () => void
   const stored = getAgent(thread.agent);
   if (!stored) throw new AppError("agent-not-found", `Agent not found: ${thread.agent}`, 404);
   if (hasRunning(thread.agent)) {
-    throw new AppError("agent-busy", `Agent ${thread.agent} already has a run in progress (or one waiting for your approval)`, 409);
+    const waiting = hasWaitingApproval(thread.agent);
+    throw new AppError("agent-busy", waiting ? `Agent ${thread.agent} is waiting for your approval. Decide its writes on the Approvals page, then send your message again.` : `Agent ${thread.agent} already has a run in progress`, 409);
   }
+  assertUnderHardCap();
+  assertAgentUnderDailyCap(stored.name, stored.dailyTokenCap);
   const agent = effectiveAgent(stored);
 
   // First turn means no conversation in the checkpoint yet (a failed first turn leaves none behind).

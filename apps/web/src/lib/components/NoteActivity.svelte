@@ -7,7 +7,7 @@
 
 {#if runs.length > 0}
   <details class="activity">
-    <summary>Agent activity <span class="count">{runs.length}</span></summary>
+    <summary>Helper activity <span class="count">{runs.length}</span></summary>
     <ul>
       {#each runs.slice(0, 20) as r (r.id)}
         <li>
@@ -24,50 +24,54 @@
 
 <style>
   .activity {
-    padding: var(--space-2) var(--space-6);
-    border-top: 1px solid var(--hairline);
-    font-size: var(--text-label);
-    color: var(--ink-muted);
+    padding: var(--s-1) var(--s-6);
+    color: var(--text-2);
+    font: var(--weight-regular) var(--type-meta-size) / var(--type-meta-lh) var(--font-ui);
   }
-
   summary {
     cursor: pointer;
+    color: var(--text-3);
   }
-
+  summary:hover {
+    color: var(--text-2);
+  }
   .count {
-    margin-left: var(--space-1);
-    font-family: var(--font-mono);
+    margin-left: var(--s-1);
+    color: var(--text-3);
   }
-
   ul {
-    margin: var(--space-2) 0 0;
-    padding: 0;
     list-style: none;
+    margin: var(--s-2) 0 0;
+    padding: 0;
+    display: grid;
+    gap: var(--s-2);
+    max-height: 30vh;
+    overflow-y: auto;
   }
-
+  a {
+    color: var(--text);
+    font: var(--weight-medium) var(--type-ui-size) / var(--type-ui-lh) var(--font-ui);
+    text-underline-offset: 2px;
+  }
   li a {
     display: flex;
-    gap: var(--space-3);
-    padding: var(--space-1) 0;
-    color: var(--ink);
+    gap: var(--s-3);
+    padding: var(--s-1) 0;
     text-decoration: none;
   }
-
-  li a:hover {
+  li a:hover .who {
     text-decoration: underline;
   }
-
   .who {
-    font-family: var(--font-serif);
-    font-size: var(--text-ui);
+    color: var(--text);
+    font: var(--weight-medium) var(--type-ui-size) / var(--type-ui-lh) var(--font-ui);
   }
-
   .what {
     flex: 1;
-    color: var(--ink-muted);
   }
-
-  .when {
-    color: var(--ink-muted);
+  @media (max-width: 639px) {
+    .activity {
+      padding-inline: var(--s-4);
+    }
   }
 </style>

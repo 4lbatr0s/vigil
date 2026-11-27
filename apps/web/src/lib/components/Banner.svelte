@@ -19,20 +19,22 @@
 </script>
 
 {#if banner}
-  <p class="banner" role="status">
+  <p class="notice" role="status">
     {banner.text} <a href={banner.href}>Open Settings</a>
   </p>
 {/if}
 
 <style>
-  .banner {
-    padding: var(--space-2) var(--space-6);
-    border-bottom: 1px solid var(--hairline);
-    background: var(--surface);
-    font-size: var(--text-label);
+  .notice {
+    margin: 0 var(--page-gutter);
+    padding: var(--s-2) var(--s-3);
+    border-radius: var(--r-control);
+    background: var(--fill-hover);
+    color: var(--text-2);
+    font: var(--weight-regular) var(--type-ui-size) / var(--type-ui-lh) var(--font-ui);
   }
-  .banner a {
-    color: var(--ink);
-    text-decoration: underline;
+
+  .notice a {
+    color: var(--text);
   }
 </style>

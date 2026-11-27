@@ -1,7 +1,7 @@
 # ADR-0009: LangGraph JS as the agent runtime
 
 ## Status
-Accepted (2026-11-14)
+Accepted (2026-11-14). Amended 2026-11-22 by [ADR-0031](0031-keep-langgraph-no-harness.md): the checkpointer and the Anthropic adapter now exist; see that ADR for what was added around the graph. Amended 2026-11-26 by [ADR-0034](0034-recover-runs-after-restart.md): a run cut off by a restart continues once from its last checkpoint.
 
 ## Context
 ADR-0004 fixes what an agent is and may do. M1 needs a loop that calls a model, runs tools and stops on a budget. The owner chose LangGraph JS because strict mode (M3) is an interrupt-and-resume problem it already solves.

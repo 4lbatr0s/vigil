@@ -38,7 +38,8 @@ describe("ask an agent", () => {
   });
 });
 
-import { STUDY_NOTE_MAX, studyMessage, withoutCards } from "./chat-draft";
+import { STUDY_NOTE_MAX, studyMessage } from "./chat-draft";
+import { withoutCards } from "@vigil/shared";
 
 describe("studyMessage", () => {
   it("wraps the note in markers after the opener for the chosen mode", () => {
