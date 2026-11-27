@@ -60,6 +60,9 @@ export class CfAccessVerifier {
   private async loadKeys(force: boolean): Promise<KeySet | null> {
     const t = this.now();
     if (this.cache && !force && t - this.cache.fetchedAt < KEYS_TTL_MS) return this.cache;
+    // A forced refresh (unknown kid) is allowed at most once per RETRY_MS. Anyone can send a made-up
+    // kid, so without this every such request would make us call Cloudflare.
+    if (force && this.cache && t - this.cache.fetchedAt < RETRY_MS) return this.cache;
     if (t - this.lastFailure < RETRY_MS) return this.cache;
     if (this.inflight) return this.inflight;
     this.inflight = (async () => {

@@ -95,7 +95,21 @@ describe("CfAccessVerifier", () => {
     await v.verify(makeJwt(good()));
     expect(calls()).toBe(1);
     expect(await v.verify(makeJwt(good(), { kid: "nope" }))).toBeNull();
-    expect(calls()).toBe(2); // one forced refresh for the unknown kid
+    expect(calls()).toBe(1); // the keys are fresh, so an unknown kid does not force a fetch
+  });
+  it("forces at most one refresh per 30 s, however many unknown kids arrive", async () => {
+    let t = Date.now();
+    let n = 0;
+    const v = new CfAccessVerifier({ teamDomain: TEAM, aud: AUD }, async () => {
+      n += 1;
+      return { keys: [jwk] };
+    }, () => t);
+    await v.verify(makeJwt(good()));
+    for (let i = 0; i < 20; i++) await v.verify(makeJwt(good(), { kid: `bad-${i}` }));
+    expect(n).toBe(1);
+    t += 31_000;
+    for (let i = 0; i < 20; i++) await v.verify(makeJwt(good(), { kid: `bad2-${i}` }));
+    expect(n).toBe(2);
   });
   it("returns null when the key fetch fails", async () => {
     const v = new CfAccessVerifier({ teamDomain: TEAM, aud: AUD }, async () => {
