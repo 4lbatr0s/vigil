@@ -1,5 +1,6 @@
 import { timingSafeEqual } from "node:crypto";
 import type { IncomingMessage } from "node:http";
+import { passedCfAccess } from "./cf-access";
 import { AppError } from "./errors";
 import { clientForToken } from "./mcp-clients";
 import { hasValidSession } from "./session";
@@ -85,7 +86,8 @@ export function checkAccess(req: IncomingMessage, access: Access, pathname: stri
   }
   // Only the API holds data. The web app's files (everything outside /api/) and a few open API routes
   // need no credentials; the Host and Origin checks above still apply to them.
-  if (access.token && pathname.startsWith("/api/") && !OPEN_PATHS.has(pathname)) {
+  // A request that passed Cloudflare Access (a verified JWT, see cf-access.ts) needs no token.
+  if (access.token && pathname.startsWith("/api/") && !OPEN_PATHS.has(pathname) && !passedCfAccess(req)) {
     const auth = req.headers.authorization ?? "";
     const given = auth.startsWith("Bearer ") ? auth.slice(7) : "";
     if (!sameToken(given, access.token) && !hasValidSession(req, access.token)) {

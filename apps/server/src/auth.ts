@@ -1,6 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { timingSafeEqual } from "node:crypto";
 import { type Access, hostNameOf } from "./access";
+import { passedCfAccess } from "./cf-access";
 import { AppError } from "./errors";
 import { isPublicAddress } from "./safe-fetch";
 import { bumpSessionEpoch, hasValidSession, makeSession, sessionCookie } from "./session";
@@ -218,7 +219,7 @@ export async function handleAuth(req: IncomingMessage, res: ServerResponse, path
   if (pathname === "/api/session" && req.method === "GET") {
     const required = access.token !== undefined;
     const bearer = (req.headers.authorization ?? "").startsWith("Bearer ") && access.token !== undefined && sameSecret((req.headers.authorization ?? "").slice(7), access.token);
-    send(res, 200, { data: { required, authenticated: !required || (access.token !== undefined && hasValidSession(req, access.token)) || bearer } });
+    send(res, 200, { data: { required, authenticated: !required || passedCfAccess(req) || (access.token !== undefined && hasValidSession(req, access.token)) || bearer } });
     return true;
   }
   if (pathname === "/api/logout" && req.method === "POST") {

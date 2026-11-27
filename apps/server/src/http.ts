@@ -1,6 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { z } from "zod";
 import { checkAccess, type Access } from "./access";
+import { checkCfAccess } from "./cf-access";
 import { handleAuth } from "./auth";
 import { serveStatic } from "./static";
 import { ImageSettingsSchema, imageSettings, picturesFor, saveImageSettings } from "./note-images";
@@ -1413,6 +1414,7 @@ export function createHandler(access: Access): (req: IncomingMessage, res: Serve
     void (async () => {
       const url = new URL(req.url ?? "/", "http://localhost");
       try {
+        await checkCfAccess(req);
         checkAccess(req, access, url.pathname);
         if (await handleAuth(req, res, url.pathname, access)) return;
         for (const route of routes) {

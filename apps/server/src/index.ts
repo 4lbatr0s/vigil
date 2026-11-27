@@ -1,4 +1,5 @@
 import { accessFromEnv, accessWarnings } from "./access";
+import { cfAccessFromEnv } from "./cf-access";
 import { rebuildAll, isEmpty } from "./index-db";
 import { startSemanticIndex } from "./semantic";
 import { recoverRuns, resumeDecidedRuns, startRun } from "./runs";
@@ -14,6 +15,8 @@ const port = Number(process.env.PORT ?? 3001);
 async function main(): Promise<void> {
   // Fail fast on bad access settings (a non-local bind without a token) before touching any data.
   for (const line of accessWarnings(accessFromEnv())) console.warn(line);
+  // Half a Cloudflare Access configuration (ADR-0036) is a mistake: stop here instead of silently ignoring it.
+  if (cfAccessFromEnv()) console.log("vigil-server accepts Cloudflare Access logins");
   if (isEmpty()) {
     const count = await rebuildAll();
     console.log(`vigil-server indexed ${count} note(s) from the vault`);
