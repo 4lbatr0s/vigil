@@ -1,7 +1,7 @@
 <script lang="ts">
 import { noteHref, NOTES_PATH } from "$lib/links";
   import ExamDates from "$lib/components/ExamDates.svelte";
-  import { Button, Cluster, Kbd, Page, Row, Stack, Switch, Textarea } from "$lib/ui";
+  import { Button, Kbd, Page, Row, Stack, Switch, Textarea } from "$lib/ui";
   import { onMount, tick } from "svelte";
   import { page } from "$app/state";
   import { answerStudyCard, getDecks, getDueCards, getStuckCards, getStudyForecast, getStudyHistory, getStudyStats, undoStudyAnswer, type Answer, type DayCount, type DeckStats, type ForecastDay, type StuckCard, type StudyStats } from "$lib/api";
@@ -206,16 +206,18 @@ import { noteHref, NOTES_PATH } from "$lib/links";
       </div>
     {/if}
 
-    <Cluster gap={2}>
-      <Button variant="ghost" size="sm" href={`/api/study/export${noteId ? `?note=${encodeURIComponent(noteId)}` : ""}`} download>Download cards for Anki</Button>
-      <Button variant="ghost" size="sm" href="/import">Import cards</Button>
-    </Cluster>
+    <section aria-labelledby="check-yourself">
+      <h2 id="check-yourself">Check yourself</h2>
+      <Row href="/recall" title="Recall" snippet="Put a note away and write what you remember. Vigil brings it back after 1, 3, 7 and 21 days." wrap />
+      <Row href="/gap" title="Gap check" snippet="Paste an article or a chapter and see what your notes already have, what is missing and what disagrees." wrap />
+      <Row href="/outline" title="Study outline" snippet="Paste a text and get headings with a question each. You write the answers." wrap />
+    </section>
 
-    <Cluster gap={2}>
-      <Button variant="ghost" size="sm" href="/recall">Recall check</Button>
-      <Button variant="ghost" size="sm" href="/outline">Outline a text</Button>
-      <Button variant="ghost" size="sm" href="/gap">Gap check</Button>
-    </Cluster>
+    <section aria-labelledby="move-cards">
+      <h2 id="move-cards">Move cards in or out</h2>
+      <Row href="/import" title="Import cards" snippet="Bring cards in from an Anki text export. You review them first." wrap />
+      <Row href={`/api/study/export${noteId ? `?note=${encodeURIComponent(noteId)}` : ""}`} download title="Download cards for Anki" snippet="Every card as a file Anki can import." wrap />
+    </section>
 
     <ExamDates initialNote={noteId} onchange={() => void refreshStudyDue()} />
 
