@@ -190,6 +190,20 @@
     <p class="muted">Loading…</p>
   {:else}
     <Stack gap={8}>
+      {#if pending.length > 0}
+        <section aria-labelledby="needs">
+          <h2 id="needs">Needs you</h2>
+          <div class="list">
+            {#each pending as p (p.id)}
+              <Row title={`${p.agent ?? "A helper"} wants to change ${p.title || p.noteId}`} meta={relativeTime(p.createdAt)} href="/approvals">
+                {#snippet lead()}<span class="agent-dot" aria-hidden="true"></span>{/snippet}
+                {#snippet trail()}<Badge tone="agent">Review</Badge>{/snippet}
+              </Row>
+            {/each}
+          </div>
+        </section>
+      {/if}
+
       {#if steps && !stepsHidden}
         <section aria-labelledby="start">
           <div class="head-row">
@@ -247,20 +261,6 @@
             {#each next as f (f.key)}
               <Row title={f.text} href={f.href}>
                 {#snippet trail()}<span class="go">{f.label}<ChevronRight size={14} strokeWidth={1.5} /></span>{/snippet}
-              </Row>
-            {/each}
-          </div>
-        </section>
-      {/if}
-
-      {#if pending.length > 0}
-        <section aria-labelledby="needs">
-          <h2 id="needs">Needs you</h2>
-          <div class="list">
-            {#each pending as p (p.id)}
-              <Row title={`${p.agent ?? "A helper"} wants to change ${p.title || p.noteId}`} meta={relativeTime(p.createdAt)} href="/approvals">
-                {#snippet lead()}<span class="agent-dot" aria-hidden="true"></span>{/snippet}
-                {#snippet trail()}<Badge tone="agent">Review</Badge>{/snippet}
               </Row>
             {/each}
           </div>

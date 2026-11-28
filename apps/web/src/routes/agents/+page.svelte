@@ -88,13 +88,22 @@
 
 <Page title="Helpers" width="wide">
   {#snippet actions()}
-    <Button variant="ghost" href="/approvals">Approvals{#if $pendingCount > 0}&nbsp;<Badge tone="agent">{$pendingCount}</Badge>{/if}</Button>
+    <Button variant="ghost" href="/approvals">Approvals</Button>
     <Button variant="primary" href="/agents/new">Create a helper</Button>
   {/snippet}
 
   <Stack gap={8}>
     {#if error}
       <p class="error" role="alert">{error}</p>
+    {/if}
+
+    {#if $pendingCount > 0}
+      <section aria-labelledby="needs">
+        <h2 id="needs">Needs you</h2>
+        <Row href="/approvals" title={`${$pendingCount} ${$pendingCount === 1 ? "change waits" : "changes wait"} for your decision`}>
+          {#snippet trail()}<Badge tone="agent">Review</Badge>{/snippet}
+        </Row>
+      </section>
     {/if}
 
     {#if !loaded}
