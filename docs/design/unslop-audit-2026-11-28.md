@@ -33,13 +33,13 @@ Direction, unslop's five lines, kept from the brand:
 impeccable found 6 advisory items, all in editor internals (`Editor.svelte`, `livePreview.ts`: 2 to 4 px
 radii on inline marks; `app.css` legacy 16 px). They are left alone: those are text-mark sizes, not chrome.
 
-## Signs left for pass 2 (small, no decision needed)
+## Pass 2 (done, commit `0f8196b`)
 
 - Helper list rows (`routes/agents/+page.svelte`): name, then "manual" and a timestamp. The row does not say
   what the helper does. Show the description, or the first line of its task when the description is empty.
 - Helper page: the "May" chips repeat the "What it may do" checkboxes lower down. Keep one.
-- The "No AI model is connected" banner repeats on every page. Show it only where a model is needed
-  (Helpers, Ask, a helper page).
+- The "No AI model is connected" banner showed on Settings (linking to itself) and not on Ask, which
+  needs a model. (Correction: it was already limited to 4 pages, not every page.)
 - Run page: "Trigger manual" shows the raw value. Use "You started it", "On schedule", "When a note changed".
 
 ## Structure: why it is hard to understand
@@ -57,7 +57,13 @@ reachable only by small text buttons:
 | Graph, Boards (canvas) | the List / Graph / Boards switch on Notes | Fine |
 | Capture | the phone share target | Fine; it is not a menu page |
 
-## Proposal (needs the owner's decision)
+## Proposal (approved by the owner 2026-11-28, built)
+
+Commits: Study `868c600`, Ask and Chat `1b16efe`, approvals first `721cb3a`.
+Checked: `pnpm typecheck && pnpm test` green (46 + 465 + 677), first load 113.4 KB gzip (budget 180),
+keyboard Tab path on Study and Ask reaches the new rows and switch with a visible focus ring.
+Not checked: the "Needs you" sections with real pending approvals (the demo vault has none).
+
 
 1. **Study becomes one page with three labelled parts:** "Review your cards", "Check yourself" (Recall,
    Gap, Outline, each a row with one sentence on what it does) and "Move cards in or out" (Import, Anki).
