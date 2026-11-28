@@ -6,7 +6,7 @@ import { noteHref } from "$lib/links";
   import type { Run, RunEvent } from "@vigil/shared";
   import { goto } from "$app/navigation";
   import { ApiError, cancelRun, getRun, runAgent, undoRun } from "$lib/api";
-  import { formatStamp, runStatusText } from "$lib/format";
+  import { formatStamp, runStatusText, runTriggerText } from "$lib/format";
   import { budgetShare, canUndo, childRunIdOf, configOf, KIND_LABEL, lastSeq, mergeEvents, noteIdOf, noteIdsInMessage, preview, stepStats, taskOf } from "$lib/run-log";
   import { refreshOnLive } from "$lib/live";
   import { statusDot } from "$lib/schedule";
@@ -138,7 +138,7 @@ import { noteHref } from "$lib/links";
       <dl class="facts">
         <dt>Started</dt><dd>{formatStamp(run.startedAt)}</dd>
         <dt>Finished</dt><dd>{run.finishedAt ? formatStamp(run.finishedAt) : "still running"}</dd>
-        <dt>Trigger</dt><dd>{run.trigger}</dd>
+        <dt>Started by</dt><dd>{runTriggerText(run.trigger)}</dd>
         {#if configOf(events)}<dt>Setup</dt><dd class="mono" title="A fingerprint of the helper's instructions, tools and limits when this run started">{configOf(events)}</dd>{/if}
         {#if run.parentRunId}<dt>Parent</dt><dd><a href={`/runs/${encodeURIComponent(run.parentRunId)}`}>parent run</a></dd>{/if}
         <dt>Tokens</dt>

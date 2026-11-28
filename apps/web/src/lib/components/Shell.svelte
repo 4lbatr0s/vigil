@@ -30,7 +30,7 @@
   /** Narrow screens: the navigation is a drawer. */
   let navOpen = $state(false);
   /** Where a "no model connected" or usage notice belongs: the places that need a model, not every page. */
-  const showBanner = $derived(["/agents", "/chat", "/settings", "/approvals"].some((p) => page.url.pathname.startsWith(p)));
+  const showBanner = $derived(["/agents", "/chat", "/ask", "/approvals"].some((p) => page.url.pathname.startsWith(p)));
   const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
 
   // Any navigation closes the drawer.

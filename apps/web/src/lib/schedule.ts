@@ -6,7 +6,7 @@ const pad = (n: string): string => n.padStart(2, "0");
 
 /** A short, human reading of a trigger ("daily 07:00"); falls back to the raw cron expression. */
 export function describeTrigger(trigger: Agent["trigger"]): string {
-  if (trigger.kind === "manual") return "manual";
+  if (trigger.kind === "manual") return "when you start it";
   if (trigger.kind === "heartbeat") return `every ${trigger.everyMinutes} min if notes changed`;
   const raw = trigger.expression.trim();
   const f = raw.split(/\s+/);

@@ -118,7 +118,7 @@
             <Row
               title={agent.enabled ? agent.name : `${agent.name} (off)`}
               meta={lastRun ? formatStamp(lastRun.startedAt) : "never run"}
-              snippet={`${describeTrigger(agent.trigger)}${agent.enabled && nextRuns[agent.name] ? ` · next ${formatStamp(nextRuns[agent.name])}` : ""}`}
+              snippet={`${agent.description || agent.systemPrompt.split("\n")[0]} · ${describeTrigger(agent.trigger)}${agent.enabled && nextRuns[agent.name] ? ` · next ${formatStamp(nextRuns[agent.name])}` : ""}`}
               href={`/agents/${agent.name}`}
             >
               {#snippet lead()}<StatusDot state={statusDot(agent, lastRun)} />{/snippet}

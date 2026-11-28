@@ -1,4 +1,4 @@
-import type { RunStatus } from "@vigil/shared";
+import type { Run, RunStatus } from "@vigil/shared";
 
 /** "15 Nov 07:00" in the viewer's own time zone; empty text for a missing time. */
 export function formatStamp(iso: string | null | undefined, now: Date = new Date()): string {
@@ -37,6 +37,18 @@ const RUN_STATUS_TEXT: Record<RunStatus, string> = {
 
 /** A run's status in plain words, never the raw enum. */
 export const runStatusText = (status: RunStatus): string => RUN_STATUS_TEXT[status];
+
+const RUN_TRIGGER_TEXT: Record<Run["trigger"], string> = {
+  manual: "You started it",
+  cron: "Its schedule",
+  heartbeat: "A note changed",
+  chat: "A chat",
+  call: "Another helper",
+  mcp: "An outside tool (MCP)",
+};
+
+/** What started a run, in plain words. */
+export const runTriggerText = (trigger: Run["trigger"]): string => RUN_TRIGGER_TEXT[trigger];
 
 /** The heartbeat line on the agent page, e.g. "Checked 4 min ago, unchanged". */
 export function describeCheck(lastCheckedAt: string | null, skipReason: string | null, now: Date = new Date()): string {

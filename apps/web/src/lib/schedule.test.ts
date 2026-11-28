@@ -11,7 +11,7 @@ const run = (agent: string, status: Run["status"]): Run => ({
 
 describe("describeTrigger", () => {
   it("reads common schedules in words", () => {
-    expect(describeTrigger({ kind: "manual" })).toBe("manual");
+    expect(describeTrigger({ kind: "manual" })).toBe("when you start it");
     expect(describeTrigger(cron("0 7 * * *"))).toBe("daily 07:00");
     expect(describeTrigger(cron("0 18 * * 5"))).toBe("Fridays 18:00");
     expect(describeTrigger(cron("0 9 * * 7"))).toBe("Sundays 09:00");

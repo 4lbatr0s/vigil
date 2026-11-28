@@ -326,10 +326,6 @@
             <dt>Last skipped</dt>
             <dd>{schedule.lastSkipReason}</dd>
           {/if}
-          <dt>May</dt>
-          <dd>
-            <Cluster gap={1}>{#each agent.tools as t (t)}<Badge>{TOOL_LABELS[t]?.label ?? t}</Badge>{:else}<span class="muted">only answer</span>{/each}</Cluster>
-          </dd>
         </dl>
       </section>
 
