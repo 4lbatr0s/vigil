@@ -156,7 +156,7 @@ import { noteHref, NOTES_PATH } from "$lib/links";
       <p class="muted">Getting your cards…</p>
     {:else if finished}
       <section class="done">
-        <h2>{session.done > 0 ? "That's it for now." : "Nothing to study right now."}</h2>
+        <h2>{session.done > 0 ? "That's it for now" : "Nothing to study right now"}</h2>
         {#if session.done > 0}
           <p>
             You went through {session.done} {session.done === 1 ? "card" : "cards"}.
@@ -403,8 +403,7 @@ import { noteHref, NOTES_PATH } from "$lib/links";
 
   .done h2 {
     margin: 0;
-    font: var(--weight-strong) var(--type-title-size) / var(--type-title-lh) var(--font-ui);
-    letter-spacing: var(--type-title-tracking);
+    font: var(--weight-strong) var(--type-heading-size) / var(--type-heading-lh) var(--font-ui);
   }
 
   code {

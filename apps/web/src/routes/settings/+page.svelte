@@ -227,7 +227,7 @@
     padding-bottom: var(--s-2);
     box-shadow: 0 1px 0 var(--line-soft);
     color: var(--text);
-    font: var(--weight-strong) var(--type-heading-size) / var(--type-heading-lh) var(--font-prose);
+    font: var(--weight-strong) var(--type-heading-size) / var(--type-heading-lh) var(--font-ui);
   }
 
   summary.group-name {

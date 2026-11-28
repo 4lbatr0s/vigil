@@ -221,7 +221,7 @@
 
   h2 {
     margin: 0;
-    font: var(--weight-strong) var(--type-heading-size) / var(--type-heading-lh) var(--font-prose);
+    font: var(--weight-strong) var(--type-heading-size) / var(--type-heading-lh) var(--font-ui);
   }
 
   .count {

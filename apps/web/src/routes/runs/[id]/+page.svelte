@@ -6,7 +6,7 @@ import { noteHref } from "$lib/links";
   import type { Run, RunEvent } from "@vigil/shared";
   import { goto } from "$app/navigation";
   import { ApiError, cancelRun, getRun, runAgent, undoRun } from "$lib/api";
-  import { formatStamp } from "$lib/format";
+  import { formatStamp, runStatusText } from "$lib/format";
   import { budgetShare, canUndo, childRunIdOf, configOf, KIND_LABEL, lastSeq, mergeEvents, noteIdOf, noteIdsInMessage, preview, stepStats, taskOf } from "$lib/run-log";
   import { refreshOnLive } from "$lib/live";
   import { statusDot } from "$lib/schedule";
@@ -116,8 +116,8 @@ import { noteHref } from "$lib/links";
       <header class="head">
         <Button variant="ghost" size="sm" href={`/agents/${run.agent}`}>{run.agent}</Button>
         <div class="titlebar">
-          <StatusDot state={statusDot({ enabled: true }, run)} label={run.status} />
-          <h1>{run.status}{run.undone ? " · undone" : ""}</h1>
+          <StatusDot state={statusDot({ enabled: true }, run)} label={runStatusText(run.status)} />
+          <h1>{runStatusText(run.status)}{run.undone ? " · undone" : ""}</h1>
           <span class="grow"></span>
           {#if run.status === "running"}
             <Button variant="quiet" disabled={cancelling} onclick={() => void cancel()}>{cancelling ? "Cancelling…" : "Cancel run"}</Button>
@@ -143,7 +143,7 @@ import { noteHref } from "$lib/links";
         {#if run.parentRunId}<dt>Parent</dt><dd><a href={`/runs/${encodeURIComponent(run.parentRunId)}`}>parent run</a></dd>{/if}
         <dt>Tokens</dt>
         <dd>
-          {run.tokensUsed} of {run.tokenBudget}
+          {run.tokensUsed.toLocaleString("en")} of {run.tokenBudget.toLocaleString("en")}
           <span class="bar" role="img" aria-label={`${Math.round(budgetShare(run) * 100)}% of the spending limit used`}>
             <span class="fill" style:width={`${budgetShare(run) * 100}%`}></span>
           </span>
@@ -159,6 +159,7 @@ import { noteHref } from "$lib/links";
 
       <section aria-labelledby="log-title">
         <h2 id="log-title">Log</h2>
+        {#if events.length === 0 && run.status !== "running"}<p class="muted">No steps recorded.</p>{:else}
         <ol class="log" aria-label="Run log" aria-live={run.status === "running" ? "polite" : "off"}>
           {#each events as e (e.seq)}
             {@const p = preview(e.text)}
@@ -181,6 +182,7 @@ import { noteHref } from "$lib/links";
           {/each}
           {#if run.status === "running"}<li class="line running"><span class="kind">…</span><span class="text">running</span></li>{/if}
         </ol>
+        {/if}
       </section>
     </Stack>
   {/if}
@@ -197,7 +199,7 @@ import { noteHref } from "$lib/links";
 <style>
   h1 {
     margin: 0;
-    font: var(--weight-strong) var(--type-title-size) / var(--type-title-lh) var(--font-ui);
+    font: var(--weight-strong) var(--type-title-size) / var(--type-title-lh) var(--font-prose);
     letter-spacing: var(--type-title-tracking);
   }
 

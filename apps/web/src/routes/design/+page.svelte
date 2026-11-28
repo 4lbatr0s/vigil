@@ -222,7 +222,7 @@
   }
 
   h1 {
-    font: var(--weight-strong) var(--type-title-size) / var(--type-title-lh) var(--font-ui);
+    font: var(--weight-strong) var(--type-title-size) / var(--type-title-lh) var(--font-prose);
     letter-spacing: var(--type-title-tracking);
   }
 
@@ -243,7 +243,7 @@
     letter-spacing: var(--type-title-tracking);
   }
   .t-heading {
-    font: var(--weight-strong) var(--type-heading-size) / var(--type-heading-lh) var(--font-prose);
+    font: var(--weight-strong) var(--type-heading-size) / var(--type-heading-lh) var(--font-ui);
   }
   .t-body {
     max-width: var(--measure);

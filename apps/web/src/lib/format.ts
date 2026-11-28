@@ -1,3 +1,5 @@
+import type { RunStatus } from "@vigil/shared";
+
 /** "15 Nov 07:00" in the viewer's own time zone; empty text for a missing time. */
 export function formatStamp(iso: string | null | undefined, now: Date = new Date()): string {
   if (!iso) return "never";
@@ -21,6 +23,20 @@ export function agoText(iso: string | null | undefined, now: Date = new Date()):
   if (h < 48) return `${h} h ago`;
   return `${Math.floor(h / 24)} days ago`;
 }
+
+const RUN_STATUS_TEXT: Record<RunStatus, string> = {
+  running: "Running",
+  succeeded: "Finished",
+  failed: "Failed",
+  "budget-exceeded": "Stopped at its token limit",
+  "step-limit": "Stopped at its step limit",
+  interrupted: "Interrupted",
+  "waiting-approval": "Waiting for you",
+  skipped: "Skipped",
+};
+
+/** A run's status in plain words, never the raw enum. */
+export const runStatusText = (status: RunStatus): string => RUN_STATUS_TEXT[status];
 
 /** The heartbeat line on the agent page, e.g. "Checked 4 min ago, unchanged". */
 export function describeCheck(lastCheckedAt: string | null, skipReason: string | null, now: Date = new Date()): string {

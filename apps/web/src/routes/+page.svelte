@@ -6,6 +6,7 @@
   import ChevronRight from "@lucide/svelte/icons/chevron-right";
   import Check from "@lucide/svelte/icons/check";
   import { Badge, Button, Dialog, Input, Page, Row, Stack } from "$lib/ui";
+  import { runStatusText } from "$lib/format";
   import { onMount } from "svelte";
   import type { Run } from "@vigil/shared";
   import { ApiError, captureLine, getDecks, type DeckStats, getStuckCards, createFromTemplate, getGoals, getGraph, getRecall, getStudyStats, listAgents, listApprovals, listNotes, listRuns, putAgent, runAgent, undoRun, type ApprovalItem, type Goal, type RecallItem, type StuckCard, type StudyStats } from "$lib/api";
@@ -68,8 +69,6 @@
   let filing = $state(false);
 
   const items = $derived(sinceVisit(runs, since));
-  const hour = new Date().getHours();
-  const greeting = hour < 5 ? "Still up?" : hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
 
   async function load(): Promise<void> {
     try {
@@ -164,12 +163,12 @@
     }
   }
 
-  const label = (r: Run): string => (r.undone ? "undone" : r.status === "waiting-approval" ? "waiting for you" : r.status);
+  const label = (r: Run): string => (r.undone ? "Undone" : runStatusText(r.status));
 </script>
 
 <svelte:head><title>Today · Vigil</title></svelte:head>
 
-<Page title={greeting} width="prose">
+<Page title="Today" width="prose">
   {#snippet actions()}
     {#if items.length > 0}<Button variant="ghost" onclick={seen}>Mark all as seen</Button>{/if}
   {/snippet}
@@ -305,7 +304,7 @@
 <style>
   h2 {
     margin-bottom: var(--s-2);
-    font: var(--weight-strong) var(--type-heading-size) / var(--type-heading-lh) var(--font-prose);
+    font: var(--weight-strong) var(--type-heading-size) / var(--type-heading-lh) var(--font-ui);
   }
 
   .head-row {
