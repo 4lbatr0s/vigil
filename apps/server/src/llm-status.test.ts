@@ -39,7 +39,7 @@ describe("llmStatus", () => {
   it("probes openai at /models with the key and reports false on a 401", async () => {
     let auth: string | undefined;
     const base = await stub((_url, a) => ((auth = a), 401));
-    const status = await llmStatus(true, { VIGIL_LLM_PROVIDER: "openai", VIGIL_LLM_BASE_URL: base, VIGIL_LLM_API_KEY: "sk-abcdef123456789" });
+    const status = await llmStatus(true, { VIGIL_LLM_PROVIDER: "openai", VIGIL_LLM_BASE_URL: base, VIGIL_LLM_API_KEY: "sk-abcdef123456789" }); // gitleaks:allow (fake key for a no-leak test)
     expect(auth).toBe("Bearer sk-abcdef123456789");
     expect(status.reachable).toBe(false);
     expect(JSON.stringify(status)).not.toContain("sk-abcdef123456789");

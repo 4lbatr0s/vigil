@@ -8,3 +8,11 @@ allowBuilds:
 
 minimumReleaseAgeExclude:
   - cron-parser@5.10.6
+
+# Accepted audit findings (the server pipeline fails on any other high or critical one).
+# GHSA-3r8g-jcqq-3p5j: SvelteKit DoS while parsing form data in its server runtime. Vigil's web app is a
+# static SPA (adapter-static, SSR off) served by apps/server, so that code never runs. Fixed only in
+# @sveltejs/kit 3.1.1; revisit when the web app moves to Kit 3. Accepted 2026-11-28.
+auditConfig:
+  ignoreGhsas:
+    - GHSA-3r8g-jcqq-3p5j

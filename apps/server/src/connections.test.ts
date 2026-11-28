@@ -20,7 +20,7 @@ let fake: Server;
 let fakeBase = "";
 let seen: { url: string; auth: string | undefined; xkey: string | undefined; body: string }[] = [];
 const saved = { ...process.env };
-const KEY = "sk-test-SECRET-1234567890";
+const KEY = "sk-test-SECRET-1234567890"; // gitleaks:allow (fake key for a no-leak test)
 
 function fakeHandler(req: IncomingMessage, res: ServerResponse): void {
   let body = "";

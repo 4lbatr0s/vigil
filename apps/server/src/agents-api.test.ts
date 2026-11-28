@@ -166,7 +166,7 @@ describe("agents and runs api", () => {
   });
 
   it("GET /api/llm/status hides the key and only probes on request", async () => {
-    process.env.VIGIL_LLM_API_KEY = "sk-never-leak-this-key-9876";
+    process.env.VIGIL_LLM_API_KEY = "sk-never-leak-this-key-9876"; // gitleaks:allow (fake key for a no-leak test)
     process.env.VIGIL_LLM_PROVIDER = "ollama";
     process.env.VIGIL_LLM_BASE_URL = "http://127.0.0.1:1";
     const res = await req("GET", "/api/llm/status");

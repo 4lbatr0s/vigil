@@ -285,7 +285,7 @@ describe("provider adapter", () => {
     await new Promise<void>((r) => server.listen(0, "127.0.0.1", () => r()));
     const port = (server.address() as { port: number }).port;
     try {
-      const env = { ...process.env, VIGIL_LLM_PROVIDER: "openai", VIGIL_LLM_BASE_URL: `http://127.0.0.1:${port}/v1`, VIGIL_LLM_API_KEY: "test-key-123456", VIGIL_LLM_MODEL: "stub-model" };
+      const env = { ...process.env, VIGIL_LLM_PROVIDER: "openai", VIGIL_LLM_BASE_URL: `http://127.0.0.1:${port}/v1`, VIGIL_LLM_API_KEY: "test-key-123456", VIGIL_LLM_MODEL: "stub-model" }; // gitleaks:allow (fake key for a no-leak test)
       putAgent(agent());
       const created = createRun("real-1", "morning-digest", 1000);
       const outcome = await runAgent({ agent: agent(), task: "go", runId: created.id, makeModel: modelFactoryFromEnv(env) });
