@@ -3,7 +3,7 @@
   import { ApiError, createFromTemplate, getRun, getRunResult, listAgents, putAgent, startAsk, type Passage } from "$lib/api";
   import { NOT_COVERED, splitAnswer, usedPassages, verdict } from "$lib/citations";
   import CitedAnswer from "$lib/components/CitedAnswer.svelte";
-  import { Button, Input, Page, Stack } from "$lib/ui";
+  import { Button, Input, Page, Stack, ViewSwitch } from "$lib/ui";
 
   type Step = "ask" | "running" | "done" | "error";
 
@@ -71,10 +71,8 @@
 <svelte:head><title>Ask your notes · Vigil</title></svelte:head>
 
 <Page title="Ask your notes" width="prose">
-  {#snippet actions()}
-    <Button variant="ghost" href="/chat">Chat with a helper</Button>
-  {/snippet}
   <Stack gap={6}>
+    <ViewSwitch label="Ways to ask" current="/ask" items={[{ href: "/ask", label: "Ask your notes" }, { href: "/chat", label: "Chat with a helper" }]} />
     <p class="muted">Answers come only from your notes, and each claim points at the line behind it.</p>
 
     <form onsubmit={ask}>

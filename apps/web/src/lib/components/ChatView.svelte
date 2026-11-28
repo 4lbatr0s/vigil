@@ -26,7 +26,7 @@ import { noteHref } from "$lib/links";
   import { capabilityWarnings, type ModelCaps } from "$lib/model-caps";
   import Ellipsis from "@lucide/svelte/icons/ellipsis";
   import Plus from "@lucide/svelte/icons/plus";
-  import { Button, Dialog, EmptyState, Field, IconButton, Menu, Row, Select, Textarea } from "$lib/ui";
+  import { Button, Dialog, EmptyState, Field, IconButton, Menu, Row, Select, Textarea, ViewSwitch } from "$lib/ui";
 
   let { id = null }: { id?: string | null } = $props();
 
@@ -230,6 +230,7 @@ import { noteHref } from "$lib/links";
 
 <div class="chat">
   <aside class="threads" aria-label="Chats">
+    <div class="switch"><ViewSwitch label="Ways to ask" current="/chat" items={[{ href: "/ask", label: "Ask your notes" }, { href: "/chat", label: "Chat with a helper" }]} /></div>
     <div class="threads-head">
       <h2>Chats</h2>
       <IconButton label="New chat" disabled={agents.length === 0} onclick={() => (picking = true)}><Plus size={16} strokeWidth={1.5} /></IconButton>
@@ -366,6 +367,10 @@ import { noteHref } from "$lib/links";
 
   .pad {
     padding: 0 var(--s-4) var(--s-3);
+  }
+
+  .switch {
+    padding: var(--s-3) var(--s-3) 0 var(--s-4);
   }
 
   .conversation {
